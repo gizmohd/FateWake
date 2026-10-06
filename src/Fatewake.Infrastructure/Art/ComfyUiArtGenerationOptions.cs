@@ -10,6 +10,7 @@ public sealed class ComfyUiArtGenerationOptions
  public string PromptToken{get;set;}="__FATEWAKE_PROMPT__";
  public string NegativePromptToken{get;set;}="__FATEWAKE_NEGATIVE__";
  public string SeedToken{get;set;}="__FATEWAKE_SEED__";
+ public string ReferenceTokenPrefix{get;set;}="__FATEWAKE_REFERENCE_";
  public int PollIntervalMilliseconds{get;set;}=1000;
  public int TimeoutSeconds{get;set;}=300;
 }
