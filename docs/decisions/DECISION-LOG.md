@@ -102,3 +102,13 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-049 | Fatewake can contain Wayfinders or analogous Gift-bearing people, but should primarily introduce its own characters rather than depend on Ian, James or other novel protagonists. | Accepted direction |
 | DEC-050 | Wayfinder cosmology can guide Fatewake's foundational character/archetype design, while Fatewake-specific manifestations remain possible. | Accepted direction |
 | PROP-008 | Significant emergent Fatewake events may be promoted into canonical Wayfinder-universe history after editorial review. | Proposed |
+
+## Gifts and Emergent Archetype Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-051 | Archetypes/Gifts emerge from observed player behavior and history rather than being selected as a starting class. | Accepted |
+| DEC-052 | Traveler, Listener and Builder remain foundational Wayfinder Gifts, while the Fatewake Realm may recognize different expressions, combinations and terminology for them. | Accepted direction |
+| DEC-053 | An ordinary player may rarely develop into the Fatewake equivalent of a Wayfinder; this must be earned through history and cannot be selected during character creation. | Accepted direction |
+| DEC-054 | Most players remain ordinary humans; non-Gift paths such as leadership, medicine, engineering, trade, scouting, combat and diplomacy remain equally meaningful. | Accepted |
+| DEC-055 | Early Gift development is communicated diegetically through perception, events and narrative changes rather than visible ability points or explicit labels. | Accepted |
