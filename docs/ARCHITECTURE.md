@@ -71,3 +71,16 @@ Fatewake.Tests
 Dependency direction should preserve the GameEngine as a deterministic core with no dependency on Aspire, EF Core, PostgreSQL, HTTP or an AI provider. Infrastructure implements persistence and external integrations; AI interprets/renders around authoritative GameEngine results; API/application orchestration coordinates use cases; Web presents them.
 
 Aspire initially orchestrates the web/API application and PostgreSQL. Additional resources such as Redis should be introduced only when their use case is implemented and measured.
+
+
+## Cross-platform deployment baseline
+
+Fatewake server applications and supporting tools must support both **Linux** and **Windows** as first-class runtime environments. Production workloads may run in Linux containers or directly on Windows hosts.
+
+Implementation rules:
+- Do not introduce OS-specific filesystem separators, shell assumptions, executable paths or native dependencies without a cross-platform implementation.
+- Native libraries must include/test the required Linux and Windows runtime assets.
+- File/object storage keys use portable logical paths; local filesystem adapters translate them using platform APIs.
+- Image generation, processing, persistence and asset validation must operate on both Linux and Windows.
+- CI should validate both Linux and Windows when changes touch runtime/platform-sensitive code.
+- Container support must not make direct Windows execution a second-class configuration, and Windows support must not require Windows containers.
