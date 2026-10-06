@@ -14,7 +14,7 @@ public sealed class DayOneGameEngineTests
 
         Assert.True(result.Accepted);
         Assert.Equal("injured_stranger_helped", result.OutcomeKey);
-        Assert.Contains(result.Wakes, x => x.Type == "first_impression" && x.Target == "maya");
+        Assert.Contains(result.Wakes, x => x.Type == "first_impression" && x.Target == "michelle");
     }
 
     [Fact]
