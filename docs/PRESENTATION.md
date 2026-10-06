@@ -75,3 +75,9 @@ Production assets should eventually record:
 - created timestamp
 
 This metadata belongs to presentation provenance, not canonical game state.
+
+
+## Implemented vertical-slice runtime
+The Day 1 opening is now authored as runtime beats in `DayOneScenes`. `ArtCompositionView` renders ordered reusable layers with a placeholder fallback when assets have not yet been generated. The server persists `SceneKey` and `BeatKey` in the active event state so presentation resumes at the same beat after refresh/return.
+
+Presentation progression never resolves gameplay. Only an Interaction beat submits a CandidateAction to GameEngine. Motion respects `prefers-reduced-motion`.
