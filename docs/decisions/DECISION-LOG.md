@@ -136,3 +136,15 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-067 | Players may deliberately lie or mislead others; recipients do not receive magical truth labels. | Accepted |
 | DEC-068 | NPCs may lie or mislead when consistent with their knowledge, motives, personality and circumstances; they cannot fabricate knowledge they could not plausibly possess without an explanation. | Accepted |
 | DEC-069 | Fatewake should contain genuinely discoverable secrets and patterns that may be found by only a small fraction of players and can become community-scale investigations. | Accepted |
+
+## Social Scale and Settlement Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-070 | Settlements may contain NPCs and many real players interacting asynchronously without presenting themselves as conventional MMO guilds. | Accepted direction |
+| DEC-071 | Real players may become settlement leaders, but leadership remains contestable through social, political and systemic processes involving players and NPCs. | Accepted |
+| DEC-072 | Governance should primarily emerge from repeated behavior and institutional decisions rather than selecting a government type from a menu. | Accepted direction |
+| DEC-073 | Settlements, including player-influenced settlements, may enter meaningful conflict or war involving logistics, intelligence, diplomacy, sabotage, territory and persistent consequences rather than simple click-to-raid PvP. | Accepted direction |
+| DEC-074 | Settlements can permanently fall; their history, ruins, refugees, artifacts, responsibility and downstream consequences persist in the world. | Accepted |
+| DEC-075 | Players may create persistent organizations beyond settlements, including trade, defense, medical, communications, religious, research and intelligence organizations that may outlive their founders. | Accepted direction |
+| DEC-076 | Fatewake's social/world scale can propagate from Person → Group → Settlement → Organization → Alliance/Faction → Region → Realm without requiring every player to directly manage every layer. | Accepted direction |
