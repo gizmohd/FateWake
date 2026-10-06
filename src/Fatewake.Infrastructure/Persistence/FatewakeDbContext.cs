@@ -1,12 +1,36 @@
 using Microsoft.EntityFrameworkCore;
+using Fatewake.Infrastructure.Authentication;
 
 namespace Fatewake.Infrastructure.Persistence;
 
 public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> options) : DbContext(options)
 {
+    public DbSet<AccountEmailRecord> AccountEmails => Set<AccountEmailRecord>();
+    public DbSet<EmailVerificationRecord> EmailVerifications => Set<EmailVerificationRecord>();
+    public DbSet<LocalCredentialRecord> LocalCredentials => Set<LocalCredentialRecord>();
     public DbSet<SurvivorVisualIdentityRecord> SurvivorVisualIdentities => Set<SurvivorVisualIdentityRecord>(); public DbSet<WorkJobRecord> WorkJobs => Set<WorkJobRecord>(); public DbSet<WorkArtifactRecord> WorkArtifacts => Set<WorkArtifactRecord>(); public DbSet<WorkStepRecord> WorkSteps => Set<WorkStepRecord>(); public DbSet<WorkStepDependencyRecord> WorkStepDependencies => Set<WorkStepDependencyRecord>(); public DbSet<AccountRecord> Accounts => Set<AccountRecord>(); public DbSet<ExternalIdentityRecord> ExternalIdentities => Set<ExternalIdentityRecord>(); public DbSet<ArtAssetRecord> ArtAssets => Set<ArtAssetRecord>(); public DbSet<ArtAssetDerivativeRecord> ArtAssetDerivatives => Set<ArtAssetDerivativeRecord>(); public DbSet<ArtGenerationRecord> ArtGenerations => Set<ArtGenerationRecord>(); public DbSet<RealmRecord> Realms => Set<RealmRecord>(); public DbSet<TimelineRecord> Timelines => Set<TimelineRecord>(); public DbSet<SurvivorRecord> Survivors => Set<SurvivorRecord>(); public DbSet<EventInstanceRecord> EventInstances => Set<EventInstanceRecord>(); public DbSet<ActionAttemptRecord> ActionAttempts => Set<ActionAttemptRecord>(); public DbSet<ActionResolutionRecord> ActionResolutions => Set<ActionResolutionRecord>(); public DbSet<GameEventRecord> GameEvents => Set<GameEventRecord>(); public DbSet<WakeRecord> Wakes => Set<WakeRecord>();
     protected override void OnModelCreating(ModelBuilder m)
     {
+        m.Entity<AccountEmailRecord>(b =>
+        {
+            b.ToTable("account_email"); b.HasKey(x => x.AccountId);
+            b.HasIndex(x => x.NormalizedEmail).IsUnique();
+            b.Property(x => x.NormalizedEmail).HasMaxLength(254);
+            b.HasOne<AccountRecord>().WithOne().HasForeignKey<AccountEmailRecord>(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
+        });
+        m.Entity<EmailVerificationRecord>(b =>
+        {
+            b.ToTable("email_verification"); b.HasKey(x => x.Id);
+            b.HasIndex(x => x.TokenHash).IsUnique(); b.HasIndex(x => x.NormalizedEmail);
+        });
+        m.Entity<LocalCredentialRecord>(b =>
+        {
+            b.ToTable("local_credential");
+            b.HasKey(x => x.AccountId);
+            b.HasIndex(x => x.NormalizedEmail).IsUnique();
+            b.Property(x => x.NormalizedEmail).HasMaxLength(254);
+            b.HasOne<AccountRecord>().WithOne().HasForeignKey<LocalCredentialRecord>(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
+        });
         m.Entity<SurvivorVisualIdentityRecord>(b=>{b.ToTable("survivor_visual_identity");b.HasKey(x=>x.SurvivorId);b.HasIndex(x=>x.RequestedVisualFingerprint);b.HasIndex(x=>x.RequestedWorkJobId);b.Property(x=>x.Status).HasConversion<int>();b.HasOne<SurvivorRecord>().WithOne().HasForeignKey<SurvivorVisualIdentityRecord>(x=>x.SurvivorId).OnDelete(DeleteBehavior.Cascade);b.HasOne<ArtAssetRecord>().WithMany().HasForeignKey(x=>x.ActiveArtAssetId).OnDelete(DeleteBehavior.NoAction);});
         m.Entity<WorkArtifactRecord>(b=>{b.ToTable("work_artifact");b.HasKey(x=>x.Id);b.HasIndex(x=>new{x.JobId,x.Key}).IsUnique();b.Property(x=>x.Value).HasColumnType("jsonb");b.HasOne<WorkJobRecord>().WithMany().HasForeignKey(x=>x.JobId).OnDelete(DeleteBehavior.Cascade);});
         m.Entity<WorkJobRecord>(b=>{b.ToTable("work_job");b.HasKey(x=>x.Id);b.HasIndex(x=>new{x.JobType,x.IdempotencyKey}).IsUnique();b.Property(x=>x.Status).HasConversion<int>();b.Property(x=>x.Payload).HasColumnType("jsonb");});
@@ -19,7 +43,7 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
         m.Entity<ExternalIdentityRecord>(b=>{b.ToTable("external_identity");b.HasKey(x=>x.Id);b.HasIndex(x=>new{x.Provider,x.ProviderSubject}).IsUnique();b.HasIndex(x=>x.AccountId);b.Property(x=>x.ClaimsSnapshot).HasColumnType("jsonb");});
         m.Entity<RealmRecord>(b=>{b.ToTable("realm");b.HasKey(x=>x.Id);b.HasIndex(x=>x.Key).IsUnique();b.Property(x=>x.Properties).HasColumnType("jsonb");});
         m.Entity<TimelineRecord>(b=>{b.ToTable("timeline");b.HasKey(x=>x.Id);});
-        m.Entity<SurvivorRecord>(b=>{b.ToTable("survivor");b.HasKey(x=>x.Id);b.HasIndex(x=>x.TimelineId);});
+        m.Entity<SurvivorRecord>(b=>{b.ToTable("survivor");b.HasKey(x=>x.Id);b.HasIndex(x=>x.TimelineId);b.HasIndex(x=>x.AccountId);});
         m.Entity<EventInstanceRecord>(b=>{b.ToTable("event_instance");b.HasKey(x=>x.Id);b.Property(x=>x.State).HasColumnType("jsonb");b.Property(x=>x.Version).IsConcurrencyToken();});
         m.Entity<ActionAttemptRecord>(b=>{b.ToTable("action_attempt");b.HasKey(x=>x.Id);b.Property(x=>x.CandidateAction).HasColumnType("jsonb");b.HasIndex(x=>new{x.EventInstanceId,x.IdempotencyKey}).IsUnique();});
         m.Entity<ActionResolutionRecord>(b=>{b.ToTable("action_resolution");b.HasKey(x=>x.Id);b.HasIndex(x=>x.ActionAttemptId).IsUnique();b.Property(x=>x.ResolvedAction).HasColumnType("jsonb");b.Property(x=>x.AuthoritativeEffects).HasColumnType("jsonb");b.Property(x=>x.NarrativeFacts).HasColumnType("jsonb");});

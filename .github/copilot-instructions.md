@@ -31,7 +31,7 @@ This checks that every referenced artwork key has a prompt file (missing prompts
 ## Architecture
 
 Solution (`Fatewake.slnx`) layout:
-- `src/Fatewake.AppHost` — .NET Aspire orchestration (local dev: web/API + PostgreSQL).
+- `src/Fatewake.AppHost` — .NET Aspire orchestration (local dev: Web/API/Worker + PostgreSQL + RabbitMQ). Run `dotnet run --project src\Fatewake.AppHost\Fatewake.AppHost.csproj`; the launch profile configures the dashboard. Select `ASPIRE_CONTAINER_RUNTIME=docker` or `podman` if needed.
 - `src/Fatewake.ServiceDefaults` — shared Aspire/telemetry/health-check wiring.
 - `src/Fatewake.GameEngine` — deterministic game core (Events, Choices, Consequences, Characters, Relationships, Resources, WorldState). **Must not depend on** Aspire, EF Core, PostgreSQL, HTTP, or any AI provider.
 - `src/Fatewake.AI` — Narrator/Dialogue/ContentGuardrails; renders authoritative GameEngine results into presentation text. Does not decide game outcomes.
@@ -45,6 +45,10 @@ Solution (`Fatewake.slnx`) layout:
 Dependency direction flows one way: GameEngine (deterministic core) ← Infrastructure/AI ← Api/orchestration ← Web. Keep game-rules/state resolution testable in isolation from persistence, AI, and transport concerns.
 
 PostgreSQL is the single authoritative datastore (no polyglot persistence by default). Use relational tables for well-understood entities, JSONB for flexible/evolving event & AI metadata, append-only records for consequential history, and recursive queries/edge tables for graph-like traversal (social relationships, causal decision→event→Wake chains, information provenance). Add Redis, pgvector, or a graph DB only when a concrete, measured need justifies it.
+
+The API applies migrations before its `/health` readiness check succeeds; Worker and Web wait for it. API/Worker share `ArtStorage:RootPath` (`data\art` locally). RabbitMQ only supplies wakeup hints: workers claim PostgreSQL leases and poll even during broker outages. Keep every authored work queue (including `art.finalize`) represented in `Work:QueueConcurrency`. `ArtGeneration:Provider=None` permits approved-asset reuse but explicitly rejects new generation; configure and enable OpenAI, Local, or ComfyUI on the worker for new images.
+
+Local email/password registration and login are always available. Use ASP.NET Identity password hashing, durable credential lockout, normalized unique canonical email, and the Web's antiforgery-protected HttpOnly cookie/BFF flow. API bearer tokens are not stored in browser local storage. Enforce canonical account ownership on every gameplay route; invalid bearer authentication must not downgrade to guest access. Google/Microsoft sign-in uses OIDC in Web plus independent API token validation. Link matching accounts only after proven email ownership (Google verified-email or emailed single-use proof; never trust Microsoft email claims alone). Provider-created accounts need a backup-password prompt. Never attach guest survivors using an unproven client-supplied ID. Verification emails use configured SMTP, or private ignored `emails/*.txt` files only when SMTP is disabled; SMTP failures must stay explicit. Apple/password recovery/guest transfer remain unimplemented.
 
 Character appearance/visual assets are durable canonical state, not regenerated per use: Base Identity → Appearance Configuration → Equipment/Loadout → Condition/Injuries → Scene/Pose/Camera → Rendered Asset. Each normalized appearance combination gets a deterministic fingerprint; always do an exact approved-asset lookup by fingerprint before calling an AI generation provider. Approved assets remain reusable indefinitely (switching configurations back resolves the prior approved asset; character death does not invalidate reusable artwork).
 

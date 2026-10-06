@@ -1,0 +1,42 @@
+@page "/account"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticatedApiClient Api
+@inject AuthenticationStateProvider Authentication
+@inject Microsoft.Extensions.Logging.ILogger<Account> Logger
+
+<PageTitle>Account - Fatewake</PageTitle>
+<main class="account-page">
+    <h1>Account</h1>
+    <AuthorizeView>
+        <Authorized>
+            <p>Signed in as @context.User.Identity?.Name</p>
+            @if (_account?.HasPassword == false)
+            {
+                <p><strong>Add a backup login:</strong> <a href="/set-password">Set your local password</a> so you can sign in without an external provider.</p>
+            }
+            else if (_account?.HasPassword == true) { <p>Local email/password login is configured.</p> }
+            @if (PasswordAdded == "added") { <p role="status">Your local password is ready.</p> }
+            @if (_error is not null) { <p role="alert">@_error</p> }
+            <form method="post" action="/auth/logout">
+                <AntiforgeryToken />
+                <button type="submit">Sign out</button>
+            </form>
+        </Authorized>
+        <NotAuthorized>
+            <p><a href="/login">Sign in</a> or <a href="/register">create an account</a>.</p>
+        </NotAuthorized>
+    </AuthorizeView>
+    <p><a href="/">Return to the story</a></p>
+</main>
+@code {
+    [SupplyParameterFromQuery(Name = "password")] public string? PasswordAdded { get; set; }
+    private Fatewake.Web.Authentication.LocalAccountInfo? _account;
+    private string? _error;
+    protected override async Task OnInitializedAsync()
+    {
+        if ((await Authentication.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated != true) return;
+        using var client = await Api.CreateAsync();
+        try { _account = await client.GetFromJsonAsync<Fatewake.Web.Authentication.LocalAccountInfo>("/api/auth/me"); }
+        catch (HttpRequestException ex) { Logger.LogWarning(ex, "Account details could not be loaded"); _error = "Unable to load account details. Try signing in again."; }
+    }
+}

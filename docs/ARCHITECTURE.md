@@ -70,8 +70,24 @@ Fatewake.Tests
 
 Dependency direction should preserve the GameEngine as a deterministic core with no dependency on Aspire, EF Core, PostgreSQL, HTTP or an AI provider. Infrastructure implements persistence and external integrations; AI interprets/renders around authoritative GameEngine results; API/application orchestration coordinates use cases; Web presents them.
 
-Aspire initially orchestrates the web/API application and PostgreSQL. Additional resources such as Redis should be introduced only when their use case is implemented and measured.
+Aspire orchestrates Web, API, Worker, PostgreSQL, and RabbitMQ. The API applies schema migrations before its database-backed `/health` check becomes ready; Worker and Web wait for API readiness. RabbitMQ availability hints wake idle workers, while PostgreSQL leases, dependency records, and periodic polling remain authoritative even during broker outages.
 
+Run `dotnet run --project src\Fatewake.AppHost\Fatewake.AppHost.csproj` with Docker or Podman available. The AppHost launch profile configures the local dashboard and OTLP/resource endpoints. Its user-secrets identity keeps generated credentials stable across restarts of persisted database/broker volumes.
+
+API and Worker share `ArtStorage:RootPath`; AppHost uses ignored repository-local `data\art`. Production filesystem storage requires a shared persistent volume for every API/worker replica. Each artwork queue, including `art.finalize`, has configurable worker concurrency. `ArtGeneration:Provider` selects `None`, `OpenAI`, `Local`, or `ComfyUI`; `None` supports approved-asset reuse but rejects new generation explicitly. Additional resources such as Redis should be introduced only when their use case is implemented and measured.
+
+
+## Local account authentication
+
+Local self-service email/password registration and login are always enabled. Infrastructure stores credentials separately from canonical accounts and hashes passwords with ASP.NET Identity. Registration is pending until single-use, 24-hour mailbox verification and confirmation of the registration password. Unique normalized canonical email ownership is shared by local and external identities; PostgreSQL row locks serialize password failure counts and 15-minute lockouts after five failures.
+
+API issues eight-hour protected bearer sessions and checks survivor ownership on session, progress, and resolution routes. Event IDs must belong to the supplied survivor/timeline. Invalid bearer credentials are never silently treated as guest play. Account row locks serialize initial survivor creation across concurrent browsers.
+
+Web handles antiforgery-protected forms, obtains account identity from the API, and keeps its API token in an encrypted HttpOnly cookie rather than JavaScript storage. Browser sign-out clears that cookie; bearer sessions expire independently. Production requires HTTPS and shared durable Data Protection keys per replicated service.
+
+Enabled Google and Microsoft providers use OIDC code/PKCE, nonce and correlation validation in Web. API independently validates the ID token's signature, issuer, audience and lifetime. Only Google verified-email claims are accepted as email proof; Microsoft addresses require an emailed single-use challenge before first linking. Proven normalized matching emails link to the canonical account without changing an existing verified password. Unverified pre-registration passwords are not retained when an external mailbox owner arrives. Provider-created accounts are prompted to set their first local password. PostgreSQL advisory locks serialize email/identity linking across processes. No arbitrary guest ID is attached to an account.
+
+Verification tokens are cryptographically random, stored only as SHA-256 hashes, expire after 24 hours, and are consumed transactionally. Tokens are submitted by POST so email scanners do not consume links. Verification pages use no-store/no-referrer headers. SMTP delivery is configured on API; disabled SMTP writes private text files to the AppHost-configured repository `emails` directory. SMTP failures remain explicit, never converted into disk fallback. Password recovery, Apple sign-in, and guest transfer remain unimplemented.
 
 ## Cross-platform deployment baseline
 

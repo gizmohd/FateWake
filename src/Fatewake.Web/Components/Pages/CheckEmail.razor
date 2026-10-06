@@ -1,0 +1,18 @@
+@page "/check-email"
+<PageTitle>Check your email - Fatewake</PageTitle>
+<main class="account-page">
+    <h1>Check your email</h1>
+    <p>Open the verification link to prove ownership of your email and finish signing in. Links expire after 24 hours.</p>
+    @if (Error is not null) { <p role="alert">Unable to send verification email. Wait a minute and try again.</p> }
+    @if (Sent) { <p role="status">If verification is needed, an email has been sent.</p> }
+    <form method="post" action="/auth/resend-verification">
+        <AntiforgeryToken />
+        <label>Email <input type="email" name="email" autocomplete="email" maxlength="254" required /></label>
+        <button type="submit">Resend verification email</button>
+    </form>
+    <p><a href="/login">Return to sign in</a></p>
+</main>
+@code {
+    [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+    [SupplyParameterFromQuery(Name = "sent")] public bool Sent { get; set; }
+}

@@ -3,21 +3,26 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Fatewake.Infrastructure.Persistence;
 
-public sealed record SessionState(Guid SurvivorId,Guid TimelineId,Guid EventInstanceId,int SurvivorDay,string EventKey,string Status,string? LastOutcome,IReadOnlyDictionary<string,string> NarrativeFacts,string SceneKey,string BeatKey);
-
-public interface ISessionStore
-{
-    Task<SessionState> StartOrResumeAsync(Guid? survivorId,string broadRegion,CancellationToken ct=default);
-    Task<SessionState?> SavePresentationProgressAsync(Guid survivorId,Guid eventInstanceId,string sceneKey,string beatKey,CancellationToken ct=default);
-}
-
+/// <summary>Creates or resumes guest/account-owned survivors and persists presentation progress.</summary>
+/// <param name="db">Scoped canonical PostgreSQL persistence context.</param>
+/// <see href="../../../docs/code/src/Fatewake.Infrastructure/Persistence/SessionStore.md">SessionStore documentation</see>
 public sealed class SessionStore(FatewakeDbContext db):ISessionStore
 {
-    public async Task<SessionState> StartOrResumeAsync(Guid? survivorId,string broadRegion,CancellationToken ct=default)
+    /// <inheritdoc />
+    public async Task<SessionState> StartOrResumeAsync(Guid? survivorId,string broadRegion,CancellationToken ct=default,Guid? accountId=null)
     {
+        await using var transaction = accountId is not null ? await db.Database.BeginTransactionAsync(ct) : null;
+        if (accountId is {} owner)
+        {
+            var account = await db.Accounts.FromSqlInterpolated($"""SELECT * FROM account WHERE "Id" = {owner} FOR UPDATE""").SingleAsync(ct);
+            if (account.Status != AccountStatus.Active) throw new UnauthorizedAccessException("The account is not active.");
+        }
+        if (survivorId is null && accountId is not null)
+            survivorId = await db.Survivors.Where(x => x.AccountId == accountId && x.Status == SurvivorStatus.Active)
+                .OrderBy(x => x.CreatedAt).Select(x => (Guid?)x.Id).FirstOrDefaultAsync(ct);
         if(survivorId is {} id)
         {
-            var existing=await db.Survivors.SingleOrDefaultAsync(x=>x.Id==id,ct);
+            var existing=await db.Survivors.SingleOrDefaultAsync(x=>x.Id==id&&x.AccountId==accountId,ct);
             if(existing is not null)
             {
                 var existingEpisode=await db.EventInstances.Where(x=>x.SurvivorId==id&&x.Status==EventInstanceStatus.Active).OrderBy(x=>x.SurvivorDay).FirstAsync(ct);
@@ -26,11 +31,14 @@ public sealed class SessionStore(FatewakeDbContext db):ISessionStore
         }
         var realm=await db.Realms.SingleAsync(x=>x.Key=="the-silence",ct);var now=DateTimeOffset.UtcNow;
         var timeline=new TimelineRecord{Id=Guid.NewGuid(),RealmId=realm.Id,ProgressionState="personal",ConvergenceState="isolated",WorldClockPolicy="activity",CurrentSurvivorDay=1,CreatedAt=now};
-        var survivor=new SurvivorRecord{Id=Guid.NewGuid(),TimelineId=timeline.Id,DisplayName="Survivor",IdentityMode="undetermined",BroadRegion=broadRegion,SurvivorDay=1,Status=SurvivorStatus.Active,CreatedAt=now,UpdatedAt=now};
+        var survivor=new SurvivorRecord{Id=Guid.NewGuid(),AccountId=accountId,TimelineId=timeline.Id,DisplayName="Survivor",IdentityMode="undetermined",BroadRegion=broadRegion,SurvivorDay=1,Status=SurvivorStatus.Active,CreatedAt=now,UpdatedAt=now};
         var episode=new EventInstanceRecord{Id=Guid.NewGuid(),TimelineId=timeline.Id,SurvivorId=survivor.Id,EventKey="day-001-injured-stranger",Status=EventInstanceStatus.Active,SurvivorDay=1,StartedAt=now,State=JsonSerializer.Serialize(new{sceneKey="day1-0617-0643",beatKey="phone-0617"})};
-        db.Timelines.Add(timeline);db.Survivors.Add(survivor);db.EventInstances.Add(episode);await db.SaveChangesAsync(ct);return ToState(survivor,episode);
+        db.Timelines.Add(timeline);db.Survivors.Add(survivor);db.EventInstances.Add(episode);await db.SaveChangesAsync(ct);
+        if (transaction is not null) await transaction.CommitAsync(ct);
+        return ToState(survivor,episode);
     }
 
+    /// <inheritdoc />
     public async Task<SessionState?> SavePresentationProgressAsync(Guid survivorId,Guid eventInstanceId,string sceneKey,string beatKey,CancellationToken ct=default)
     {
         var survivor=await db.Survivors.SingleOrDefaultAsync(x=>x.Id==survivorId,ct);

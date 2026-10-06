@@ -32,6 +32,18 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      rabbitmq:
+        image: rabbitmq:4-management
+        env:
+          RABBITMQ_DEFAULT_USER: fatewake_tests
+          RABBITMQ_DEFAULT_PASS: test-only-password
+        ports:
+          - 127.0.0.1:5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v5
         with:
@@ -43,9 +55,10 @@ jobs:
         run: dotnet restore Fatewake.slnx
       - name: Build
         run: dotnet build Fatewake.slnx --configuration Release --no-restore
-      - name: Test with PostgreSQL
+      - name: Test with PostgreSQL and RabbitMQ
         env:
           FATEWAKE_TEST_CONNECTION: Host=localhost;Port=5432;Database=fatewake_tests;Username=postgres
+          FATEWAKE_TEST_RABBITMQ: amqp://fatewake_tests:test-only-password@localhost:5672
         run: dotnet test Fatewake.slnx --configuration Release --no-build --no-restore --logger trx --results-directory artifacts/test-results
       - name: Upload test results
         if: always()

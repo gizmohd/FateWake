@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "Fatewake.AppHost": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:18800",
+        "ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL": "http://localhost:18801",
+        "ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL": "http://localhost:18802",
+        "ASPIRE_ALLOW_UNSECURED_TRANSPORT": "true"
+      }
+    }
+  }
+}

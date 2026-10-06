@@ -1,0 +1,25 @@
+@page "/verify-email"
+<PageTitle>Verify email - Fatewake</PageTitle>
+<main class="account-page">
+    <h1>Verify your email</h1>
+    @if (Error is not null || string.IsNullOrEmpty(Token))
+    {
+        <p role="alert">The link is invalid, expired, already used, or verification is temporarily unavailable. For local registration, include your registration password.</p>
+        <p><a href="/check-email">Request another verification email</a></p>
+    }
+    else
+    {
+        <p>Confirm to finish signing in to your account.</p>
+        <form method="post" action="/auth/verify-email">
+            <AntiforgeryToken />
+            <input type="hidden" name="token" value="@Token" />
+            <label>Registration password <input type="password" name="password" autocomplete="current-password" maxlength="128" /></label>
+            <p>For email/password registration, re-enter the password you chose. Leave this blank for external-provider verification.</p>
+            <button type="submit">Verify email and sign in</button>
+        </form>
+    }
+</main>
+@code {
+    [SupplyParameterFromQuery(Name = "token")] public string? Token { get; set; }
+    [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+}

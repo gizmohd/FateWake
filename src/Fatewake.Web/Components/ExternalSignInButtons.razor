@@ -1,0 +1,11 @@
+@inject IConfiguration Configuration
+@foreach (var provider in new[] { "Google", "Microsoft" })
+{
+    @if (Configuration.GetValue<bool>("Authentication:" + provider + ":Enabled"))
+    {
+        <form method="post" action="@("/auth/external/" + provider.ToLowerInvariant())">
+            <AntiforgeryToken />
+            <button type="submit">Continue with @provider</button>
+        </form>
+    }
+}

@@ -1,5 +1,7 @@
 # WorkExecutionOptions
 
+Default queue concurrency includes `art.generate`, `art.encode`, `art.validate`, and `art.finalize`, plus narrative/maintenance queues. Setting a queue's concurrency to zero disables both local processing and RabbitMQ consumption for that queue.
+
 ## Purpose
 Configures lease duration, recovery polling cadence, and per-pod concurrency for each logical queue. Values multiply with Kubernetes replica count to determine approximate cluster parallelism.
 

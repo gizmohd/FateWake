@@ -1,0 +1,31 @@
+@page "/register"
+
+<PageTitle>Create an account - Fatewake</PageTitle>
+<main class="account-page">
+    <h1>Create an account</h1>
+    <p>Use a password between 12 and 128 characters. We will email a verification link before you can sign in.</p>
+    @if (Error is not null)
+    {
+        <p role="alert">@Message</p>
+    }
+    <form method="post" action="/auth/register">
+        <AntiforgeryToken />
+        <label>Email <input type="email" name="email" autocomplete="username" maxlength="254" required /></label>
+        <label>Password <input type="password" name="password" autocomplete="new-password" minlength="12" maxlength="128" required /></label>
+        <label>Confirm password <input type="password" name="confirmPassword" autocomplete="new-password" minlength="12" maxlength="128" required /></label>
+        <button type="submit">Create account</button>
+    </form>
+    <ExternalSignInButtons />
+    <p><a href="/login">Already have an account? Sign in</a>.</p>
+</main>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+    private string Message => Error switch
+    {
+        "mismatch" => "The passwords do not match.",
+        "limited" => "Too many attempts. Wait a minute and try again.",
+        "unavailable" => "The account service is unavailable. Please try again.",
+        _ => "Unable to create this account. Check the email and password requirements, or try signing in."
+    };
+}

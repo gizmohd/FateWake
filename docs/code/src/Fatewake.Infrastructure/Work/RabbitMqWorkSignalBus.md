@@ -3,6 +3,8 @@
 ## Purpose
 RabbitMQ implementation of work signaling. Declares durable direct exchange/queues and publishes persistent lightweight step notifications. Consumers must still claim PostgreSQL leases before executing work.
 
+Connections are opened asynchronously on first publication, not during service construction. Publications are serialized because RabbitMQ channels cannot safely be shared by concurrent publishers. Caller-side failures are logged after durable state has committed; workers recover through PostgreSQL polling.
+
 ## Usage
 This type belongs to Fatewake's distributed work subsystem and is designed for horizontally scaled Linux or Windows Kubernetes workloads. See the XML documentation on the source type for its direct code contract.
 

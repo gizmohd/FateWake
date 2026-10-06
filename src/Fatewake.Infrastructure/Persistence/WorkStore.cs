@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Fatewake.Infrastructure.Persistence;
 
 /// <summary>Implements PostgreSQL-backed leasing and state transitions for horizontally distributed workers.</summary>
 /// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Persistence/WorkStore.md">WorkStore documentation</see>. Claims use row locking with SKIP LOCKED and lease tokens fence stale workers.</remarks>
-public sealed class WorkStore(FatewakeDbContext db,Fatewake.Infrastructure.Work.IWorkSignalBus signals):IWorkStore
+public sealed class WorkStore(FatewakeDbContext db,Fatewake.Infrastructure.Work.IWorkSignalBus signals,ILogger<WorkStore> log):IWorkStore
 {
     public async Task<WorkLease?> ClaimAsync(string queue,string workerId,TimeSpan leaseDuration,CancellationToken ct=default)
     {
@@ -63,7 +64,9 @@ public sealed class WorkStore(FatewakeDbContext db,Fatewake.Infrastructure.Work.
         {
             await db.SaveChangesAsync(ct);
             foreach(var step in pending.Where(x=>x.Status==WorkStepStatus.Ready))
-                try{await signals.SignalAsync(step.Queue,step.Id,ct);}catch{ /* polling remains recovery path */ }
+                try{await signals.SignalAsync(step.Queue,step.Id,ct);}
+                catch(OperationCanceledException) when(ct.IsCancellationRequested){throw;}
+                catch(Exception ex){log.LogWarning(ex,"Work step {StepId} promoted but RabbitMQ signal failed; polling will recover it",step.Id);}
         }
         return changed;
     }

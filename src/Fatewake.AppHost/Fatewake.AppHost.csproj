@@ -1,1 +1,19 @@
-<Project Sdk="Microsoft.NET.Sdk"><Sdk Name="Aspire.AppHost.Sdk" Version="13.0.0" /><PropertyGroup><OutputType>Exe</OutputType><IsAspireHost>true</IsAspireHost></PropertyGroup><ItemGroup><ProjectReference Include="../Fatewake.Api/Fatewake.Api.csproj" /><ProjectReference Include="../Fatewake.Web/Fatewake.Web.csproj" /></ItemGroup><ItemGroup><PackageReference Include="Aspire.Hosting.AppHost" Version="13.0.0" /><PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.0.0" /><PackageReference Include="MessagePack" Version="2.5.301" /></ItemGroup></Project>
+<Project Sdk="Microsoft.NET.Sdk">
+  <Sdk Name="Aspire.AppHost.Sdk" Version="13.0.0" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsAspireHost>true</IsAspireHost>
+    <UserSecretsId>fatewake-apphost</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Fatewake.Api/Fatewake.Api.csproj" />
+    <ProjectReference Include="../Fatewake.Web/Fatewake.Web.csproj" />
+    <ProjectReference Include="../Fatewake.Worker/Fatewake.Worker.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="13.0.0" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.0.0" />
+    <PackageReference Include="Aspire.Hosting.RabbitMQ" Version="13.0.0" />
+    <PackageReference Include="MessagePack" Version="2.5.301" />
+  </ItemGroup>
+</Project>

@@ -9,7 +9,7 @@ namespace Fatewake.Infrastructure.Work;
 // Polling is the durable recovery path. RabbitMQ signals may wake workers sooner, but correctness never depends on a message.
 /// <summary>Executes durable queue work across horizontally scaled worker processes using PostgreSQL leases.</summary>
 /// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Work/DurableWorkWorker.md">DurableWorkWorker documentation</see>. Active handlers renew their leases to prevent duplicate claims during long operations.</remarks>
-public sealed class DurableWorkWorker(IServiceScopeFactory scopes,IOptions<WorkExecutionOptions> options,ILogger<DurableWorkWorker> log):BackgroundService
+public sealed class DurableWorkWorker(IServiceScopeFactory scopes,IOptions<WorkExecutionOptions> options,WorkQueueWakeup wakeup,ILogger<DurableWorkWorker> log):BackgroundService
 {
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -27,13 +27,13 @@ public sealed class DurableWorkWorker(IServiceScopeFactory scopes,IOptions<WorkE
                 using var scope=scopes.CreateScope();var store=scope.ServiceProvider.GetRequiredService<IWorkStore>();
                 await store.PromoteReadyStepsAsync(ct);
                 var lease=await store.ClaimAsync(queue,workerId,options.Value.LeaseDuration,ct);
-                if(lease is null){await Task.Delay(options.Value.PollInterval,ct);continue;}
+                if(lease is null){await wakeup.WaitAsync(queue,options.Value.PollInterval,ct);continue;}
                 var handler=scope.ServiceProvider.GetServices<IWorkStepHandler>().SingleOrDefault(x=>x.StepType==lease.StepType);
                 if(handler is null){await store.FailAsync(lease.StepId,lease.LeaseToken,"handler_missing",$"No handler for {lease.StepType}",TimeSpan.Zero,ct);continue;}
                 try
                 {
                     using var executionCts=CancellationTokenSource.CreateLinkedTokenSource(ct);
-                    var heartbeat=HeartbeatAsync(store,lease,options.Value.LeaseDuration,executionCts,executionCts.Token);
+                    var heartbeat=HeartbeatAsync(lease,options.Value.LeaseDuration,executionCts,executionCts.Token);
                     string? output;
                     try{output=await handler.ExecuteAsync(new WorkStepExecutionContext(lease.JobId,lease.StepId,lease.Input,lease.Attempt),executionCts.Token);}
                     finally{executionCts.Cancel();try{await heartbeat;}catch(OperationCanceledException){ }}
@@ -52,12 +52,14 @@ public sealed class DurableWorkWorker(IServiceScopeFactory scopes,IOptions<WorkE
     }
 
     /// <summary>Renews a lease while a potentially long-running handler is executing.</summary>
-    private static async Task HeartbeatAsync(IWorkStore store,WorkLease lease,TimeSpan leaseDuration,CancellationTokenSource executionCts,CancellationToken ct)
+    private async Task HeartbeatAsync(WorkLease lease,TimeSpan leaseDuration,CancellationTokenSource executionCts,CancellationToken ct)
     {
         var interval=TimeSpan.FromTicks(Math.Max(TimeSpan.FromSeconds(5).Ticks,leaseDuration.Ticks/3));
         while(!ct.IsCancellationRequested)
         {
             await Task.Delay(interval,ct);
+            using var scope=scopes.CreateScope();
+            var store=scope.ServiceProvider.GetRequiredService<IWorkStore>();
             if(!await store.HeartbeatAsync(lease.StepId,lease.LeaseToken,leaseDuration,ct))
             {
                 executionCts.Cancel();

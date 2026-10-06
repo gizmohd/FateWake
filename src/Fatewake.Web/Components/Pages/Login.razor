@@ -1,0 +1,31 @@
+@page "/login"
+
+<PageTitle>Sign in - Fatewake</PageTitle>
+<main class="account-page">
+    <h1>Sign in</h1>
+    <p>Use your email address and password.</p>
+    @if (Error is not null)
+    {
+        <p role="alert">@Message</p>
+    }
+    <form method="post" action="/auth/login">
+        <AntiforgeryToken />
+        <label>Email <input type="email" name="email" autocomplete="username" maxlength="254" required /></label>
+        <label>Password <input type="password" name="password" autocomplete="current-password" maxlength="128" required /></label>
+        <button type="submit">Sign in</button>
+    </form>
+    <ExternalSignInButtons />
+    <p><a href="/check-email">Verify your email or resend the verification link</a></p>
+    <p><a href="/register">Create an account</a> or <a href="/">continue as a guest</a>.</p>
+</main>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+    private string Message => Error switch
+    {
+        "limited" => "Too many attempts. Wait a minute and try again.",
+        "unavailable" => "The account service is unavailable. Please try again.",
+        "external" => "External sign-in could not be completed. Try again or sign in with your local password.",
+        _ => "Invalid email or password. After repeated failures, wait 15 minutes before trying again."
+    };
+}

@@ -1,11 +1,12 @@
 using Fatewake.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Fatewake.Infrastructure.Work;
 
 /// <summary>Creates durable dependency-aware jobs transactionally and signals initially runnable steps.</summary>
 /// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Work/WorkJobBuilder.md">WorkJobBuilder documentation</see>. PostgreSQL remains authoritative; signal publication is best-effort.</remarks>
-public sealed class WorkJobBuilder(FatewakeDbContext db,IWorkSignalBus signals):IWorkJobBuilder
+public sealed class WorkJobBuilder(FatewakeDbContext db,IWorkSignalBus signals,ILogger<WorkJobBuilder> log):IWorkJobBuilder
 {
     public async Task<CreatedWorkJob> CreateAsync(WorkJobDefinition definition,CancellationToken ct=default)
     {
@@ -32,7 +33,9 @@ public sealed class WorkJobBuilder(FatewakeDbContext db,IWorkSignalBus signals):
         await db.SaveChangesAsync(ct);await tx.CommitAsync(ct);
 
         foreach(var s in definition.Steps.Where(x=>x.DependsOn is null||x.DependsOn.Count==0))
-            try{await signals.SignalAsync(s.Queue,ids[s.Key],ct);}catch{ /* DB polling guarantees recovery. */ }
+            try{await signals.SignalAsync(s.Queue,ids[s.Key],ct);}
+            catch(OperationCanceledException) when(ct.IsCancellationRequested){throw;}
+            catch(Exception ex){log.LogWarning(ex,"Work step {StepId} persisted but RabbitMQ signal failed; polling will recover it",ids[s.Key]);}
         return new(jobId,false,ids);
     }
 

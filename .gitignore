@@ -56,3 +56,6 @@ CodeCoverage/
 TestResult.xml
 nunit-*.xml
 /.vs/Fatewake.slnx
+/data/
+/emails/
+**/emails/

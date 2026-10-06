@@ -3,13 +3,22 @@
 @using System.Net.Http.Json
 @using Fatewake.Web.Presentation
 @using Fatewake.Web.Components.Presentation
-@inject IHttpClientFactory HttpClientFactory
+@inject Fatewake.Web.Authentication.AuthenticatedApiClient ApiClient
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Authentication
+@inject Microsoft.Extensions.Logging.ILogger<Home> Logger
 @inject IJSRuntime JS
 
 <PageTitle>Fatewake — The Silence</PageTitle>
 <main class="scene">
+<nav aria-label="Account">
+    <Microsoft.AspNetCore.Components.Authorization.AuthorizeView>
+        <Authorized><a href="/account">@context.User.Identity?.Name</a></Authorized>
+        <NotAuthorized><a href="/login">Sign in</a> | <a href="/register">Create an account</a></NotAuthorized>
+    </Microsoft.AspNetCore.Components.Authorization.AuthorizeView>
+</nav>
 <section class="episode">
-@if(!_ready){<div class="interaction"><div class="wake">REMEMBERING…</div></div>}
+@if(_error is not null){<div class="interaction" role="alert">@_error <a href="/login">Sign in again</a> or <a href="/">reload</a>.</div>}
+else if(!_ready){<div class="interaction"><div class="wake">REMEMBERING…</div></div>}
 else
 {
     <ArtCompositionView ArtworkKey="@Beat.ArtworkKey" Layers="@DayOneArt.For(Beat.ArtworkKey)">
@@ -48,29 +57,55 @@ else
     private BeatDefinition Beat=>Scene.Beats[Math.Clamp(_beatIndex,0,Scene.Beats.Count-1)];
     private bool _ready,_showOther,_submitting; private int _beatIndex; private string _freeform="",_resolutionText="";
     private SessionDto? _session; private Guid? _inflightKey;
+    private string? _error;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if(!firstRender)return;
+        try
+        {
         Guid? survivorId=null;
-        var saved=await JS.InvokeAsync<string?>("localStorage.getItem","fatewake.survivorId");
-        if(Guid.TryParse(saved,out var parsed))survivorId=parsed;
-        var client=HttpClientFactory.CreateClient("fatewake-api");
-        var response=await client.PostAsJsonAsync("/api/session/start",new{SurvivorId=survivorId,BroadRegion="unknown"});
+        var user=(await Authentication.GetAuthenticationStateAsync()).User;
+        if(user.Identity?.IsAuthenticated!=true)
+        {
+            var saved=await JS.InvokeAsync<string?>("localStorage.getItem","fatewake.survivorId");
+            if(Guid.TryParse(saved,out var parsed))survivorId=parsed;
+        }
+        using var client=await ApiClient.CreateAsync();
+        using var response=await StartSessionAsync(client,survivorId);
+        response.EnsureSuccessStatusCode();
         _session=await response.Content.ReadFromJsonAsync<SessionDto>();
         if(_session is not null)
         {
-            await JS.InvokeVoidAsync("localStorage.setItem","fatewake.survivorId",_session.SurvivorId.ToString());
+            if(user.Identity?.IsAuthenticated!=true)
+                await JS.InvokeVoidAsync("localStorage.setItem","fatewake.survivorId",_session.SurvivorId.ToString());
             _beatIndex=Scene.IndexOf(_session.BeatKey);
             if(!string.IsNullOrWhiteSpace(_session.LastOutcome))_resolutionText=OutcomeText(_session.LastOutcome);
         }
         _ready=true;StateHasChanged();
+        }
+        catch(HttpRequestException ex){Logger.LogWarning(ex,"Session loading failed");_error="Unable to load your session.";StateHasChanged();}
     }
 
     private async Task NextBeat()
     {
         if(_beatIndex>=Scene.Beats.Count-1)return;
-        _beatIndex++;_showOther=false;await SaveProgressAsync();StateHasChanged();
+        try
+        {
+            _beatIndex++;_showOther=false;await SaveProgressAsync();StateHasChanged();
+        }
+        catch(HttpRequestException ex){Logger.LogWarning(ex,"Presentation progress could not be saved");_error="Unable to save your progress. Your session may have expired.";}
+    }
+
+    private static async Task<HttpResponseMessage> StartSessionAsync(HttpClient client,Guid? survivorId)
+    {
+        var response=await client.PostAsJsonAsync("/api/session/start",new{SurvivorId=survivorId,BroadRegion="unknown"});
+        if(response.StatusCode==System.Net.HttpStatusCode.NotFound && survivorId is not null)
+        {
+            response.Dispose();
+            return await client.PostAsJsonAsync("/api/session/start",new{SurvivorId=(Guid?)null,BroadRegion="unknown"});
+        }
+        return response;
     }
 
     private Task SubmitFreeform()=>Act("freeform",_freeform);
@@ -81,10 +116,11 @@ else
         _submitting=true;_inflightKey??=Guid.NewGuid();
         try
         {
-            var client=HttpClientFactory.CreateClient("fatewake-api");
+            using var client=await ApiClient.CreateAsync();
             var payload=new{_session.EventInstanceId,_session.SurvivorId,_session.TimelineId,IdempotencyKey=_inflightKey.Value,
                 Action=new{ActionType=actionType,Arguments=new Dictionary<string,string>(),RawInput=rawInput}};
-            var response=await client.PostAsJsonAsync("/api/day1/resolve",payload);
+            using var response=await client.PostAsJsonAsync("/api/day1/resolve",payload);
+            response.EnsureSuccessStatusCode();
             var result=await response.Content.ReadFromJsonAsync<ResolutionDto>();
             if(result?.Accepted==true)
             {
@@ -92,14 +128,16 @@ else
                 _beatIndex=Scene.IndexOf("choice-wake");await SaveProgressAsync();
             }
         }
+        catch(HttpRequestException ex){Logger.LogWarning(ex,"Player action could not be saved");_error="Unable to save your choice. Your session may have expired.";}
         finally{_submitting=false;}
     }
 
     private async Task SaveProgressAsync()
     {
         if(_session is null)return;
-        var client=HttpClientFactory.CreateClient("fatewake-api");
-        await client.PostAsJsonAsync("/api/session/progress",new{_session.SurvivorId,_session.EventInstanceId,SceneKey=Scene.Key,BeatKey=Beat.Key});
+        using var client=await ApiClient.CreateAsync();
+        using var response=await client.PostAsJsonAsync("/api/session/progress",new{_session.SurvivorId,_session.EventInstanceId,SceneKey=Scene.Key,BeatKey=Beat.Key});
+        response.EnsureSuccessStatusCode();
     }
 
     private static string OutcomeText(string key)=>key switch{

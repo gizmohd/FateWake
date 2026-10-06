@@ -17,7 +17,7 @@ Run locally:
 dotnet run --project tools/Fatewake.AssetValidator/Fatewake.AssetValidator.csproj -- .
 ```
 
-GitHub Actions runs restore, a warnings-as-errors Release build, all tests against an isolated PostgreSQL 17 service, and API/Web publishing on pushes and pull requests to main and on manual dispatch. Artwork validation runs in a separate job. Test results (TRX) and published applications are retained as artifacts for 14 days.
+GitHub Actions runs restore, a warnings-as-errors Release build, tests against isolated PostgreSQL 17 and RabbitMQ services, and API/Web publishing on pushes and pull requests to main and on manual dispatch. The broker service runs the work-wakeup integration test; the running-AppHost artwork pipeline test is opt-in locally. Artwork validation runs in a separate job. Test results (TRX) and published applications are retained as artifacts for 14 days.
 
 The database-backed tests require `FATEWAKE_TEST_CONNECTION` locally; without it, their database assertions do not run. Use a disposable database because these tests delete and recreate it. CI supplies the connection automatically.
 
