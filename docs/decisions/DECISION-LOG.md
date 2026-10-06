@@ -244,3 +244,13 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-123 | Relay/repeater and device progression can expand communication reach and create gameplay consequences/Wakes. | Accepted |
 | DEC-124 | Fatewake communication handles are separate from account identity; historical messages retain sender-handle/provenance-at-send-time. | Accepted |
 | DEC-125 | Real-player messages are never rewritten or impersonated by AI; NPC/system/player provenance remains authoritative even when not necessarily visible to the receiving character. | Accepted |
+
+
+## Source Documentation Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-131 | Hand-authored C# source uses one declared type per file; classes, interfaces, records, structs and enums are split into individually named files. | Accepted |
+| DEC-132 | Public/internal Fatewake types and meaningful members are documented with XML documentation covering purpose, usage, contracts, side effects and concurrency/idempotency behavior where relevant. | Accepted |
+| DEC-133 | Every hand-authored C# source file has an individual companion Markdown document under `docs/code/` mirroring its project-relative source path and describing usage and architectural behavior. | Accepted |
+| DEC-134 | Source and companion documentation are updated together; materially modified legacy code should be migrated toward the documentation/file-structure standard. | Accepted |
