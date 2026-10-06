@@ -17,4 +17,8 @@ Run locally:
 dotnet run --project tools/Fatewake.AssetValidator/Fatewake.AssetValidator.csproj -- .
 ```
 
-GitHub Actions runs restore, Release build, tests and asset validation on pushes and pull requests to main.
+GitHub Actions runs restore, a warnings-as-errors Release build, all tests against an isolated PostgreSQL 17 service, and API/Web publishing on pushes and pull requests to main and on manual dispatch. Artwork validation runs in a separate job. Test results (TRX) and published applications are retained as artifacts for 14 days.
+
+The database-backed tests require `FATEWAKE_TEST_CONNECTION` locally; without it, their database assertions do not run. Use a disposable database because these tests delete and recreate it. CI supplies the connection automatically.
+
+The validator checks scene-beat composition keys and artwork-layer keys, not scene identifiers or game-rules versions. Missing prompt coverage fails validation; missing render assets remain allowed placeholders.

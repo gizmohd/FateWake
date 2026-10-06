@@ -20,14 +20,14 @@ public sealed class SessionStore(FatewakeDbContext db):ISessionStore
             var existing=await db.Survivors.SingleOrDefaultAsync(x=>x.Id==id,ct);
             if(existing is not null)
             {
-                var episode=await db.EventInstances.Where(x=>x.SurvivorId==id&&x.Status=="active").OrderBy(x=>x.SurvivorDay).FirstAsync(ct);
-                return ToState(existing,episode);
+                var existingEpisode=await db.EventInstances.Where(x=>x.SurvivorId==id&&x.Status==EventInstanceStatus.Active).OrderBy(x=>x.SurvivorDay).FirstAsync(ct);
+                return ToState(existing,existingEpisode);
             }
         }
         var realm=await db.Realms.SingleAsync(x=>x.Key=="the-silence",ct);var now=DateTimeOffset.UtcNow;
         var timeline=new TimelineRecord{Id=Guid.NewGuid(),RealmId=realm.Id,ProgressionState="personal",ConvergenceState="isolated",WorldClockPolicy="activity",CurrentSurvivorDay=1,CreatedAt=now};
-        var survivor=new SurvivorRecord{Id=Guid.NewGuid(),TimelineId=timeline.Id,DisplayName="Survivor",IdentityMode="undetermined",BroadRegion=broadRegion,SurvivorDay=1,Status="active",CreatedAt=now,UpdatedAt=now};
-        var episode=new EventInstanceRecord{Id=Guid.NewGuid(),TimelineId=timeline.Id,SurvivorId=survivor.Id,EventKey="day-001-injured-stranger",Status="active",SurvivorDay=1,StartedAt=now,State=JsonSerializer.Serialize(new{sceneKey="day1-0617-0643",beatKey="phone-0617"})};
+        var survivor=new SurvivorRecord{Id=Guid.NewGuid(),TimelineId=timeline.Id,DisplayName="Survivor",IdentityMode="undetermined",BroadRegion=broadRegion,SurvivorDay=1,Status=SurvivorStatus.Active,CreatedAt=now,UpdatedAt=now};
+        var episode=new EventInstanceRecord{Id=Guid.NewGuid(),TimelineId=timeline.Id,SurvivorId=survivor.Id,EventKey="day-001-injured-stranger",Status=EventInstanceStatus.Active,SurvivorDay=1,StartedAt=now,State=JsonSerializer.Serialize(new{sceneKey="day1-0617-0643",beatKey="phone-0617"})};
         db.Timelines.Add(timeline);db.Survivors.Add(survivor);db.EventInstances.Add(episode);await db.SaveChangesAsync(ct);return ToState(survivor,episode);
     }
 
@@ -44,7 +44,7 @@ public sealed class SessionStore(FatewakeDbContext db):ISessionStore
     private static SessionState ToState(SurvivorRecord survivor,EventInstanceRecord episode)
     {
         var s=ReadState(episode.State);
-        return new(survivor.Id,survivor.TimelineId,episode.Id,survivor.SurvivorDay,episode.EventKey,episode.Status,s.outcome,s.facts,s.scene,s.beat);
+        return new(survivor.Id,survivor.TimelineId,episode.Id,survivor.SurvivorDay,episode.EventKey,episode.Status.ToString().ToLowerInvariant(),s.outcome,s.facts,s.scene,s.beat);
     }
 
     private static (string? outcome,IReadOnlyDictionary<string,string> facts,string scene,string beat) ReadState(string? json)

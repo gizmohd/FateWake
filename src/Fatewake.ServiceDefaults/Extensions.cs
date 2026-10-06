@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Microsoft.Extensions.Hosting;
 
 public static class Extensions
