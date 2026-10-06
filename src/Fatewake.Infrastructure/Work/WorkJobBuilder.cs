@@ -3,15 +3,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Fatewake.Infrastructure.Work;
 
-public sealed record WorkStepDefinition(string Key,string StepType,string Queue,string Input,int Priority=0,int MaxAttempts=5,IReadOnlyList<string>? DependsOn=null);
-public sealed record WorkJobDefinition(string JobType,string IdempotencyKey,string Payload,IReadOnlyList<WorkStepDefinition> Steps,int Priority=0);
-public sealed record CreatedWorkJob(Guid JobId,bool Existing,IReadOnlyDictionary<string,Guid> StepIds);
-
-public interface IWorkJobBuilder
-{
-    Task<CreatedWorkJob> CreateAsync(WorkJobDefinition definition,CancellationToken ct=default);
-}
-
+/// <summary>Creates durable dependency-aware jobs transactionally and signals initially runnable steps.</summary>
+/// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Work/WorkJobBuilder.md">WorkJobBuilder documentation</see>. PostgreSQL remains authoritative; signal publication is best-effort.</remarks>
 public sealed class WorkJobBuilder(FatewakeDbContext db,IWorkSignalBus signals):IWorkJobBuilder
 {
     public async Task<CreatedWorkJob> CreateAsync(WorkJobDefinition definition,CancellationToken ct=default)
