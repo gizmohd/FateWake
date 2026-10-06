@@ -37,3 +37,15 @@ Game state and consequence resolution remain deterministic and testable. AI-gene
 
 ## Near-Term Goal
 Implement only enough architecture for a playable Days 1–7 vertical slice, validate the return loop, then expand.
+
+## Authoritative Data Platform
+PostgreSQL is the authoritative datastore for Fatewake. The initial architecture deliberately favors one transactional source of canonical truth over a polyglot persistence stack.
+
+Use conventional relational structures for well-understood domain entities and relationships; JSONB for flexible event, AI and evolving metadata; append-oriented records for consequential history; and graph-friendly edge/relationship structures plus recursive queries where causal, social, information or Wake traversal is required.
+
+The primary graph domains are expected to include:
+- world/social relationships between survivors, characters, settlements, organizations, regions and Realms;
+- causal relationships between decisions, events and Wakes;
+- information provenance showing how claims, secrets, rumors and discoveries move between actors.
+
+PostgreSQL extensions such as pgvector may be adopted when semantic retrieval becomes necessary. Redis or a dedicated graph/search platform should be added only after a concrete performance or capability requirement justifies another consistency boundary. MongoDB and a dedicated graph database are not required for the MVP.
