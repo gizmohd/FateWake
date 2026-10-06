@@ -23,6 +23,7 @@ Fatewake is a persistent narrative survival and social strategy game where playe
 - [Characters](docs/CHARACTERS.md)
 - [AI Design](docs/AI-DESIGN.md)
 - [Technical Architecture](docs/ARCHITECTURE.md)
+- [Timelines & Convergence](docs/TIMELINES-AND-CONVERGENCE.md)
 - [Decision Log](docs/decisions/DECISION-LOG.md)
 - [Season One — The Silence](story/SEASON-01-THE-SILENCE.md)
 - [Days 1–7](story/DAYS-001-007.md)
