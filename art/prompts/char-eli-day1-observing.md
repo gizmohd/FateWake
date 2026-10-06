@@ -1,0 +1,2 @@
+# Asset Prompt — char-eli-day1-observing
+Apply art/STYLE-BIBLE.md and art/characters/ELI-TORRES.md. Reusable isolated full-body Eli Torres Day 1 asset. Eight-year-old boy standing still, frightened and intensely observant, gaze toward Maya/player, arms held close naturally. Transparent background / clean alpha-ready silhouette. Match early-morning scene lighting. No horror styling, no scenery, no text.
