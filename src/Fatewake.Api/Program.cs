@@ -7,7 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.Services.AddDbContext<FatewakeDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("fatewake")));
 builder.Services.AddSingleton<IGameEngine, DayOneGameEngine>();\nbuilder.Services.AddScoped<IResolutionStore, ResolutionStore>();
-var app = builder.Build();
+var app = builder.Build();\nawait using (var scope = app.Services.CreateAsyncScope())\n{\n    var db = scope.ServiceProvider.GetRequiredService<FatewakeDbContext>();\n    await DatabaseInitializer.InitializeAsync(db);\n}
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapPost("/api/day1/resolve", (CandidateAction action, IGameEngine engine) =>
