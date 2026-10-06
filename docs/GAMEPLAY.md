@@ -106,3 +106,17 @@ Settlements can permanently fall. Their ruins, displaced people, surviving insti
 
 ## Player-Created Organizations
 Players may create organizations that cross settlement boundaries, such as trading networks, militias, medical services, radio networks, faith communities, research groups or intelligence organizations. Successful institutions may survive leadership changes and outlive their founders.
+
+## Identity, Privacy and Social Safety
+Fatewake may use real-world regional geography to ground a player's experience, but gameplay must not expose another player's precise real-world location. Players primarily encounter survivor identities; real names remain optional.
+
+Friends and family can establish private trusted connections outside the fiction. The simulation can use that consent to create plausible opportunities for their timelines to intersect without simply teleporting characters together or revealing the real-world relationship to strangers.
+
+Blocking changes future interaction rather than rewriting history. Existing betrayals, promises, conflicts and other canonical Wakes remain part of the world, while the system avoids new direct contact between blocked accounts wherever practical.
+
+### Fictional Conflict vs Platform Abuse
+Fatewake distinguishes legitimate fictional hostility from abuse of a real person. Threats between fictional settlements, deception, rivalry and betrayal may be valid gameplay. Harassment, stalking, hateful abuse, sexual harassment, real-world threats, doxxing and similar behavior are platform-safety issues and are not legitimized by role-play.
+
+Unrestricted stranger direct messages are not the default communication model. Communication is contextual and earned through in-world contact, radio networks, settlements, organizations or other designed channels.
+
+Real-player social systems apply age-segmented protections. Adult/minor private communication and romantic systems require strong restrictions even though the fictional world can contain characters and families across age groups.
