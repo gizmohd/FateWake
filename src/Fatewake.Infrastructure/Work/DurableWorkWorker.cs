@@ -33,7 +33,7 @@ public sealed class DurableWorkWorker(IServiceScopeFactory scopes,IOptions<WorkE
                 try
                 {
                     using var executionCts=CancellationTokenSource.CreateLinkedTokenSource(ct);
-                    var heartbeat=HeartbeatAsync(store,lease,options.Value.LeaseDuration,executionCts.Token);
+                    var heartbeat=HeartbeatAsync(store,lease,options.Value.LeaseDuration,executionCts,executionCts.Token);
                     string? output;
                     try{output=await handler.ExecuteAsync(new WorkStepExecutionContext(lease.JobId,lease.StepId,lease.Input,lease.Attempt),executionCts.Token);}
                     finally{executionCts.Cancel();try{await heartbeat;}catch(OperationCanceledException){ }}
@@ -52,14 +52,17 @@ public sealed class DurableWorkWorker(IServiceScopeFactory scopes,IOptions<WorkE
     }
 
     /// <summary>Renews a lease while a potentially long-running handler is executing.</summary>
-    private static async Task HeartbeatAsync(IWorkStore store,WorkLease lease,TimeSpan leaseDuration,CancellationToken ct)
+    private static async Task HeartbeatAsync(IWorkStore store,WorkLease lease,TimeSpan leaseDuration,CancellationTokenSource executionCts,CancellationToken ct)
     {
         var interval=TimeSpan.FromTicks(Math.Max(TimeSpan.FromSeconds(5).Ticks,leaseDuration.Ticks/3));
         while(!ct.IsCancellationRequested)
         {
             await Task.Delay(interval,ct);
             if(!await store.HeartbeatAsync(lease.StepId,lease.LeaseToken,leaseDuration,ct))
+            {
+                executionCts.Cancel();
                 throw new InvalidOperationException($"Lost lease for work step {lease.StepId}.");
+            }
         }
     }
 }
