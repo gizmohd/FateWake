@@ -2,7 +2,7 @@ using System.Text.Json;
 using Fatewake.Infrastructure.Persistence;
 using Fatewake.Infrastructure.Work;
 namespace Fatewake.Infrastructure.Art;
-/// <summary>Reuses an approved master or generates and durably stores exactly one master PNG for an artwork job.</summary>
+/// <summary>Reuses an approved master or generates and durably stores exactly one master PNG for a distributed artwork job.</summary>
 /// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Art/ArtGenerateMasterWorkStepHandler.md">ArtGenerateMasterWorkStepHandler documentation</see>.</remarks>
 public sealed class ArtGenerateMasterWorkStepHandler(IWorkArtifactStore artifacts,IArtBinaryStorage storage,IArtMasterGenerator generator):IWorkStepHandler
 {
