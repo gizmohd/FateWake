@@ -11,7 +11,7 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
         m.Entity<TimelineRecord>(b=>{b.ToTable("timeline");b.HasKey(x=>x.Id);});
         m.Entity<SurvivorRecord>(b=>{b.ToTable("survivor");b.HasKey(x=>x.Id);b.HasIndex(x=>x.TimelineId);});
         m.Entity<EventInstanceRecord>(b=>{b.ToTable("event_instance");b.HasKey(x=>x.Id);b.Property(x=>x.State).HasColumnType("jsonb");b.Property(x=>x.Version).IsConcurrencyToken();});
-        m.Entity<ActionAttemptRecord>(b=>{b.ToTable("action_attempt");b.HasKey(x=>x.Id);b.Property(x=>x.CandidateAction).HasColumnType("jsonb");});
+        m.Entity<ActionAttemptRecord>(b=>{b.ToTable("action_attempt");b.HasKey(x=>x.Id);b.Property(x=>x.CandidateAction).HasColumnType("jsonb");b.HasIndex(x=>new{x.EventInstanceId,x.IdempotencyKey}).IsUnique();});
         m.Entity<ActionResolutionRecord>(b=>{b.ToTable("action_resolution");b.HasKey(x=>x.Id);b.HasIndex(x=>x.ActionAttemptId).IsUnique();b.Property(x=>x.ResolvedAction).HasColumnType("jsonb");b.Property(x=>x.AuthoritativeEffects).HasColumnType("jsonb");b.Property(x=>x.NarrativeFacts).HasColumnType("jsonb");});
         m.Entity<GameEventRecord>(b=>{b.ToTable("game_event");b.HasKey(x=>x.Id);b.Property(x=>x.Payload).HasColumnType("jsonb");b.HasIndex(x=>new{x.TimelineId,x.Sequence}).IsUnique();});
         m.Entity<WakeRecord>(b=>{b.ToTable("wake");b.HasKey(x=>x.Id);b.Property(x=>x.Properties).HasColumnType("jsonb");b.HasIndex(x=>x.OriginEventId);});
