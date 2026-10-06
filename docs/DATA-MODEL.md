@@ -10,6 +10,8 @@ Fatewake separates three concerns:
 
 PostgreSQL is the authoritative source for all three.
 
+Implemented account, survivor and event-instance statuses and Wake lifecycle state use domain-specific C# enums stored as PostgreSQL integers. Their currently supported value is `Active = 1`; numeric values are persistence contracts and must not be renumbered or reused. The reversible status migration converts existing `active` rows without changing the API's lowercase string status responses. Unsupported legacy values cause migration failure rather than silent data replacement.
+
 ## Identity and Timeline
 
 ### survivor
@@ -22,7 +24,7 @@ Represents the playable identity, separate from the authentication account.
 - identity_mode text
 - broad_region text
 - survivor_day integer
-- status text
+- status integer (`SurvivorStatus`)
 - created_at timestamptz
 - updated_at timestamptz
 
@@ -92,11 +94,13 @@ Unique (key, version).
 - definition_id uuid FK
 - timeline_id uuid FK
 - survivor_id uuid FK
-- status text
+- status integer (`EventInstanceStatus`)
 - survivor_day integer
 - started_at timestamptz
 - resolved_at timestamptz nullable
 - state jsonb
+
+Index (survivor_id, status, survivor_day) supports the active-episode lookup and ordering.
 
 ### action_attempt
 Stores both authored-choice and free-form submissions.
@@ -140,7 +144,7 @@ The GameEngine owns action_resolution. AI may help construct a CandidateAction b
 - severity smallint
 - emotional_impact smallint nullable
 - world_impact smallint nullable
-- state text
+- state integer (`WakeState`)
 - properties jsonb
 - created_day integer
 - created_at timestamptz
@@ -525,7 +529,7 @@ Narrative renders may reference generated_content_asset rather than duplicating 
 - id uuid PK
 - display_name text nullable
 - primary_email text nullable
-- status text
+- status integer (`AccountStatus`)
 - created_at timestamptz
 - updated_at timestamptz
 

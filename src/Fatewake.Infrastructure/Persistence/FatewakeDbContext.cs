@@ -17,6 +17,11 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
         m.Entity<ActionResolutionRecord>(b=>{b.ToTable("action_resolution");b.HasKey(x=>x.Id);b.HasIndex(x=>x.ActionAttemptId).IsUnique();b.Property(x=>x.ResolvedAction).HasColumnType("jsonb");b.Property(x=>x.AuthoritativeEffects).HasColumnType("jsonb");b.Property(x=>x.NarrativeFacts).HasColumnType("jsonb");});
         m.Entity<GameEventRecord>(b=>{b.ToTable("game_event");b.HasKey(x=>x.Id);b.Property(x=>x.Payload).HasColumnType("jsonb");b.HasIndex(x=>new{x.TimelineId,x.Sequence}).IsUnique();});
         m.Entity<WakeRecord>(b=>{b.ToTable("wake");b.HasKey(x=>x.Id);b.Property(x=>x.Properties).HasColumnType("jsonb");b.HasIndex(x=>x.OriginEventId);});
+        m.Entity<AccountRecord>().Property(x=>x.Status).HasConversion<int>();
+        m.Entity<SurvivorRecord>().Property(x=>x.Status).HasConversion<int>();
+        m.Entity<EventInstanceRecord>().Property(x=>x.Status).HasConversion<int>();
+        m.Entity<WakeRecord>().Property(x=>x.State).HasConversion<int>();
+        m.Entity<EventInstanceRecord>().HasIndex(x=>new{x.SurvivorId,x.Status,x.SurvivorDay});
         m.Entity<ExternalIdentityRecord>().HasOne<AccountRecord>().WithMany().HasForeignKey(x=>x.AccountId).OnDelete(DeleteBehavior.NoAction);
         m.Entity<TimelineRecord>().HasOne<RealmRecord>().WithMany().HasForeignKey(x=>x.RealmId).OnDelete(DeleteBehavior.NoAction);
         m.Entity<SurvivorRecord>().HasOne<TimelineRecord>().WithMany().HasForeignKey(x=>x.TimelineId).OnDelete(DeleteBehavior.NoAction);
@@ -34,4 +39,4 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
 }
 
 public sealed class GameEventRecord { public Guid Id{get;set;} public Guid TimelineId{get;set;} public Guid? SurvivorId{get;set;} public required string EventType{get;set;} public long Sequence{get;set;} public int SurvivorDay{get;set;} public Guid? CausationEventId{get;set;} public Guid CorrelationId{get;set;} public required string Payload{get;set;} public int SchemaVersion{get;set;}=1; public DateTimeOffset OccurredAt{get;set;} }
-public sealed class WakeRecord { public Guid Id{get;set;} public Guid TimelineId{get;set;} public Guid OriginEventId{get;set;} public required string WakeType{get;set;} public required string Scope{get;set;} public string? TargetEntityType{get;set;} public Guid? TargetEntityId{get;set;} public short Severity{get;set;} public required string State{get;set;} public required string Properties{get;set;} public int CreatedDay{get;set;} public DateTimeOffset CreatedAt{get;set;} }
+public sealed class WakeRecord { public Guid Id{get;set;} public Guid TimelineId{get;set;} public Guid OriginEventId{get;set;} public required string WakeType{get;set;} public required string Scope{get;set;} public string? TargetEntityType{get;set;} public Guid? TargetEntityId{get;set;} public short Severity{get;set;} public required WakeState State{get;set;} public required string Properties{get;set;} public int CreatedDay{get;set;} public DateTimeOffset CreatedAt{get;set;} }
