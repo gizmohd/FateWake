@@ -64,3 +64,15 @@ Fatewake uses plausible regional climate and seasons based on fictionalized real
 
 ## Settlement Agency
 Players can meaningfully influence settlement leadership, rules, defenses, resource priorities, alliances, membership and infrastructure. Settlements are not obedient city-builder pieces: NPCs and other players retain agency and may disagree, refuse, leave, organize, rebel or replace leadership.
+
+## Journal and Personal History
+The Journal combines automatically recorded known history with player-authored notes. It is intended to become a durable personal artifact rather than a conventional quest log. Players can revisit decisions, relationships, discoveries, losses, settlements and other milestones across long periods of play.
+
+Known events can be recorded without exposing hidden Wake IDs, triggers or future consequences. Countable resources may use explicit values, while relationships and social conditions should generally be communicated through behavior and qualitative language rather than numerical meters.
+
+### Player Observations
+Free-form journal entries are themselves meaningful input. A player may notice a pattern, identify a suspicious inconsistency, record a promise, connect two events, or form a theory the authored scenario did not explicitly anticipate.
+
+The system may extract candidate observations from a note, including people, places, objects, events, relationships, promises, suspicions, theories, questions and intended future actions. These can influence what the game pays attention to and what contextual opportunities become available, but an interpretation is not automatically a fact about the world.
+
+The original player-authored entry is preserved separately from machine-derived interpretation. This distinction allows Fatewake to remember what the player actually wrote while safely revising an incorrect interpretation later.
