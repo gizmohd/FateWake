@@ -30,6 +30,7 @@ builder.Services.AddSingleton<IWorkSignalBus,RabbitMqWorkSignalBus>();
 builder.Services.AddScoped<IWorkStore,WorkStore>();
 builder.Services.AddScoped<IWorkArtifactStore,WorkArtifactStore>();
 builder.Services.AddScoped<IArtAssetStore,ArtAssetStore>();
+builder.Services.AddScoped<IArtGenerationStore,ArtGenerationStore>();
 
 builder.Services.AddScoped<IWorkStepHandler,ArtResolveWorkStepHandler>();
 builder.Services.AddScoped<IWorkStepHandler,ArtEncodeWebPWorkStepHandler>();
