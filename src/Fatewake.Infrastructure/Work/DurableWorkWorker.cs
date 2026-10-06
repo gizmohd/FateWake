@@ -35,7 +35,7 @@ public sealed class DurableWorkWorker(IServiceScopeFactory scopes,IOptions<WorkE
                     using var executionCts=CancellationTokenSource.CreateLinkedTokenSource(ct);
                     var heartbeat=HeartbeatAsync(store,lease,options.Value.LeaseDuration,executionCts.Token);
                     string? output;
-                    try{output=await handler.ExecuteAsync(lease.Input,executionCts.Token);}
+                    try{output=await handler.ExecuteAsync(new WorkStepExecutionContext(lease.JobId,lease.StepId,lease.Input,lease.Attempt),executionCts.Token);}
                     finally{executionCts.Cancel();try{await heartbeat;}catch(OperationCanceledException){ }}
                     await store.CompleteAsync(lease.StepId,lease.LeaseToken,output,ct);
                 }
