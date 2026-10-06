@@ -518,3 +518,29 @@ Records where an asset was reused or generated so quality and savings can be mea
 - used_at timestamptz
 
 Narrative renders may reference generated_content_asset rather than duplicating provenance on every use.
+
+## Accounts and External Identity
+
+### account
+- id uuid PK
+- display_name text nullable
+- primary_email text nullable
+- status text
+- created_at timestamptz
+- updated_at timestamptz
+
+### external_identity
+- id uuid PK
+- account_id uuid FK
+- provider text
+- provider_subject text
+- email text nullable
+- email_verified boolean nullable
+- display_name text nullable
+- claims_snapshot jsonb nullable
+- linked_at timestamptz
+- last_login_at timestamptz
+
+Unique (provider, provider_subject). Do not use email as the external identity key. One account may link Google, Microsoft and Apple identities.
+
+A guest Survivor may initially have account_id = null. During account preservation/linking, create or resolve the account and attach the existing Survivor to it transactionally; never discard the guest timeline merely because authentication was added.
