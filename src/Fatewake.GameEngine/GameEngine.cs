@@ -1,35 +1,16 @@
 namespace Fatewake.GameEngine;
 
+/// <summary>
+/// Defines the deterministic game rules boundary.
+/// </summary>
+/// <see href="../../docs/code/src/Fatewake.GameEngine/GameEngine.md">IGameEngine documentation</see>
 public interface IGameEngine
 {
+    /// <summary>
+    /// Resolves an action against the supplied canonical game snapshot.
+    /// </summary>
+    /// <param name="state">The authoritative state used to evaluate the action.</param>
+    /// <param name="action">The candidate action submitted for resolution.</param>
+    /// <returns>The accepted or rejected action result, including effects and narrative facts.</returns>
     ActionResolution Resolve(GameSnapshot state, CandidateAction action);
 }
-
-public sealed record GameSnapshot(
-    Guid SurvivorId,
-    Guid TimelineId,
-    int SurvivorDay,
-    string EventKey,
-    IReadOnlyDictionary<string, string> Facts);
-
-public sealed record CandidateAction(
-    string ActionType,
-    IReadOnlyDictionary<string, string> Arguments,
-    string? RawInput = null);
-
-public sealed record WakeEffect(
-    string Type,
-    string Scope,
-    string? Target,
-    int Severity,
-    IReadOnlyDictionary<string, string> Properties);
-
-public sealed record StateEffect(string Type, string Key, string Value);
-
-public sealed record ActionResolution(
-    bool Accepted,
-    string OutcomeKey,
-    IReadOnlyList<StateEffect> Effects,
-    IReadOnlyList<WakeEffect> Wakes,
-    IReadOnlyDictionary<string, string> NarrativeFacts,
-    string RulesVersion);

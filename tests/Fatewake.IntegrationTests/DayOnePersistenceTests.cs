@@ -9,8 +9,11 @@ using Npgsql;
 
 namespace Fatewake.IntegrationTests;
 
+/// <summary>Verifies PostgreSQL persistence, migrations, and atomic day-one resolution behavior.</summary>
+/// <see href="../../../docs/code/tests/Fatewake.IntegrationTests/DayOnePersistenceTests.md">DayOnePersistenceTests documentation</see>
 public sealed class DayOnePersistenceTests
 {
+    /// <summary>An accepted action persists its resolution, event, and Wake records.</summary>
     [Fact]
     public async Task Accepted_action_persists_resolution_event_and_wake_atomically()
     {
@@ -35,6 +38,7 @@ public sealed class DayOnePersistenceTests
         Assert.Single(await db.ActionResolutions.ToListAsync(ct)); Assert.Single(await db.GameEvents.ToListAsync(ct)); Assert.Single(await db.Wakes.ToListAsync(ct));
     }
 
+    /// <summary>The status migration preserves existing rows and supports rollback.</summary>
     [Fact]
     public async Task Status_migration_preserves_existing_data_and_can_roll_back()
     {
@@ -106,6 +110,7 @@ UNION ALL SELECT "State" FROM wake
         await migrator.MigrateAsync(cancellationToken:ct);
     }
 
+    /// <summary>The status migration rejects unsupported values without discarding stored data.</summary>
     [Fact]
     public async Task Status_migration_rejects_unsupported_values_without_losing_data()
     {

@@ -2,8 +2,11 @@ using Fatewake.GameEngine.DayOne;
 
 namespace Fatewake.GameEngine.Tests;
 
+/// <summary>Verifies deterministic day-one game rules and persistent outcomes.</summary>
+/// <see href="../../../docs/code/tests/Fatewake.GameEngine.Tests/DayOneGameEngineTests.md">DayOneGameEngineTests documentation</see>
 public sealed class DayOneGameEngineTests
 {
+    /// <summary>Helping the stranger is accepted and creates a relationship Wake.</summary>
     [Fact]
     public void Helping_the_injured_stranger_creates_a_persistent_first_impression_wake()
     {
@@ -17,6 +20,7 @@ public sealed class DayOneGameEngineTests
         Assert.Contains(result.Wakes, x => x.Type == "first_impression" && x.Target == "michelle");
     }
 
+    /// <summary>Unknown actions are rejected without state or Wake effects.</summary>
     [Fact]
     public void Unsupported_actions_cannot_change_canonical_state()
     {

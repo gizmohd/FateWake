@@ -1,8 +1,14 @@
 namespace Fatewake.Web.Presentation;
 
+/// <summary>Maps day-one artwork keys to their ordered composition layers.</summary>
+/// <see href="../../../docs/code/src/Fatewake.Web/Presentation/DayOneArt.md">DayOneArt documentation</see>
 public static class DayOneArt
 {
     private static ArtLayer Full(string key,int z=0,double opacity=1)=>new(key,1,z,.5,.5,1,1,opacity);
+
+    /// <summary>Gets the authored composition layers for a day-one artwork key.</summary>
+    /// <param name="artworkKey">Stable artwork key referenced by a scene beat.</param>
+    /// <returns>The ordered composition layers, or an empty list for an unknown key.</returns>
     public static IReadOnlyList<ArtLayer> For(string artworkKey)=>artworkKey switch
     {
         "day1-phone-0617"=>[Full("bg-day1-bedroom-dark"),new("prop-phone-0617-noservice",1,20,.5,.43,.48,.35)],

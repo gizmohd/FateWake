@@ -57,7 +57,7 @@ public sealed class ArtAssetIngestionService(FatewakeDbContext db,IArtBinaryStor
         db.ArtAssetDerivatives.AddRange(
             Derivative(id,ArtDerivativeKind.WebP,webpKey,webp,now),
             Derivative(id,ArtDerivativeKind.OptimizedPng,pngKey,optimizedPng,now));
-        db.ArtGenerations.Add(new ArtGenerationRecord{Id=Guid.NewGuid(),ArtAssetId=id,Operation=request.Provenance.Operation,
+        db.ArtGenerations.Add(new ArtGenerationRecord{Id=Guid.NewGuid(),IdempotencyKey=id.ToString("N"),ArtAssetId=id,Operation=request.Provenance.Operation,
             PromptKey=request.Provenance.PromptKey,PromptTemplateVersion=request.Provenance.PromptTemplateVersion,
             ResolvedPrompt=request.Provenance.ResolvedPrompt,NegativePrompt=request.Provenance.NegativePrompt,
             Provider=request.Provenance.Provider,Model=request.Provenance.Model,ProviderJobId=request.Provenance.ProviderJobId,

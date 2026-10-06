@@ -2,25 +2,14 @@ using Fatewake.GameEngine;
 
 namespace Fatewake.AI.Intent;
 
+/// <summary>Translates player input into a normalized action for deterministic game-rule evaluation.</summary>
+/// <see href="../../../docs/code/src/Fatewake.AI/Intent/IntentInterpreter.md">IIntentInterpreter documentation</see>
 public interface IIntentInterpreter
 {
+    /// <summary>Interprets player input against the current game context.</summary>
+    /// <param name="state">Current game snapshot used to interpret the input.</param>
+    /// <param name="input">Player-provided text.</param>
+    /// <param name="ct">Token used to cancel interpretation.</param>
+    /// <returns>A normalized candidate action; game outcomes remain the responsibility of the GameEngine.</returns>
     Task<CandidateAction> InterpretAsync(GameSnapshot state, string input, CancellationToken ct = default);
-}
-
-// Deterministic baseline. An AI-backed implementation can replace this without changing GameEngine authority.
-public sealed class BaselineIntentInterpreter : IIntentInterpreter
-{
-    public Task<CandidateAction> InterpretAsync(GameSnapshot state, string input, CancellationToken ct = default)
-    {
-        var text = input.Trim().ToLowerInvariant();
-        var action = text switch
-        {
-            var x when x.Contains("help") || x.Contains("first aid") || x.Contains("run over") => "help_injured_stranger",
-            var x when x.Contains("radio") || x.Contains("broadcast") => "investigate_radio",
-            var x when x.Contains("door") || x.Contains("call") || x.Contains("yell") => "call_from_safety",
-            var x when x.Contains("stay") || x.Contains("watch") || x.Contains("inside") => "stay_inside",
-            _ => "unrecognized_intent"
-        };
-        return Task.FromResult(new CandidateAction(action, new Dictionary<string,string>(), input));
-    }
 }

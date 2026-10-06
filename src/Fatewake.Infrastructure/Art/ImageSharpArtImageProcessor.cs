@@ -9,6 +9,13 @@ public sealed class ImageSharpArtImageProcessor : IArtImageProcessor
 {
     private const int WebPQuality=82;
 
+    public ArtImageInfo Inspect(ReadOnlyMemory<byte> imageData)
+    {
+        var info=Image.Identify(imageData.Span)??throw new InvalidDataException("Invalid image.");
+        using var image=Image.Load<Rgba32>(imageData.Span);
+        return new(info.Width,info.Height,HasAlpha(image));
+    }
+
     public ArtImageInfo InspectPng(ReadOnlyMemory<byte> png)
     {
         var info=Image.Identify(png.Span)??throw new InvalidDataException("Invalid PNG image.");
@@ -32,11 +39,16 @@ public sealed class ImageSharpArtImageProcessor : IArtImageProcessor
 
     private static bool HasAlpha(Image<Rgba32> image)
     {
-        for(var y=0;y<image.Height;y++)
+        var hasAlpha=false;
+        image.ProcessPixelRows(accessor =>
         {
-            var row=image.DangerousGetPixelRowMemory(y).Span;
-            for(var x=0;x<row.Length;x++)if(row[x].A<255)return true;
-        }
-        return false;
+            for(var y=0;y<accessor.Height&&!hasAlpha;y++)
+            {
+                var row=accessor.GetRowSpan(y);
+                for(var x=0;x<row.Length;x++)
+                    if(row[x].A<255){hasAlpha=true;break;}
+            }
+        });
+        return hasAlpha;
     }
 }

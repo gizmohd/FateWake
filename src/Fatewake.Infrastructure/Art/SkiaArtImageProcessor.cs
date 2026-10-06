@@ -12,7 +12,8 @@ public sealed class SkiaArtImageProcessor:IArtImageProcessor
         using var data=SKData.CreateCopy(image.Span);
         using var codec=SKCodec.Create(data)??throw new InvalidDataException("Image data is not decodable.");
         ValidateSize(codec.Info.Width,codec.Info.Height);
-        return new(codec.Info.Width,codec.Info.Height,codec.Info.AlphaType!=SKAlphaType.Opaque);
+        using var bitmap=SKBitmap.Decode(codec)??throw new InvalidDataException("Image data could not be decoded.");
+        return new(codec.Info.Width,codec.Info.Height,HasAlpha(bitmap));
     }
     public ArtImageInfo InspectPng(ReadOnlyMemory<byte> png)
     {
@@ -20,7 +21,8 @@ public sealed class SkiaArtImageProcessor:IArtImageProcessor
         using var codec=SKCodec.Create(data)??throw new InvalidDataException("Image data is not decodable.");
         if(codec.EncodedFormat!=SKEncodedImageFormat.Png)throw new InvalidDataException("Master artwork must be PNG.");
         ValidateSize(codec.Info.Width,codec.Info.Height);
-        return new(codec.Info.Width,codec.Info.Height,codec.Info.AlphaType!=SKAlphaType.Opaque);
+        using var bitmap=SKBitmap.Decode(codec)??throw new InvalidDataException("Master PNG could not be decoded.");
+        return new(codec.Info.Width,codec.Info.Height,HasAlpha(bitmap));
     }
     public Task<EncodedArtImage> CreateWebPAsync(ReadOnlyMemory<byte> masterPng,CancellationToken ct=default)
         => Task.FromResult(Encode(masterPng,SKEncodedImageFormat.Webp,WebPQuality,"skia:webp:q85",ct));
@@ -38,12 +40,19 @@ public sealed class SkiaArtImageProcessor:IArtImageProcessor
         using var image=SKImage.FromBitmap(bitmap);
         using var encoded=image.Encode(format,quality)??throw new InvalidOperationException($"SkiaSharp failed to encode {format}.");
         var bytes=encoded.ToArray();
-        var info=new ArtImageInfo(bitmap.Width,bitmap.Height,bitmap.AlphaType!=SKAlphaType.Opaque);
+        var info=new ArtImageInfo(bitmap.Width,bitmap.Height,HasAlpha(bitmap));
         return new(bytes,format==SKEncodedImageFormat.Webp?"image/webp":"image/png",metadata,info);
     }
     private static void ValidateSize(int width,int height)
     {
         if(width<=0||height<=0||width>MaxDimension||height>MaxDimension||(long)width*height>MaxPixels)
             throw new InvalidDataException($"Image dimensions {width}x{height} exceed supported limits.");
+    }
+    private static bool HasAlpha(SKBitmap image)
+    {
+        for(var y=0;y<image.Height;y++)
+            for(var x=0;x<image.Width;x++)
+                if(image.GetPixel(x,y).Alpha<255)return true;
+        return false;
     }
 }

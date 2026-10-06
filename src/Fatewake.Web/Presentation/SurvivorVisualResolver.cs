@@ -4,15 +4,11 @@ using System.Text.Json;
 
 namespace Fatewake.Web.Presentation;
 
-public interface ISurvivorVisualResolver
-{
-    SurvivorVisualProjection Project(SurvivorVisualState state, SceneVisualContext context);
-    SurvivorVisualSnapshot Snapshot(SurvivorVisualIdentity identity, SurvivorVisualProjection projection);
-    IReadOnlyList<ArtLayer> Compose(SurvivorVisualSnapshot snapshot, int baseZ, double x, double y, double width, double height);
-}
-
+/// <summary>Resolves visibility and composition layers for survivor visual states.</summary>
+/// <see href="../../../docs/code/src/Fatewake.Web/Presentation/SurvivorVisualResolver.md">SurvivorVisualResolver documentation</see>
 public sealed class SurvivorVisualResolver : ISurvivorVisualResolver
 {
+    /// <inheritdoc />
     public SurvivorVisualProjection Project(SurvivorVisualState state, SceneVisualContext context)
     {
         var visible = state.Loadout
@@ -23,6 +19,7 @@ public sealed class SurvivorVisualResolver : ISurvivorVisualResolver
         return new(state.SurvivorId, state.StateVersion, context, visible);
     }
 
+    /// <inheritdoc />
     public SurvivorVisualSnapshot Snapshot(SurvivorVisualIdentity identity, SurvivorVisualProjection projection)
     {
         if (identity.SurvivorId != projection.SurvivorId) throw new InvalidOperationException("Visual identity and projection belong to different survivors.");
@@ -35,6 +32,7 @@ public sealed class SurvivorVisualResolver : ISurvivorVisualResolver
         return new(projection.SurvivorId,projection.StateVersion,fingerprint,DateTimeOffset.UtcNow,projection);
     }
 
+    /// <inheritdoc />
     public IReadOnlyList<ArtLayer> Compose(SurvivorVisualSnapshot snapshot,int baseZ,double x,double y,double width,double height) =>
         snapshot.Projection.Visible.Select((v,i)=>new ArtLayer(v.Source.AssetKey,v.Source.AssetVersion,baseZ+i,x,y,width,height)).ToArray();
 

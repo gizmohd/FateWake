@@ -2,8 +2,11 @@ using Fatewake.Web.Presentation;
 
 namespace Fatewake.Web.Tests;
 
+/// <summary>Verifies the authored day-one scene's structure and artwork references.</summary>
+/// <see href="../../../docs/code/tests/Fatewake.Web.Tests/SceneRuntimeTests.md">SceneRuntimeTests documentation</see>
 public sealed class SceneRuntimeTests
 {
+    /// <summary>The opening scene contains the expected vertical-slice beats.</summary>
     [Fact]
     public void Day_one_opening_has_expected_vertical_slice()
     {
@@ -14,6 +17,7 @@ public sealed class SceneRuntimeTests
         Assert.Equal("silence",scene.Beats[^1].Key);
     }
 
+    /// <summary>Only the first-choice beat offers player interactions.</summary>
     [Fact]
     public void Only_first_choice_is_an_interaction_beat()
     {
@@ -23,6 +27,7 @@ public sealed class SceneRuntimeTests
         Assert.Contains(interactions[0].Interactions,x=>x.ActionType=="freeform");
     }
 
+    /// <summary>Every authored day-one beat identifies its artwork.</summary>
     [Fact]
     public void Every_day_one_beat_has_an_artwork_key()
     {

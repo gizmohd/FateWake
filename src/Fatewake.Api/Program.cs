@@ -1,4 +1,5 @@
 using Fatewake.AI.Intent;
+using Fatewake.Api;
 using Fatewake.Api.Authentication;
 using Fatewake.GameEngine;
 using Fatewake.GameEngine.DayOne;
@@ -89,4 +90,3 @@ app.MapPost("/api/day1/resolve", async (
 });
 
 app.Run();
-

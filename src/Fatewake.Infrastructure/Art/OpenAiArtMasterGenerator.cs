@@ -17,7 +17,7 @@ public sealed class OpenAiArtMasterGenerator(HttpClient http,IOptions<OpenAiArtG
   if((invocation.Request.ReferenceImages?.Count??0)>0)
   {
    var form=new MultipartFormDataContent();form.Add(new StringContent(invocation.Request.Model??o.Model),"model");form.Add(new StringContent(prompt),"prompt");form.Add(new StringContent(o.Size),"size");form.Add(new StringContent(o.Quality),"quality");form.Add(new StringContent("png"),"output_format");form.Add(new StringContent(o.Background),"background");
-   foreach(var reference in invocation.Request.ReferenceImages!.Take(16)){await using var input=await storage.OpenReadAsync(reference.StorageKey,ct);var bytes=await ReadAllAsync(input,ct);var part=new ByteArrayContent(bytes);part.Headers.ContentType=new MediaTypeHeaderValue("image/png");form.Add(part,"image[]",Path.GetFileName(reference.StorageKey));}
+   foreach(var reference in invocation.Request.ReferenceImages!.Take(16)){await using var input=await storage.OpenReadAsync(reference.StorageKey,ct);var referenceBytes=await ReadAllAsync(input,ct);var part=new ByteArrayContent(referenceBytes);part.Headers.ContentType=new MediaTypeHeaderValue("image/png");form.Add(part,"image[]",Path.GetFileName(reference.StorageKey));}
    request.Content=form;
   }
   else request.Content=JsonContent.Create(new{model=invocation.Request.Model??o.Model,prompt,size=o.Size,quality=o.Quality,output_format="png",background=o.Background});

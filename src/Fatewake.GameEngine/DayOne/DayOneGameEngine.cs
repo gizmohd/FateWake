@@ -1,7 +1,17 @@
 namespace Fatewake.GameEngine.DayOne;
 
+/// <summary>
+/// Resolves the deterministic action rules for the first-day injured stranger event.
+/// </summary>
+/// <see href="../../../docs/code/src/Fatewake.GameEngine/DayOne/DayOneGameEngine.md">DayOneGameEngine documentation</see>
 public sealed class DayOneGameEngine : IGameEngine
 {
+    /// <summary>
+    /// Resolves a candidate action for the supported first-day event.
+    /// </summary>
+    /// <param name="state">The current game snapshot.</param>
+    /// <param name="action">The candidate action to resolve.</param>
+    /// <returns>The resulting state changes and Wake effects, or a rejection for unsupported input.</returns>
     public ActionResolution Resolve(GameSnapshot state, CandidateAction action)
     {
         if (state.SurvivorDay != 1 || state.EventKey != "day-001-injured-stranger")

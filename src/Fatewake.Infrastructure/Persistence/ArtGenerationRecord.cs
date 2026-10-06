@@ -4,7 +4,7 @@ namespace Fatewake.Infrastructure.Persistence;
 public sealed class ArtGenerationRecord
 {
  public Guid Id{get;set;}
- public Guid WorkJobId{get;set;}
+ public Guid? WorkJobId{get;set;}
  public Guid? ArtAssetId{get;set;}
  public required string IdempotencyKey{get;set;}
  public required string Operation{get;set;}
