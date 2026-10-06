@@ -61,3 +61,58 @@ Prefer WEBP/AVIF for opaque backgrounds and WEBP/PNG with alpha for overlays dep
 
 ## Hero art
 Major reveals may use a purpose-generated flattened HeroIllustration. Hero images still receive stable keys, provenance and prompt files and can coexist with reusable layered panels.
+
+
+## Generated Asset Persistence and Reuse
+
+AI image generation or alteration is an **asset-creation operation**, never a transient render operation.
+
+Whenever Fatewake pays to generate, edit, extend, restyle, composite, or otherwise alter an in-game image with AI, the resulting image and any independently reusable generated layers/assets must be persisted and registered before they are used in production gameplay.
+
+### Reuse-first rule
+
+Before authorizing generation, the visual pipeline must attempt, in order:
+
+1. exact approved asset/render lookup;
+2. exact composition/render lookup by canonical visual-state fingerprint;
+3. reuse/recomposition of existing approved backgrounds, character poses, expressions, props, equipment, foregrounds, lighting and effects;
+4. compatible existing-asset discovery for editorial review or deterministic composition;
+5. new AI generation only when no approved reusable result satisfies the requested canonical state.
+
+Semantic similarity may help discover candidates, but must never silently substitute an asset whose canonical state is incompatible.
+
+### Persisted generation record
+
+Every generated result should retain enough provenance to reproduce, audit, reuse and cost-account for it, including:
+
+- stable asset/render ID and version;
+- content hash;
+- asset type and artwork/composition key;
+- survivor/character identity-reference version(s);
+- canonical visual-state and visible-projection fingerprint;
+- scene, pose and camera context when applicable;
+- source/reference asset IDs and versions;
+- prompt/template version and Style Bible version;
+- provider/model and generation/edit operation;
+- generation parameters supported by the provider;
+- creation timestamp;
+- approval/status lifecycle;
+- storage URI/object key;
+- dimensions/format;
+- generation cost/usage metadata where available;
+- parent asset/render ID for edits and derivatives;
+- continuity/editorial notes.
+
+### Derivative assets
+
+An AI alteration must not overwrite its source. It creates a new immutable version/derivative linked to its parent. If a useful component is produced independently (for example a Michelle pose, backpack overlay, damaged jacket, radio prop or lighting effect), it should be registered as a reusable asset rather than existing only inside a flattened scene.
+
+Flattened final scene renders may also be cached and reused when the complete render fingerprint matches.
+
+### Runtime requirement
+
+Normal gameplay should resolve a persisted asset or composition reference. It should not invoke image generation simply because a player revisits a scene, reloads a page, opens historical journal artwork, or another compatible scene needs the same visual asset.
+
+Generation is authorized only for a genuinely missing canonical visual requirement or an explicitly requested new version.
+
+This applies equally to authored NPC artwork and future player-generated survivor artwork.
