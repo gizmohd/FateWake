@@ -22,7 +22,8 @@ public sealed class ArtGenerateMasterWorkStepHandler(IWorkArtifactStore artifact
             var reusedJson=JsonSerializer.Serialize(reused);await artifacts.PutAsync(context.JobId,"art.master",reusedJson,ct);return reusedJson;
         }
 
-        var generated=await generator.GenerateAsync(request,ct);
+        var invocation=new ArtGenerationInvocation($"art:{context.JobId:N}",request);
+        var generated=await generator.GenerateAsync(invocation,ct);
         var storageKey=$"art/staging/{context.JobId:N}/master.png";
         await using(var stream=new MemoryStream(generated.MasterPng,writable:false))
             await storage.PutAsync(storageKey,stream,"image/png",ct);
