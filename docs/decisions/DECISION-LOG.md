@@ -161,3 +161,17 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-082 | Unrestricted stranger DMs are not a default feature; free-form communication is unlocked through in-world contexts such as encounters, radio, settlements and organizations. | Accepted direction |
 | DEC-083 | Players may establish private out-of-world trusted connections with friends/family so Fatewake can facilitate plausible convergence without exposing the real-world relationship to others. | Accepted direction |
 | DEC-084 | Real-player social and relationship systems use age-segmented protections, with strong restrictions on adult/minor romance and private communication while fictional worlds may still contain characters of varied ages. | Accepted |
+
+## First-Session and Onboarding Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-085 | Fatewake opens directly in the fiction at 6:17 AM rather than beginning with conventional character creation. | Accepted |
+| DEC-086 | The first meaningful decision should occur within roughly the first 60–90 seconds of play. | Accepted direction |
+| DEC-087 | Starting geography uses only broad/approximate regional location with permission and fictionalizes more precise geography; a home address is not required. | Accepted |
+| DEC-088 | Hybrid/self identity is established through a small number of contextual questions and later behavior rather than a large pre-game questionnaire. | Accepted |
+| DEC-089 | A free-form 'Do something else...' interaction appears very early so players immediately understand that authored options are not the complete action space. | Accepted |
+| DEC-090 | The first major anomaly/reveal is the future-dated 6:17 radio timestamp and is presented without explanatory tutorial UI. | Accepted |
+| DEC-091 | Day 1 should visibly but subtly reflect an earlier player action before the episode ends, demonstrating persistent memory without exposing mechanics. | Accepted |
+| DEC-092 | Explore guest/low-friction play before full registration, with account creation/preservation requested after initial investment, subject to implementation/security/platform validation. | Accepted direction |
+| DEC-093 | Tutorials should be minimal and contextual; new systems are introduced when they become relevant in the fiction. | Accepted |
