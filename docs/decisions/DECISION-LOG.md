@@ -148,3 +148,16 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-074 | Settlements can permanently fall; their history, ruins, refugees, artifacts, responsibility and downstream consequences persist in the world. | Accepted |
 | DEC-075 | Players may create persistent organizations beyond settlements, including trade, defense, medical, communications, religious, research and intelligence organizations that may outlive their founders. | Accepted direction |
 | DEC-076 | Fatewake's social/world scale can propagate from Person → Group → Settlement → Organization → Alliance/Faction → Region → Realm without requiring every player to directly manage every layer. | Accepted direction |
+
+## Identity, Privacy and Social Safety Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-077 | Real-world geography may inform a player's starting region, but another player's precise real-world location is never exposed through gameplay; visible geography is appropriately fictionalized/in-world. | Accepted |
+| DEC-078 | Friends and family may intentionally join one another, with the system creating plausible early timeline intersections rather than teleporting characters together without fiction. | Accepted direction |
+| DEC-079 | Real names are optional; other players primarily interact with the chosen survivor identity. | Accepted |
+| DEC-080 | Blocking prevents new direct player interactions where practical but does not erase already-canonical history or legitimate world consequences. | Accepted |
+| DEC-081 | In-world hostility may be valid fiction, but harassment, stalking, hate/slurs, sexual harassment, real-world threats, doxxing and similar platform abuse remain prohibited regardless of role-play framing. | Accepted |
+| DEC-082 | Unrestricted stranger DMs are not a default feature; free-form communication is unlocked through in-world contexts such as encounters, radio, settlements and organizations. | Accepted direction |
+| DEC-083 | Players may establish private out-of-world trusted connections with friends/family so Fatewake can facilitate plausible convergence without exposing the real-world relationship to others. | Accepted direction |
+| DEC-084 | Real-player social and relationship systems use age-segmented protections, with strong restrictions on adult/minor romance and private communication while fictional worlds may still contain characters of varied ages. | Accepted |
