@@ -3,6 +3,7 @@ using Fatewake.Api.Authentication;
 using Fatewake.GameEngine;
 using Fatewake.GameEngine.DayOne;
 using Fatewake.Infrastructure.Persistence;
+using Fatewake.Infrastructure.Art;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +15,12 @@ builder.Services.AddSingleton<IGameEngine, DayOneGameEngine>();
 builder.Services.AddScoped<IResolutionStore, ResolutionStore>();
 builder.Services.AddScoped<ISessionStore, SessionStore>();
 builder.Services.AddScoped<IAccountStore, AccountStore>();
+builder.Services.AddScoped<IArtAssetStore, ArtAssetStore>();
+builder.Services.AddScoped<IArtAssetIngestionService, ArtAssetIngestionService>();
+builder.Services.AddScoped<IArtResolutionService, ArtResolutionService>();
+builder.Services.AddKeyedSingleton<IArtImageProcessor, SkiaSharpArtImageProcessor>("skia");
+builder.Services.AddKeyedSingleton<IArtImageProcessor, ImageSharpArtImageProcessor>("imagesharp");
+builder.Services.AddSingleton<IArtImageProcessor, SkiaSharpArtImageProcessor>();
 builder.Services.AddSingleton<IIntentInterpreter, BaselineIntentInterpreter>();
 builder.Services.Configure<ExternalIdentityOptions>(
     builder.Configuration.GetSection("Authentication"));
