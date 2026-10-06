@@ -4,7 +4,7 @@ using Fatewake.Infrastructure.Work;
 namespace Fatewake.Infrastructure.Art;
 /// <summary>Reuses an approved master or generates and durably stores exactly one master PNG for a distributed artwork job.</summary>
 /// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Art/ArtGenerateMasterWorkStepHandler.md">ArtGenerateMasterWorkStepHandler documentation</see>.</remarks>
-public sealed class ArtGenerateMasterWorkStepHandler(IWorkArtifactStore artifacts,IArtBinaryStorage storage,IArtMasterGenerator generator):IWorkStepHandler
+public sealed class ArtGenerateMasterWorkStepHandler(IWorkArtifactStore artifacts,IArtBinaryStorage storage,IArtMasterGenerator generator,IArtGenerationStore generations):IWorkStepHandler
 {
     public string StepType=>ArtWorkStepTypes.GenerateMaster;
     public async Task<string?> ExecuteAsync(WorkStepExecutionContext context,CancellationToken ct)
@@ -23,7 +23,11 @@ public sealed class ArtGenerateMasterWorkStepHandler(IWorkArtifactStore artifact
         }
 
         var invocation=new ArtGenerationInvocation($"art:{context.JobId:N}",request);
+        var references=JsonSerializer.Serialize(request.ReferenceImages??[]);
+        var parameters=JsonSerializer.Serialize(new{request.Provider,request.Model,request.AssetType});
+        await generations.EnsurePendingAsync(context.JobId,invocation.IdempotencyKey,"generate",request.ResolvedPrompt,request.NegativeInstructions,request.Provider,request.Model,request.PromptTemplateId,request.PromptTemplateVersion,request.StyleBibleVersion,references,parameters,"{}",request.VisualFingerprint,ct);
         var generated=await generator.GenerateAsync(invocation,ct);
+        await generations.CompleteAsync(context.JobId,generated.ProviderJobId,generated.CostUsd,ct);
         var storageKey=$"art/staging/{context.JobId:N}/master.png";
         await using(var stream=new MemoryStream(generated.MasterPng,writable:false))
             await storage.PutAsync(storageKey,stream,"image/png",ct);
