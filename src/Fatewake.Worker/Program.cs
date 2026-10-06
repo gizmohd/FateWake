@@ -12,6 +12,9 @@ builder.Services.AddDbContext<FatewakeDbContext>(options =>
 builder.Services.Configure<WorkExecutionOptions>(builder.Configuration.GetSection("Work"));
 builder.Services.Configure<RabbitMqWorkOptions>(builder.Configuration.GetSection("RabbitMq"));
 builder.Services.Configure<ArtStorageOptions>(builder.Configuration.GetSection(ArtStorageOptions.SectionName));
+builder.Services.Configure<ArtGenerationProviderOptions>(builder.Configuration.GetSection(ArtGenerationProviderOptions.SectionName));
+builder.Services.Configure<OpenAiArtGenerationOptions>(builder.Configuration.GetSection(OpenAiArtGenerationOptions.SectionName));
+builder.Services.Configure<LocalArtGenerationOptions>(builder.Configuration.GetSection(LocalArtGenerationOptions.SectionName));
 builder.Services.Configure<OpenAiArtGenerationOptions>(builder.Configuration.GetSection(OpenAiArtGenerationOptions.SectionName));
 
 var storage=builder.Configuration.GetSection(ArtStorageOptions.SectionName).Get<ArtStorageOptions>()??new ArtStorageOptions();
