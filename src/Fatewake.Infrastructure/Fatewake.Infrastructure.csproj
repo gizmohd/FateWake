@@ -1,4 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup><ProjectReference Include="../Fatewake.GameEngine/Fatewake.GameEngine.csproj" /></ItemGroup>
-  <ItemGroup><PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" /><PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" /><PackageReference Include="SkiaSharp" Version="3.119.1" /><PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" /></ItemGroup>
+  <ItemGroup><PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" /><PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" /><PackageReference Include="SkiaSharp" Version="3.119.1" /><PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.1" /><PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" /></ItemGroup>
 </Project>
