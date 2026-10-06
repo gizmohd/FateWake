@@ -175,3 +175,10 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-091 | Day 1 should visibly but subtly reflect an earlier player action before the episode ends, demonstrating persistent memory without exposing mechanics. | Accepted |
 | DEC-092 | Explore guest/low-friction play before full registration, with account creation/preservation requested after initial investment, subject to implementation/security/platform validation. | Accepted direction |
 | DEC-093 | Tutorials should be minimal and contextual; new systems are introduced when they become relevant in the fiction. | Accepted |
+
+## Data Platform Decision
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-094 | PostgreSQL is Fatewake's authoritative primary datastore. The architecture will use relational modeling for known domain entities, JSONB where flexible/evolving payloads are valuable, append-oriented history for consequential state changes, and graph-friendly relationships/recursive traversal for Wakes, causality, information provenance and world relationships. | Accepted |
+| DEC-095 | MongoDB, a dedicated graph database, Redis and other specialized datastores are not MVP dependencies. They may be introduced later only for demonstrated workloads while PostgreSQL remains the source of canonical truth unless a future architecture decision explicitly changes that. | Accepted |
