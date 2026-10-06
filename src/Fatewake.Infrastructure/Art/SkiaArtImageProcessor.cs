@@ -7,6 +7,13 @@ public sealed class SkiaArtImageProcessor:IArtImageProcessor
     private const int MaxDimension=16384;
     private const long MaxPixels=100_000_000;
     private const int WebPQuality=85;
+    public ArtImageInfo Inspect(ReadOnlyMemory<byte> image)
+    {
+        using var data=SKData.CreateCopy(image.Span);
+        using var codec=SKCodec.Create(data)??throw new InvalidDataException("Image data is not decodable.");
+        ValidateSize(codec.Info.Width,codec.Info.Height);
+        return new(codec.Info.Width,codec.Info.Height,codec.Info.AlphaType!=SKAlphaType.Opaque);
+    }
     public ArtImageInfo InspectPng(ReadOnlyMemory<byte> png)
     {
         using var data=SKData.CreateCopy(png.Span);
