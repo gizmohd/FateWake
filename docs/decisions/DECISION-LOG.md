@@ -211,3 +211,13 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-107 | AI-generated decision/action trees intended for repeated gameplay become versioned validated content assets; deterministic runtime logic consumes the stored version instead of regenerating it per player. | Accepted |
 | DEC-108 | Semantic similarity may discover reuse candidates, but cannot by itself authorize reuse; current facts, privacy boundaries and content constraints must validate applicability. | Accepted |
 | DEC-109 | Generated-content provenance and economics should be measurable, including model/provider, versions, usage/reuse counts and token/cost metadata when available. | Accepted |
+
+## Player Authentication Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-110 | Fatewake uses external identity as the primary account model, initially supporting Google, Microsoft and Apple sign-in/sign-up rather than requiring a Fatewake password. | Accepted |
+| DEC-111 | Guest play remains supported for low-friction onboarding; linking an external identity upgrades/preserves the existing survivor and timeline rather than creating a new survivor. | Accepted |
+| DEC-112 | A Fatewake account is distinct from a provider identity and may have multiple external login identities linked to the same account. | Accepted |
+| DEC-113 | Provider email addresses are attributes, not stable identity keys. External identities are keyed by provider + provider subject identifier; Apple private-relay email is supported. | Accepted |
+| DEC-114 | Authentication secrets/client credentials are external configuration/secrets and never stored in source control. | Accepted |
