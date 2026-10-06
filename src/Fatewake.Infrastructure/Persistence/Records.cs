@@ -72,25 +72,3 @@ public sealed class ArtGenerationRecord
 }
 
 
-public enum WorkJobStatus { Pending=0,Running=1,Completed=2,Failed=3,Cancelled=4 }
-public enum WorkStepStatus { Pending=0,Ready=1,Leased=2,Completed=3,Retry=4,Failed=5,Cancelled=6 }
-
-public sealed class WorkJobRecord
-{
-    public Guid Id{get;set;} public required string JobType{get;set;} public required string IdempotencyKey{get;set;}
-    public WorkJobStatus Status{get;set;} public int Priority{get;set;} public string Payload{get;set;}="{}";
-    public DateTimeOffset CreatedAt{get;set;} public DateTimeOffset UpdatedAt{get;set;} public DateTimeOffset? CompletedAt{get;set;}
-}
-public sealed class WorkStepRecord
-{
-    public Guid Id{get;set;} public Guid JobId{get;set;} public required string StepType{get;set;} public required string Queue{get;set;}
-    public WorkStepStatus Status{get;set;} public int Priority{get;set;} public int AttemptCount{get;set;} public int MaxAttempts{get;set;}=5;
-    public DateTimeOffset? NextEligibleAt{get;set;} public string Input{get;set;}="{}"; public string? Output{get;set;}
-    public string? LeaseOwner{get;set;} public Guid? LeaseToken{get;set;} public DateTimeOffset? LeaseExpiresAt{get;set;}
-    public DateTimeOffset? LastHeartbeatAt{get;set;} public string? ErrorCode{get;set;} public string? ErrorDetail{get;set;}
-    public DateTimeOffset CreatedAt{get;set;} public DateTimeOffset UpdatedAt{get;set;} public DateTimeOffset? CompletedAt{get;set;}
-}
-public sealed class WorkStepDependencyRecord
-{
-    public Guid StepId{get;set;} public Guid DependsOnStepId{get;set;}
-}
