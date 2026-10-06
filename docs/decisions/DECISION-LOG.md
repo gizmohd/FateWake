@@ -56,3 +56,14 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-023 | Real-player identity is not necessarily revealed at first contact; meaningful interaction can later reveal that a survivor represents another human player. | Accepted |
 | DEC-024 | Player agency uses controlled freedom: authored boundaries remain, while plausible unscripted actions can be interpreted and resolved by deterministic systems. | Accepted |
 | DEC-025 | Meaningful interactions should support both presented choices and free-form input as interfaces into the same action-resolution system. | Accepted |
+
+## Mortality, Conflict and Relationship Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-026 | Player-character death may be permanent, but should be rare, consequential and normally emerge from a serious chain of circumstances rather than a cheap single choice. The account/world continues through succession. | Accepted direction |
+| DEC-027 | Real players may attack, injure, capture or rob one another, but direct PvP should not by itself permanently kill another player's established character. | Accepted direction |
+| DEC-028 | Players may deliberately betray, deceive and break promises to other players; these actions create persistent Wakes and reputation/history consequences. | Accepted |
+| DEC-029 | Relationships may develop deeply, including friendship, rivalry, enmity, mentorship, family-like bonds, romance and marriage where appropriate. | Accepted direction |
+| DEC-030 | Families and children may exist and be affected by survival pressures, with age/content-aware handling and without requiring graphic depiction. | Accepted direction |
+| DEC-031 | Player-to-player communication uses a hybrid model: contextual/suggested dialogue and actions plus moderated free-form communication when available. | Accepted direction |
