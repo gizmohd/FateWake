@@ -255,3 +255,15 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-133 | Every hand-authored C# source file has an individual companion Markdown document under `docs/code/` mirroring its project-relative source path and describing usage and architectural behavior. | Accepted |
 | DEC-134 | Source and companion documentation are updated together; materially modified legacy code should be migrated toward the documentation/file-structure standard. | Accepted |
 | DEC-135 | Each documented C# type includes a type-level XML `<see href="...">` relative link to its companion Markdown file, allowing direct navigation from source/IDE documentation to the deeper reference document. | Accepted |
+
+
+## Character Appearance Reuse Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-136 | Character customization is normalized durable appearance state separated from base identity, equipment/loadout, condition and scene projection. | Accepted |
+| DEC-137 | Every material base-identity + appearance combination receives a deterministic fingerprint; exact approved matches are reused before any AI generation. | Accepted |
+| DEC-138 | Previously generated/approved appearance combinations remain reusable when a player changes away from them; reverting to the same combination must not incur another AI generation call. | Accepted |
+| DEC-139 | Appearance assets and complete scene renders use separate reuse layers so one approved appearance can be projected into many loadouts, conditions, poses and scenes. | Accepted |
+| DEC-140 | New survivors use approved default male/female visual identities until custom identity/appearance generation completes and is approved, at which point the requested visual identity is automatically activated without blocking gameplay. | Accepted |
+| DEC-141 | Approved visual identity artwork survives character death and may be explicitly reused for a successor/new character without regeneration. | Accepted |
