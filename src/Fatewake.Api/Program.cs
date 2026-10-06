@@ -35,6 +35,15 @@ app.MapPost("/api/session/start", async (
     Results.Ok(await sessions.StartOrResumeAsync(
         request.SurvivorId, request.BroadRegion ?? "unknown", ct)));
 
+app.MapPost("/api/session/progress", async (
+    PresentationProgressRequest request,
+    ISessionStore sessions,
+    CancellationToken ct) =>
+{
+    var state = await sessions.SavePresentationProgressAsync(request.SurvivorId, request.EventInstanceId, request.SceneKey, request.BeatKey, ct);
+    return state is null ? Results.NotFound() : Results.Ok(state);
+});
+
 app.MapPost("/api/day1/resolve", async (
     DayOneResolveRequest request,
     IGameEngine engine,
@@ -60,6 +69,7 @@ app.MapPost("/api/day1/resolve", async (
             request.EventInstanceId,
             request.SurvivorId,
             request.TimelineId,
+            request.IdempotencyKey,
             action,
             resolution,
             ct);
@@ -70,8 +80,10 @@ app.MapPost("/api/day1/resolve", async (
 app.Run();
 
 public sealed record StartSessionRequest(Guid? SurvivorId, string? BroadRegion);
+public sealed record PresentationProgressRequest(Guid SurvivorId, Guid EventInstanceId, string SceneKey, string BeatKey);
 public sealed record DayOneResolveRequest(
     Guid EventInstanceId,
     Guid SurvivorId,
     Guid TimelineId,
+    Guid IdempotencyKey,
     CandidateAction Action);
