@@ -1,0 +1,9 @@
+using System.Text.Json; using Fatewake.Infrastructure.Persistence; using Fatewake.Infrastructure.Work;
+namespace Fatewake.Infrastructure.Art;
+/// <summary>Creates and persists the optimized PNG delivery derivative from a durable master PNG.</summary>
+/// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Art/ArtOptimizePngWorkStepHandler.md">ArtOptimizePngWorkStepHandler documentation</see>.</remarks>
+public sealed class ArtOptimizePngWorkStepHandler(IWorkArtifactStore artifacts,IArtBinaryStorage storage,IArtImageProcessor images):IWorkStepHandler
+{
+ public string StepType=>ArtWorkStepTypes.OptimizePng;
+ public async Task<string?> ExecuteAsync(WorkStepExecutionContext context,CancellationToken ct){var old=await artifacts.GetAsync(context.JobId,"art.png",ct);if(old is not null)return old;var master=JsonSerializer.Deserialize<ArtMasterArtifact>(await artifacts.GetAsync(context.JobId,"art.master",ct)??throw new InvalidOperationException("Master artifact required."))!;var bytes=await ArtWorkStepUtilities.ReadAllAsync(storage,master.StorageKey,ct);var image=await images.CreateOptimizedPngAsync(bytes,ct);var key=$"art/staging/{context.JobId:N}/delivery.png";await using(var s=new MemoryStream(image.Bytes,false))await storage.PutAsync(key,s,image.ContentType,ct);var result=new ArtDerivativeArtifact(key,image.ContentType,ArtWorkStepUtilities.Hash(image.Bytes),image.Info.Width,image.Info.Height,image.Bytes.LongLength,image.EncoderMetadata);var json=JsonSerializer.Serialize(result);await artifacts.PutAsync(context.JobId,"art.png",json,ct);return json;}
+}
