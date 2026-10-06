@@ -32,3 +32,16 @@ This file distinguishes accepted direction from exploratory ideas.
 
 ## Process
 When a major choice is made: update this log, update the canonical document, and preserve unresolved alternatives as proposals rather than silently treating them as canon.
+
+## Timeline Architecture Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-013 | Every new player experiences The Silence from Survivor Day 1 rather than being dropped directly into the latest shared-world day. | Accepted |
+| DEC-014 | Early player history exists in a personal timeline that can intersect and later converge with other timelines. | Accepted |
+| DEC-015 | Timeline convergence preserves personal history; it does not flatten players into identical state. | Accepted |
+| DEC-016 | Wakes and authoritative facts use Personal, Party, Settlement, Local, Regional, or Global scope. | Accepted |
+| DEC-017 | The first encounter with another real player should be treated as a meaningful narrative event. | Accepted |
+| DEC-018 | Convergence occurs through in-world events such as communication, travel, settlements or other story mechanisms. | Accepted |
+| DEC-019 | Early timelines are activity-driven and may pause when nobody is playing. Exact clock rules remain to be specified. | Accepted direction |
+| PROP-007 | Conflicting timeline memories may eventually become part of Fatewake lore rather than only a technical implementation detail. | Concept only |
