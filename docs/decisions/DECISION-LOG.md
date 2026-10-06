@@ -201,3 +201,13 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-102 | AI/static narrative renders are replaceable presentation artifacts generated from authoritative narrative facts and are never the sole canonical record. | Accepted |
 | DEC-103 | GameEngine domain types remain persistence-agnostic; EF Core/Npgsql mappings and migrations live in Infrastructure rather than defining the domain model. | Accepted |
 | DEC-104 | Consequential player actions resolve transactionally: validate authoritative state, record resolution/events/Wakes, update projections, commit, then perform replaceable narrative rendering. | Accepted |
+
+## AI Content Reuse Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-105 | AI-generated narration, dialogue, decision/action structures and other suitable outputs should be persisted and reused when their applicability is still valid, avoiding unnecessary repeated model calls. | Accepted |
+| DEC-106 | Exact AI-content reuse is keyed from a normalized generation context/fingerprint that includes all state material to correctness, including canonical facts, knowledge, versions and relevant personalization. | Accepted |
+| DEC-107 | AI-generated decision/action trees intended for repeated gameplay become versioned validated content assets; deterministic runtime logic consumes the stored version instead of regenerating it per player. | Accepted |
+| DEC-108 | Semantic similarity may discover reuse candidates, but cannot by itself authorize reuse; current facts, privacy boundaries and content constraints must validate applicability. | Accepted |
+| DEC-109 | Generated-content provenance and economics should be measurable, including model/provider, versions, usage/reuse counts and token/cost metadata when available. | Accepted |
