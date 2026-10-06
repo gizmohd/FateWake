@@ -1,0 +1,14 @@
+{
+  "key": "day1-maya-street",
+  "version": 1,
+  "aspectWidth": 9,
+  "aspectHeight": 16,
+  "layers": [
+    { "assetKey": "bg-day1-neighborhood-player-threshold", "assetVersion": 1, "z": 0, "x": 0.5, "y": 0.5, "width": 1.0, "height": 1.0 },
+    { "assetKey": "char-eli-day1-observing", "assetVersion": 1, "z": 20, "x": 0.67, "y": 0.52, "width": 0.18, "height": 0.31 },
+    { "assetKey": "char-injured-stranger-day1-supported", "assetVersion": 1, "z": 30, "x": 0.58, "y": 0.57, "width": 0.34, "height": 0.48 },
+    { "assetKey": "char-maya-day1-supporting", "assetVersion": 1, "z": 40, "x": 0.68, "y": 0.56, "width": 0.32, "height": 0.49 },
+    { "assetKey": "fg-player-threshold-shadow", "assetVersion": 1, "z": 80, "x": 0.5, "y": 0.5, "width": 1.0, "height": 1.0 },
+    { "assetKey": "light-day1-early-morning", "assetVersion": 1, "z": 90, "x": 0.5, "y": 0.5, "width": 1.0, "height": 1.0, "opacity": 0.65 }
+  ]
+}
