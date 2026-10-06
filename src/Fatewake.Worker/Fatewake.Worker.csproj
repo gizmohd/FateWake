@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <ItemGroup>
+    <ProjectReference Include="../Fatewake.Infrastructure/Fatewake.Infrastructure.csproj" />
+    <ProjectReference Include="../Fatewake.ServiceDefaults/Fatewake.ServiceDefaults.csproj" />
+  </ItemGroup>
+</Project>
