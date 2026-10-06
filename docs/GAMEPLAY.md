@@ -47,3 +47,20 @@ Relationships may range from friendship and rivalry through mentorship, family-l
 
 ## Player Communication
 Player-to-player interaction should combine contextual suggested dialogue/actions with moderated free-form communication. Communication remains part of the fiction and should integrate with identity, relationships, Wakes and safety systems rather than behaving like an unrelated global chat room.
+
+## World Continuity and Absence
+The world may continue while a player is absent. Routine settlement activity, resource consumption, projects and other actors can continue, but the player's character should not autonomously make major irreversible personal decisions. Important decisions wait when practical or follow explicitly designed absence-safe paths.
+
+## Timeline Pacing
+Early personal timelines are activity/episode-driven rather than locked to one real-world day per Survivor Day. Initial episodes may be played in relatively quick succession. As a timeline approaches meaningful multiplayer convergence, pacing progressively synchronizes with shared-world time and the daily ritual becomes stronger.
+
+## Survival Abstraction
+Survival should feel credible without becoming inventory accounting. Core needs such as food, water, medicine, energy/fuel, shelter and security can use aggregate resources, while narratively important objects remain individually modeled.
+
+Significant items may carry their own state and history: a firearm, radio, vehicle, medical bag, key, photograph or other unique object can acquire Wakes and later significance.
+
+## Weather and Environment
+Fatewake uses plausible regional climate and seasons based on fictionalized real-world geography. Specific weather is controlled by the simulation/story rather than live weather feeds, allowing environmental events to serve gameplay and narrative causality.
+
+## Settlement Agency
+Players can meaningfully influence settlement leadership, rules, defenses, resource priorities, alliances, membership and infrastructure. Settlements are not obedient city-builder pieces: NPCs and other players retain agency and may disagree, refuse, leave, organize, rebel or replace leadership.
