@@ -1,18 +1,77 @@
+using Fatewake.AI.Intent;
+using Fatewake.Api.Authentication;
 using Fatewake.GameEngine;
 using Fatewake.GameEngine.DayOne;
-using Fatewake.Infrastructure.Persistence;\nusing Fatewake.AI.Intent;
+using Fatewake.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
-builder.Services.AddDbContext<FatewakeDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("fatewake")));
-builder.Services.AddSingleton<IGameEngine, DayOneGameEngine>();\nbuilder.Services.AddScoped<IResolutionStore, ResolutionStore>();\nbuilder.Services.AddScoped<ISessionStore, SessionStore>();\nbuilder.Services.AddScoped<IAccountStore, AccountStore>();\nbuilder.Services.Configure<Fatewake.Api.Authentication.ExternalIdentityOptions>(builder.Configuration.GetSection("Authentication"));\nbuilder.Services.AddSingleton<IIntentInterpreter, BaselineIntentInterpreter>();
-var app = builder.Build();\nawait using (var scope = app.Services.CreateAsyncScope())\n{\n    var db = scope.ServiceProvider.GetRequiredService<FatewakeDbContext>();\n    await DatabaseInitializer.InitializeAsync(db);\n}
+
+builder.Services.AddDbContext<FatewakeDbContext>(o =>
+    o.UseNpgsql(builder.Configuration.GetConnectionString("fatewake")));
+builder.Services.AddSingleton<IGameEngine, DayOneGameEngine>();
+builder.Services.AddScoped<IResolutionStore, ResolutionStore>();
+builder.Services.AddScoped<ISessionStore, SessionStore>();
+builder.Services.AddScoped<IAccountStore, AccountStore>();
+builder.Services.AddSingleton<IIntentInterpreter, BaselineIntentInterpreter>();
+builder.Services.Configure<ExternalIdentityOptions>(
+    builder.Configuration.GetSection("Authentication"));
+
+var app = builder.Build();
+
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<FatewakeDbContext>();
+    await DatabaseInitializer.InitializeAsync(db);
+}
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
-app.MapPost("/api/day1/resolve", (CandidateAction action, IGameEngine engine) =>
+
+app.MapPost("/api/session/start", async (
+    StartSessionRequest request,
+    ISessionStore sessions,
+    CancellationToken ct) =>
+    Results.Ok(await sessions.StartOrResumeAsync(
+        request.SurvivorId, request.BroadRegion ?? "unknown", ct)));
+
+app.MapPost("/api/day1/resolve", async (
+    DayOneResolveRequest request,
+    IGameEngine engine,
+    IResolutionStore store,
+    IIntentInterpreter intents,
+    CancellationToken ct) =>
 {
-    var state = new GameSnapshot(Guid.Empty, Guid.Empty, 1, "day-001-injured-stranger", new Dictionary<string,string>());
-    return Results.Ok(engine.Resolve(state, action));
+    var state = new GameSnapshot(
+        request.SurvivorId,
+        request.TimelineId,
+        1,
+        "day-001-injured-stranger",
+        new Dictionary<string, string>());
+
+    var action = request.Action.ActionType == "freeform" &&
+                 !string.IsNullOrWhiteSpace(request.Action.RawInput)
+        ? await intents.InterpretAsync(state, request.Action.RawInput, ct)
+        : request.Action;
+
+    var resolution = engine.Resolve(state, action);
+    if (resolution.Accepted)
+        await store.PersistAsync(
+            request.EventInstanceId,
+            request.SurvivorId,
+            request.TimelineId,
+            action,
+            resolution,
+            ct);
+
+    return Results.Ok(resolution);
 });
-app.Run();\n\npublic sealed record StartSessionRequest(Guid? SurvivorId, string? BroadRegion);\npublic sealed record DayOneResolveRequest(Guid EventInstanceId, Guid SurvivorId, Guid TimelineId, CandidateAction Action);
+
+app.Run();
+
+public sealed record StartSessionRequest(Guid? SurvivorId, string? BroadRegion);
+public sealed record DayOneResolveRequest(
+    Guid EventInstanceId,
+    Guid SurvivorId,
+    Guid TimelineId,
+    CandidateAction Action);
