@@ -66,9 +66,26 @@ The native provider:
 Fatewake then performs its normal durable storage, WebP, optimized PNG, metadata, validation and finalization stages.
 
 ## 6. Reference images / character continuity
-The current native provider establishes text-to-image workflow execution. For character/location reference workflows, add ComfyUI Load Image plus IP-Adapter/ControlNet/reference nodes to the workflow. The next provider extension should upload each approved Fatewake `ArtReferenceImage` through ComfyUI's image-upload API and substitute deterministic input-image tokens in the graph.
+For character/location reference workflows, add ComfyUI Load Image plus IP-Adapter/ControlNet/reference nodes and use the role tokens documented below. Fatewake uploads approved references and substitutes their ComfyUI input filenames automatically.
 
 Do not encode character identity solely into free-form prompts when an approved reference asset exists.
+
+### Native reference-image tokens
+
+Fatewake now uploads each approved `ArtReferenceImage` through ComfyUI `/upload/image` before submitting the workflow. Each uploaded image gets a deterministic job/role/hash name.
+
+Place a literal token in the filename field of the appropriate ComfyUI Load Image node:
+
+- character identity: `__FATEWAKE_REFERENCE_CHARACTER__`
+- location continuity: `__FATEWAKE_REFERENCE_LOCATION__`
+- style reference: `__FATEWAKE_REFERENCE_STYLE__`
+- any custom role follows `__FATEWAKE_REFERENCE_<NORMALIZED_ROLE>__`
+
+For example, connect a Load Image node containing `__FATEWAKE_REFERENCE_CHARACTER__` to the image input of the IP-Adapter/reference-conditioning nodes used by your installed workflow. Fatewake replaces the token with the uploaded ComfyUI input filename before `/prompt` is called.
+
+Roles are normalized to uppercase letters/numbers with punctuation converted to underscores. Keep one reference per role in a workflow unless the workflow intentionally defines distinct role names such as `CHARACTER_FACE` and `CHARACTER_BODY`.
+
+The exact IP-Adapter/ControlNet/custom-node graph is intentionally not hard-coded into Fatewake. Build and validate that graph in ComfyUI, export it in API format, and retain the Fatewake tokens in the exported JSON.
 
 ## 7. Smoke test
 Before enabling Fatewake:
