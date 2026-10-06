@@ -232,3 +232,15 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-117 | Historical scenes/journal entries retain visual snapshots or version fingerprints so old artwork does not retroactively adopt current equipment or appearance. | Accepted |
 | DEC-118 | Visual equipment is a presentation projection of authoritative inventory/equipment state and can never grant gameplay ownership or capability. | Accepted |
 | DEC-119 | Approved survivor/equipment visual assets are versioned and reusable; missing combinations may trigger generation using the Style Bible, identity reference and canonical visual state. | Accepted |
+
+
+## Mesh Communications Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-120 | Post-Silence player communications are introduced diegetically through discoverable/buildable low-bandwidth mesh communication capability rather than unexplained global chat. | Accepted |
+| DEC-121 | Mesh communications are text-first and support reachable broadcast, known-handle direct messaging, and group/channel communication. | Accepted |
+| DEC-122 | Communication reach is determined by fictional world topology/capabilities and privacy-safe broad geography; precise real-world player location is never exposed or required. | Accepted |
+| DEC-123 | Relay/repeater and device progression can expand communication reach and create gameplay consequences/Wakes. | Accepted |
+| DEC-124 | Fatewake communication handles are separate from account identity; historical messages retain sender-handle/provenance-at-send-time. | Accepted |
+| DEC-125 | Real-player messages are never rewritten or impersonated by AI; NPC/system/player provenance remains authoritative even when not necessarily visible to the receiving character. | Accepted |
