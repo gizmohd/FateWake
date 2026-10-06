@@ -1,8 +1,17 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 
 namespace Fatewake.Infrastructure.Persistence;
 
-public sealed record SessionState(Guid SurvivorId, Guid TimelineId, Guid EventInstanceId, int SurvivorDay, string EventKey, string Status);
+public sealed record SessionState(
+    Guid SurvivorId,
+    Guid TimelineId,
+    Guid EventInstanceId,
+    int SurvivorDay,
+    string EventKey,
+    string Status,
+    string? LastOutcome,
+    IReadOnlyDictionary<string,string> NarrativeFacts);
 
 public interface ISessionStore
 {
@@ -19,7 +28,7 @@ public sealed class SessionStore(FatewakeDbContext db) : ISessionStore
             if (existing is not null)
             {
                 var episode = await db.EventInstances.Where(x => x.SurvivorId == id && x.Status == "active").OrderBy(x => x.SurvivorDay).FirstAsync(ct);
-                return new(existing.Id, existing.TimelineId, episode.Id, existing.SurvivorDay, episode.EventKey, episode.Status);
+                return ToState(existing, episode);
             }
         }
 
@@ -30,6 +39,20 @@ public sealed class SessionStore(FatewakeDbContext db) : ISessionStore
         var episode = new EventInstanceRecord { Id = Guid.NewGuid(), TimelineId = timeline.Id, SurvivorId = survivor.Id, EventKey = "day-001-injured-stranger", Status = "active", SurvivorDay = 1, StartedAt = now };
         db.Timelines.Add(timeline); db.Survivors.Add(survivor); db.EventInstances.Add(episode);
         await db.SaveChangesAsync(ct);
-        return new(survivor.Id, timeline.Id, episode.Id, 1, episode.EventKey, episode.Status);
+        return ToState(survivor, episode);
+    }
+
+    private static SessionState ToState(SurvivorRecord survivor, EventInstanceRecord episode)
+    {
+        string? outcome = null;
+        IReadOnlyDictionary<string,string> facts = new Dictionary<string,string>();
+        if (!string.IsNullOrWhiteSpace(episode.State) && episode.State != "{}")
+        {
+            using var doc = JsonDocument.Parse(episode.State);
+            if (doc.RootElement.TryGetProperty("lastOutcome", out var o)) outcome = o.GetString();
+            if (doc.RootElement.TryGetProperty("narrativeFacts", out var f))
+                facts = JsonSerializer.Deserialize<Dictionary<string,string>>(f.GetRawText()) ?? new();
+        }
+        return new(survivor.Id, survivor.TimelineId, episode.Id, survivor.SurvivorDay, episode.EventKey, episode.Status, outcome, facts);
     }
 }
