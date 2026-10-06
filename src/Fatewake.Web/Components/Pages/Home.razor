@@ -1,37 +1,115 @@
 @page "/"
 @rendermode InteractiveServer
+@using System.Net.Http.Json
+@using Fatewake.Web.Presentation
+@using Fatewake.Web.Components.Presentation
 @inject IHttpClientFactory HttpClientFactory
 @inject IJSRuntime JS
 
 <PageTitle>Fatewake — The Silence</PageTitle>
 <main class="scene">
-  <section class="episode">
-    <div class="art-panel" data-artwork="day1-maya-street">
-      <div class="panel-label">THE SILENCE · SURVIVOR DAY 1</div>
-      <div class="time">6:17 <span>AM</span></div>
-      <div class="signal">NO SERVICE</div>
-      <div class="caption">
-        Your phone has signal bars, but nothing connects. The lights flicker twice, then the house goes quiet. Outside, car alarms wake the neighborhood.
-      </div>
-      <div class="dialogue">
-        <div class="speaker">MAYA TORRES</div>
-        <div class="line">“I need help!”</div>
-      </div>
-    </div>
-    @if (!_ready) { <div class="interaction"><div class="wake">REMEMBERING…</div></div> }
-    else if (_resolution is null)
-    {
-      <div class="interaction">
-        <div class="choices">
-          <button @onclick='() => Act("help_injured_stranger")'>Help Maya</button>
-          <button @onclick='() => Act("call_from_safety")'>Call Out</button>
-          <button @onclick='() => Act("stay_inside")'>Stay Inside</button>
-          <button @onclick='() => Act("investigate_radio")'>Check Radio</button>
+<section class="episode">
+@if(!_ready){<div class="interaction"><div class="wake">REMEMBERING…</div></div>}
+else
+{
+    <ArtCompositionView ArtworkKey="@Beat.ArtworkKey" Layers="@DayOneArt.For(Beat.ArtworkKey)">
+        <div class="panel-overlay">
+            <div class="panel-label">THE SILENCE · SURVIVOR DAY 1</div>
+            @if(Beat.Time is not null){<div class="beat-time">@Beat.Time</div>}
+            @if(Beat.Status is not null){<div class="signal">@Beat.Status</div>}
+            <div class="panel-spacer"></div>
+            @if(Beat.Narration is not null){<div class="caption">@Beat.Narration</div>}
+            @if(Beat.Dialogue is not null){<div class="dialogue"><div class="speaker">@Beat.Dialogue.Speaker</div><div class="line">“@Beat.Dialogue.Text”</div></div>}
         </div>
-        <button class="other-toggle" @onclick="() => _showOther = !_showOther">Do something else…</button>
-        @if (_showOther) { <div class="composer"><textarea @bind="_freeform" placeholder="What do you do?"></textarea><button disabled="@string.IsNullOrWhiteSpace(_freeform)" @onclick="SubmitFreeform">Do it</button></div> }
-      </div>
-    }
-    else { <section class="result"><p>@_resolutionText</p><div class="wake">Your choice leaves a wake.</div></section> }
-  </section>
+    </ArtCompositionView>
+    <div class="interaction">
+        @if(Beat.Kind==BeatKind.Interaction)
+        {
+            <div class="choices">
+            @foreach(var choice in Beat.Interactions.Where(x=>!x.AllowFreeform))
+            { <button disabled="@_submitting" @onclick="()=>Act(choice.ActionType)">@choice.Label</button> }
+            </div>
+            <button class="other-toggle" disabled="@_submitting" @onclick="()=>_showOther=!_showOther">Do something else…</button>
+            @if(_showOther){<div class="composer"><textarea @bind="_freeform" placeholder="What do you do?"></textarea><button disabled="@(_submitting||string.IsNullOrWhiteSpace(_freeform))" @onclick="SubmitFreeform">Do it</button></div>}
+        }
+        else
+        {
+            @if(Beat.Kind==BeatKind.Consequence && !string.IsNullOrWhiteSpace(_resolutionText)){<div class="result-inline">@_resolutionText</div>}
+            <button class="continue" disabled="@_submitting" @onclick="NextBeat">Continue</button>
+        }
+        <div class="beat-progress">@(_beatIndex+1) / @Scene.Beats.Count</div>
+    </div>
+}
+</section>
 </main>
+
+@code {
+    private static SceneDefinition Scene=>DayOneScenes.Opening;
+    private BeatDefinition Beat=>Scene.Beats[Math.Clamp(_beatIndex,0,Scene.Beats.Count-1)];
+    private bool _ready,_showOther,_submitting; private int _beatIndex; private string _freeform="",_resolutionText="";
+    private SessionDto? _session; private Guid? _inflightKey;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if(!firstRender)return;
+        Guid? survivorId=null;
+        var saved=await JS.InvokeAsync<string?>("localStorage.getItem","fatewake.survivorId");
+        if(Guid.TryParse(saved,out var parsed))survivorId=parsed;
+        var client=HttpClientFactory.CreateClient("fatewake-api");
+        var response=await client.PostAsJsonAsync("/api/session/start",new{SurvivorId=survivorId,BroadRegion="unknown"});
+        _session=await response.Content.ReadFromJsonAsync<SessionDto>();
+        if(_session is not null)
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem","fatewake.survivorId",_session.SurvivorId.ToString());
+            _beatIndex=Scene.IndexOf(_session.BeatKey);
+            if(!string.IsNullOrWhiteSpace(_session.LastOutcome))_resolutionText=OutcomeText(_session.LastOutcome);
+        }
+        _ready=true;StateHasChanged();
+    }
+
+    private async Task NextBeat()
+    {
+        if(_beatIndex>=Scene.Beats.Count-1)return;
+        _beatIndex++;_showOther=false;await SaveProgressAsync();StateHasChanged();
+    }
+
+    private Task SubmitFreeform()=>Act("freeform",_freeform);
+
+    private async Task Act(string actionType,string? rawInput=null)
+    {
+        if(_submitting||_session is null)return;
+        _submitting=true;_inflightKey??=Guid.NewGuid();
+        try
+        {
+            var client=HttpClientFactory.CreateClient("fatewake-api");
+            var payload=new{_session.EventInstanceId,_session.SurvivorId,_session.TimelineId,IdempotencyKey=_inflightKey.Value,
+                Action=new{ActionType=actionType,Arguments=new Dictionary<string,string>(),RawInput=rawInput}};
+            var response=await client.PostAsJsonAsync("/api/day1/resolve",payload);
+            var result=await response.Content.ReadFromJsonAsync<ResolutionDto>();
+            if(result?.Accepted==true)
+            {
+                _resolutionText=OutcomeText(result.OutcomeKey);_inflightKey=null;
+                _beatIndex=Scene.IndexOf("choice-wake");await SaveProgressAsync();
+            }
+        }
+        finally{_submitting=false;}
+    }
+
+    private async Task SaveProgressAsync()
+    {
+        if(_session is null)return;
+        var client=HttpClientFactory.CreateClient("fatewake-api");
+        await client.PostAsJsonAsync("/api/session/progress",new{_session.SurvivorId,_session.EventInstanceId,SceneKey=Scene.Key,BeatKey=Beat.Key});
+    }
+
+    private static string OutcomeText(string key)=>key switch{
+        "helped_maya"=>"You cross the threshold and take some of the stranger's weight. Maya notices that you moved before you had all the answers.",
+        "called_from_safety"=>"You keep the doorway between you and the street and call out. Maya hears the caution in it.",
+        "stayed_inside"=>"You remain behind the glass and watch. Maya eventually looks away.",
+        "investigated_radio"=>"You turn from the window toward the radio. Information feels safer than stepping outside.",
+        _=>"The world absorbs what you chose."
+    };
+
+    private sealed record SessionDto(Guid SurvivorId,Guid TimelineId,Guid EventInstanceId,int SurvivorDay,string EventKey,string Status,string? LastOutcome,Dictionary<string,string> NarrativeFacts,string SceneKey,string BeatKey);
+    private sealed record ResolutionDto(bool Accepted,string OutcomeKey);
+}
