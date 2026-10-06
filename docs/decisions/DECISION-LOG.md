@@ -254,3 +254,4 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-132 | Public/internal Fatewake types and meaningful members are documented with XML documentation covering purpose, usage, contracts, side effects and concurrency/idempotency behavior where relevant. | Accepted |
 | DEC-133 | Every hand-authored C# source file has an individual companion Markdown document under `docs/code/` mirroring its project-relative source path and describing usage and architectural behavior. | Accepted |
 | DEC-134 | Source and companion documentation are updated together; materially modified legacy code should be migrated toward the documentation/file-structure standard. | Accepted |
+| DEC-135 | Each documented C# type includes a type-level XML `<see href="...">` relative link to its companion Markdown file, allowing direct navigation from source/IDE documentation to the deeper reference document. | Accepted |
