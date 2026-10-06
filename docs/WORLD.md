@@ -22,3 +22,13 @@ This creates a natural possible explanation layer for Fatewake's anomalous radio
 The intended connection is deep lore rather than a conventional crossover: the same underlying reality can be experienced and named differently by people who do not possess Wayfinder knowledge. Terms such as **Fatewake** may represent what Fatewake-era survivors/scientists call observable consequences of phenomena that Wayfinders understand through a different vocabulary.
 
 Exact chronology, whether Fatewake occurs before/during/after specific Wayfinder books, and the precise relationship between a Wake and the Echo remain intentionally unresolved until continuity is reconciled across both projects.
+
+## Fatewake as a Connected Realm
+Current direction is stronger than a hidden reference: Fatewake is a distinct Realm within the larger Wayfinder cosmology. It may be one of the connected worlds reachable through the Echo.
+
+This gives Fatewake freedom to develop its own history, societies, terminology and understanding of the phenomenon while remaining governed by compatible deeper rules. Wayfinders or people expressing related Gifts may exist here, but Fatewake should introduce its own figures rather than rely on Ian, James or other novel protagonists.
+
+The shared cosmology can also guide Fatewake's foundational character archetypes. These should not become conventional RPG classes; they can emerge from behavior, aptitude and relationship to the Echo/Wakes.
+
+### Cross-Canon Promotion
+Player-created history is not automatically novel canon. Significant emergent events may become **canon candidates** when they satisfy criteria such as narrative significance, compatibility with established Wayfinder rules, persistence/stability in Fatewake history, and usefulness to future stories. Promotion into book canon requires deliberate editorial approval and a recorded continuity decision.
