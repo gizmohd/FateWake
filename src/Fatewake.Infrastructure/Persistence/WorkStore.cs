@@ -12,7 +12,7 @@ public interface IWorkStore
     Task<int> PromoteReadyStepsAsync(CancellationToken ct=default);
 }
 
-public sealed class WorkStore(FatewakeDbContext db):IWorkStore
+public sealed class WorkStore(FatewakeDbContext db,Fatewake.Infrastructure.Work.IWorkSignalBus signals):IWorkStore
 {
     public async Task<WorkLease?> ClaimAsync(string queue,string workerId,TimeSpan leaseDuration,CancellationToken ct=default)
     {
@@ -67,7 +67,13 @@ public sealed class WorkStore(FatewakeDbContext db):IWorkStore
                 .Join(db.WorkSteps,d=>d.DependsOnStepId,s=>s.Id,(d,s)=>s).AnyAsync(s=>s.Status!=WorkStepStatus.Completed,ct);
             if(!blockers&&(step.NextEligibleAt is null||step.NextEligibleAt<=now)){step.Status=WorkStepStatus.Ready;step.UpdatedAt=now;changed++;}
         }
-        if(changed>0)await db.SaveChangesAsync(ct);return changed;
+        if(changed>0)
+        {
+            await db.SaveChangesAsync(ct);
+            foreach(var step in pending.Where(x=>x.Status==WorkStepStatus.Ready))
+                try{await signals.SignalAsync(step.Queue,step.Id,ct);}catch{ /* polling remains recovery path */ }
+        }
+        return changed;
     }
     private static void ClearLease(WorkStepRecord s){s.LeaseOwner=null;s.LeaseToken=null;s.LeaseExpiresAt=null;s.LastHeartbeatAt=null;}
 }
