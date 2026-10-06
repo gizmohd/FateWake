@@ -79,3 +79,16 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-036 | Inventory combines abstract resource pools with significant named physical items that can carry state, history and Wakes. | Accepted |
 | DEC-037 | Geography follows realistic regional climate and seasons, but weather is simulation/story-driven rather than controlled by live real-world weather. | Accepted |
 | DEC-038 | Players can substantially influence settlement leadership, rules, defense, priorities, alliances, membership and projects, while NPCs retain independent agency. | Accepted direction |
+
+## Mystery and Shared-Universe Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-039 | Fatewake's designers maintain a canonical underlying truth for The Silence even while players receive incomplete and conflicting evidence. | Accepted |
+| DEC-040 | The central mystery uses a science-fiction explanation that can initially appear supernatural, involving causality, consciousness, reality/timeline effects or related phenomena rather than a simple apocalypse explanation. | Accepted direction |
+| DEC-041 | **Fatewake** can eventually become an in-universe term/concept, with its meaning revealed after players already know it as the title. | Accepted direction |
+| DEC-042 | Multiple timelines are ontologically real within Fatewake's fiction, not merely matchmaking infrastructure. | Accepted direction |
+| DEC-043 | Some missing people may exist on other branches/timelines, allowing emotionally conflicting disappearances where each side experienced the other as missing. | Accepted direction |
+| DEC-044 | Familiar anomalous voices may genuinely originate from known people across another branch/reality; responding can have variable consequences. | Accepted direction |
+| DEC-045 | Fatewake should not reduce its ultimate conflict to a single conventional villain; human antagonists may exist while the deeper conflict concerns humanity's interaction with a poorly understood phenomenon. | Accepted |
+| DEC-046 | Fatewake may share deep cosmology with **The Wayfinder Legacy**, particularly the Echo and its ancient network/paths, while remaining independently understandable and not requiring knowledge of the novels. | Accepted direction |
