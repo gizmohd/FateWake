@@ -1,0 +1,17 @@
+@using Fatewake.Web.Presentation
+<div class="art-composition" data-artwork="@ArtworkKey">
+    @foreach(var layer in Layers.OrderBy(x=>x.Z))
+    {
+        <img class="art-layer" src="@AssetUrl(layer)" alt="" aria-hidden="true"
+             style="@LayerStyle(layer)" onerror="this.style.display='none'" />
+    }
+    <div class="art-placeholder" aria-hidden="true"><span>@ArtworkKey</span></div>
+    @ChildContent
+</div>
+@code {
+    [Parameter,EditorRequired] public string ArtworkKey {get;set;}="";
+    [Parameter] public IReadOnlyList<ArtLayer> Layers {get;set;}=[];
+    [Parameter] public RenderFragment? ChildContent {get;set;}
+    private static string AssetUrl(ArtLayer x)=>$"/art/{x.AssetKey}.webp?v={x.AssetVersion}";
+    private static string LayerStyle(ArtLayer x)=>$"z-index:{x.Z};left:{x.X*100:F2}%;top:{x.Y*100:F2}%;width:{x.Width*100:F2}%;height:{x.Height*100:F2}%;opacity:{x.Opacity:F2};transform:translate(-50%,-50%) scale({x.Scale:F3}) rotate({x.Rotation:F2}deg);";
+}
