@@ -88,3 +88,21 @@ Players can deliberately lie through authored or free-form interactions. Recipie
 
 ## Deep Discovery
 Some mysteries, clues and systemic patterns should be genuinely difficult to discover and may remain unknown to most players. A rare observation by one player can become a larger social investigation when shared through Fatewake or external community discussion. These discoveries should arise from coherent underlying rules so collective investigation can produce real answers rather than arbitrary puzzle solutions.
+
+## Social Scale
+Fatewake's social simulation can scale from **Person → Group → Settlement → Organization → Alliance/Faction → Region → Realm**. Players do not need to manage every layer directly; sufficiently important actions and Wakes propagate upward through the relevant scopes.
+
+Settlements may contain NPCs and many asynchronous real players. They should feel like inhabited communities rather than MMO guild rosters.
+
+## Governance and Leadership
+Players can become leaders, but authority is not a permanent character perk. Support, legitimacy, relationships, institutions, crises and opposition determine whether leadership survives. NPCs and players may support, challenge, remove or replace leaders.
+
+Government should emerge from practice. Repeated voting, councils, emergency authority, inherited influence or coercive control can gradually form recognizable institutions without requiring players to choose a government template first.
+
+## Conflict, Collapse and Legacy
+Settlement conflict may include diplomacy, intelligence, logistics, territory, sabotage, resource pressure and armed action. It should not collapse into low-context click-to-raid PvP.
+
+Settlements can permanently fall. Their ruins, displaced people, surviving institutions, artifacts, reputations and causal history remain available to later stories. A settlement's destruction is therefore a world transformation rather than deletion.
+
+## Player-Created Organizations
+Players may create organizations that cross settlement boundaries, such as trading networks, militias, medical services, radio networks, faith communities, research groups or intelligence organizations. Successful institutions may survive leadership changes and outlive their founders.
