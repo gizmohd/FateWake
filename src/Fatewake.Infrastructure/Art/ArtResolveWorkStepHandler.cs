@@ -11,7 +11,7 @@ public sealed class ArtResolveWorkStepHandler(IArtAssetStore assets,IWorkArtifac
     {
         var request=JsonSerializer.Deserialize<ArtWorkRequest>(context.Input)??throw new InvalidOperationException("Invalid art work request.");
         var match=await assets.FindApprovedByFingerprintAsync(request.VisualFingerprint,ct);
-        var output=JsonSerializer.Serialize(new ArtResolveResult(match is not null,match?.Id,match?.MasterPngStorageKey));
+        var output=JsonSerializer.Serialize(new ArtResolveResult(match is not null,match?.Id,match?.MasterPngStorageKey,match?.WebPStorageKey,match?.OptimizedPngStorageKey));
         await artifacts.PutAsync(context.JobId,"art.resolve",output,ct);
         return output;
     }
