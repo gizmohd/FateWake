@@ -18,7 +18,7 @@ public sealed class ArtFinalizeWorkStepHandler(FatewakeDbContext db,IWorkArtifac
   var metadata=JsonSerializer.Deserialize<ArtMetadataArtifact>(await Required("art.metadata"))!;
   var webp=JsonSerializer.Deserialize<ArtDerivativeArtifact>(await Required("art.webp"))!;
   var png=JsonSerializer.Deserialize<ArtDerivativeArtifact>(await Required("art.png"))!;
-  await using var tx=await db.Database.BeginTransactionAsync(ct);
+  await using var tx=await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable,ct);
   var existing=await db.ArtAssets.Where(x=>x.VisualFingerprint==request.VisualFingerprint&&x.Status==ArtAssetStatus.Approved).OrderByDescending(x=>x.Version).FirstOrDefaultAsync(ct);
   var assetId=existing?.Id??Guid.NewGuid();var reused=existing is not null;var now=DateTimeOffset.UtcNow;
   if(existing is null)
