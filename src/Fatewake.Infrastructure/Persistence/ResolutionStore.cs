@@ -31,7 +31,14 @@ public sealed class ResolutionStore(FatewakeDbContext db) : IResolutionStore
         db.GameEvents.Add(gameEvent);
         foreach (var wake in resolution.Wakes) db.Wakes.Add(new WakeRecord { Id = Guid.NewGuid(), TimelineId = timelineId, OriginEventId = gameEvent.Id, WakeType = wake.Type, Scope = wake.Scope, TargetEntityType = wake.Target is null ? null : "character", Severity = (short)wake.Severity, State = "active", Properties = JsonSerializer.Serialize(wake.Properties), CreatedDay = 1, CreatedAt = now });
         var episode = await db.EventInstances.SingleAsync(x => x.Id == eventInstanceId, cancellationToken);
-        episode.State = JsonSerializer.Serialize(new { lastOutcome = resolution.OutcomeKey, narrativeFacts = resolution.NarrativeFacts });
+        string sceneKey = "day1-0617-0643", beatKey = "first-choice";
+        if (!string.IsNullOrWhiteSpace(episode.State) && episode.State != "{}")
+        {
+            using var stateDoc = JsonDocument.Parse(episode.State);
+            if (stateDoc.RootElement.TryGetProperty("sceneKey", out var s) && !string.IsNullOrWhiteSpace(s.GetString())) sceneKey = s.GetString()!;
+            if (stateDoc.RootElement.TryGetProperty("beatKey", out var b) && !string.IsNullOrWhiteSpace(b.GetString())) beatKey = b.GetString()!;
+        }
+        episode.State = JsonSerializer.Serialize(new { lastOutcome = resolution.OutcomeKey, narrativeFacts = resolution.NarrativeFacts, sceneKey, beatKey });
         episode.Version++;
         await db.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
