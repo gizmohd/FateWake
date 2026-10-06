@@ -544,3 +544,39 @@ Narrative renders may reference generated_content_asset rather than duplicating 
 Unique (provider, provider_subject). Do not use email as the external identity key. One account may link Google, Microsoft and Apple identities.
 
 A guest Survivor may initially have account_id = null. During account preservation/linking, create or resolve the account and attach the existing Survivor to it transactionally; never discard the guest timeline merely because authentication was added.
+
+
+## Survivor Visual State
+
+Visual appearance is a projection of canonical survivor/item state, but historical visual snapshots are retained for reproducible journal/history panels.
+
+### survivor_visual_profile
+- survivor_id uuid PK/FK
+- identity_asset_key text
+- identity_asset_version integer
+- state_version bigint
+- traits jsonb
+- updated_event_id uuid
+- updated_at timestamptz
+
+### survivor_visual_equipment
+- survivor_id uuid FK
+- slot text
+- asset_key text
+- asset_version integer
+- item_instance_id uuid nullable
+- priority integer
+- source_event_id uuid
+- effective_from timestamptz
+- effective_to timestamptz nullable
+
+### visual_snapshot
+- id uuid PK
+- survivor_id uuid FK
+- source_event_id uuid nullable
+- state_version bigint
+- fingerprint text
+- snapshot jsonb
+- captured_at timestamptz
+
+The inventory/equipment domain remains authoritative. These records are presentation projections/provenance and must not grant ownership or gameplay capabilities.
