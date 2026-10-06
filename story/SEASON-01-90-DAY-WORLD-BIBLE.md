@@ -38,7 +38,7 @@ The season begins as an intimate survival story and ends with the realization th
 Normal life ends. Power, communications and familiar assumptions fail. The player learns that people are more dangerous, valuable and complicated than simple resource counters.
 
 ### Opening State
-The player begins at 6:17 AM in an ordinary place. Maya, Eli and the injured stranger create the first immediate human problem. The first anomalous broadcast establishes that something is wrong beyond an ordinary blackout.
+The player begins at 6:17 AM in an ordinary place. Michelle, Eli and the injured stranger create the first immediate human problem. The first anomalous broadcast establishes that something is wrong beyond an ordinary blackout.
 
 ### Central Conflict
 Stay isolated and preserve resources, or begin accepting responsibility for other people.
@@ -48,16 +48,16 @@ Stay isolated and preserve resources, or begin accepting responsibility for othe
 - Powered devices fail in a synchronized event.
 - Broadcasts function when they should not.
 - Warning references familiar voices.
-- Noah's missing parents introduce unexplained disappearances.
+- Michael McDermott's missing parents introduce unexplained disappearances.
 - Day 7 asks humanity to answer while another voice says not to.
 
 ### Systems Introduced
 Personal resources, relationships, NPC interaction, free-form intent, Wakes, journal, behavioral identity, delayed consequences and the first global-choice concept.
 
 ### Wake Seeds
-- Maya first impression.
+- Michelle first impression.
 - Fate of the injured stranger.
-- Treatment of Noah.
+- Treatment of Michael McDermott.
 - Pharmacy/insulin resolution.
 - Discovery or ignorance of the future-dated broadcast.
 - Day 7 signal response.
@@ -90,7 +90,7 @@ Who belongs, who contributes, and who gets protected when resources cannot cover
 Community inventory, duties, group votes, promises, secrets, rumor/reputation and lightweight leadership.
 
 ### NPC Arcs
-Maya becomes an increasingly important moral/practical anchor. Marcus demonstrates why authoritarian efficiency can be attractive. Noah can become dependent, useful, resentful or absent based on Act I. Lena can enter through communications expertise. Jonah is heard about before necessarily being met.
+Michelle becomes an increasingly important moral/practical anchor. Marcus demonstrates why authoritarian efficiency can be attractive. Michael McDermott can become dependent, useful, resentful or absent based on Act I. Lena can enter through communications expertise. Jonah is heard about before necessarily being met.
 
 ### Wake Seeds
 - Who receives scarce food/medicine.
@@ -101,7 +101,7 @@ Maya becomes an increasingly important moral/practical anchor. Marcus demonstrat
 - A promise made during a crisis.
 
 ### Returning Wakes
-Maya, Noah, the pharmacy encounter and the injured stranger can change who is available, cooperative or hostile.
+Michelle, Michael McDermott, the pharmacy encounter and the injured stranger can change who is available, cooperative or hostile.
 
 ### Climax
 The group receives credible evidence of another organized survivor community.
@@ -285,7 +285,7 @@ Major Wake activation, debts, legacy reputation, historical claims, inherited co
 ### Major Wake Returns
 Candidate chains include:
 - Injured stranger: Day 1 → Act IV hint → Act VII payoff.
-- Noah: Day 3 → Act V role → Act VII loyalty/betrayal/rescue.
+- Michael McDermott: Day 3 → Act V role → Act VII loyalty/betrayal/rescue.
 - Pharmacy group: Day 5 → Act III contact → Act VII alliance or hostility.
 - Signal answer: Day 7 → Act III information → Act VII targeted consequence.
 - Early resource honesty: Act I/II → settlement culture → Act VII crisis response.
@@ -387,8 +387,8 @@ The season should be authored as a lattice rather than an exponentially branchin
 | Origin | Intermediate Echo | Major Payoff |
 |---|---|---|
 | Day 1 injured stranger | Act IV rumor/contact | Act VII person/network returns |
-| Day 1 Maya relationship | Acts II/V leadership tension | Acts VII/IX loyalty consequence |
-| Day 3 Noah | Act V settlement role | Act VII loyalty, betrayal or rescue |
+| Day 1 Michelle relationship | Acts II/V leadership tension | Acts VII/IX loyalty consequence |
+| Day 3 Michael McDermott | Act V settlement role | Act VII loyalty, betrayal or rescue |
 | Day 5 pharmacy | Act III survivor contact | Act VII alliance/hostility |
 | Day 7 signal | Act III contact differences | Acts VII/IX signal consequence |
 | Act II outsider policy | Act V population makeup | Act VIII coalition composition |
