@@ -15,6 +15,7 @@ builder.Services.Configure<ArtStorageOptions>(builder.Configuration.GetSection(A
 builder.Services.Configure<ArtGenerationProviderOptions>(builder.Configuration.GetSection(ArtGenerationProviderOptions.SectionName));
 builder.Services.Configure<OpenAiArtGenerationOptions>(builder.Configuration.GetSection(OpenAiArtGenerationOptions.SectionName));
 builder.Services.Configure<LocalArtGenerationOptions>(builder.Configuration.GetSection(LocalArtGenerationOptions.SectionName));
+builder.Services.Configure<ComfyUiArtGenerationOptions>(builder.Configuration.GetSection(ComfyUiArtGenerationOptions.SectionName));
 builder.Services.Configure<OpenAiArtGenerationOptions>(builder.Configuration.GetSection(OpenAiArtGenerationOptions.SectionName));
 
 var storage=builder.Configuration.GetSection(ArtStorageOptions.SectionName).Get<ArtStorageOptions>()??new ArtStorageOptions();
