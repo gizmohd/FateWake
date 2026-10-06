@@ -116,3 +116,31 @@ Normal gameplay should resolve a persisted asset or composition reference. It sh
 Generation is authorized only for a genuinely missing canonical visual requirement or an explicitly requested new version.
 
 This applies equally to authored NPC artwork and future player-generated survivor artwork.
+
+
+## Image Storage and Web Delivery Formats
+
+All AI-generated or AI-altered production artwork must preserve a **full-resolution PNG archival master**.
+
+For web/game delivery, the asset pipeline derives and stores:
+
+1. **Master PNG** — full generated resolution, archival/source-of-truth image used for future edits, derivatives, recomposition and regeneration references. Do not destructively optimize or resize this master.
+2. **WebP delivery asset** — optimized derivative used by default by supported browsers.
+3. **Optimized PNG fallback** — web-optimized PNG derivative for clients that cannot render the WebP version.
+
+The master PNG, WebP derivative and optimized PNG fallback belong to the same logical asset/version and must be linked in asset metadata rather than treated as separate canonical artwork.
+
+Runtime presentation should prefer WebP and fall back to the optimized PNG, for example through HTML `<picture>`/source fallback or an equivalent framework abstraction. Runtime code should not normally serve the archival master.
+
+Transparent reusable layers must retain alpha in the archival PNG and in delivery formats where required.
+
+Derivative generation must preserve the original pixel dimensions unless a specifically registered delivery-size variant is being created. Additional responsive sizes may be generated later, but they must remain derivatives of the same immutable master asset.
+
+The asset record should capture at minimum:
+- master PNG storage location, dimensions, byte size and content hash;
+- WebP storage location, dimensions, byte size, encoder/settings/version where useful, and content hash;
+- optimized PNG fallback location, dimensions, byte size and content hash;
+- alpha/transparency requirements;
+- derivative relationship and generation timestamp.
+
+If a delivery derivative is missing or its encoding policy changes, it should be recreated from the archival master without invoking the AI image provider again.
