@@ -67,3 +67,12 @@ Months of survival should be visible without a cosmetic level number: repaired c
 When no compatible approved asset exists, construct a generation request from:
 Style Bible + survivor identity reference + current canonical visual state + pose requirement + new item/wardrobe prompt.
 Persist approved output as a reusable versioned asset when appropriate.
+
+
+## Visibility pipeline
+The authoritative flow is:
+**Inventory → Loadout → Scene/Pose/Camera Projection → Visible Assets → Composition**
+
+Owning an item never implies it is shown. Equipping/carrying an item still does not guarantee it is shown. Stored and concealed items are omitted by default. Scene actions can explicitly reveal, suppress, or place an item in-hand. Pose compatibility can also suppress an otherwise visible layer.
+
+Historical visual snapshots capture the projected appearance, while canonical inventory/history separately records actual possession.
