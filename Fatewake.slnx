@@ -7,6 +7,6 @@
     <Project Path="src/Fatewake.Infrastructure/Fatewake.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Fatewake.GameEngine.Tests/Fatewake.GameEngine.Tests.csproj" />\n    <Project Path="tests/Fatewake.IntegrationTests/Fatewake.IntegrationTests.csproj" />
+    <Project Path="tests/Fatewake.GameEngine.Tests/Fatewake.GameEngine.Tests.csproj" />\n    <Project Path="tests/Fatewake.IntegrationTests/Fatewake.IntegrationTests.csproj" />\n    <Project Path="tests/Fatewake.Web.Tests/Fatewake.Web.Tests.csproj" />
   </Folder>
 </Solution>
