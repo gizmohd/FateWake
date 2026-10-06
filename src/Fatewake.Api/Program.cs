@@ -90,11 +90,3 @@ app.MapPost("/api/day1/resolve", async (
 
 app.Run();
 
-public sealed record StartSessionRequest(Guid? SurvivorId, string? BroadRegion);
-public sealed record PresentationProgressRequest(Guid SurvivorId, Guid EventInstanceId, string SceneKey, string BeatKey);
-public sealed record DayOneResolveRequest(
-    Guid EventInstanceId,
-    Guid SurvivorId,
-    Guid TimelineId,
-    Guid IdempotencyKey,
-    CandidateAction Action);
