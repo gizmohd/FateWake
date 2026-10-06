@@ -221,3 +221,14 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-112 | A Fatewake account is distinct from a provider identity and may have multiple external login identities linked to the same account. | Accepted |
 | DEC-113 | Provider email addresses are attributes, not stable identity keys. External identities are keyed by provider + provider subject identifier; Apple private-relay email is supported. | Accepted |
 | DEC-114 | Authentication secrets/client credentials are external configuration/secrets and never stored in source control. | Accepted |
+
+
+## Visual Progression Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-115 | Survivor appearance is state-driven and may change over time based on canonical wardrobe, equipment, injuries, condition and persistent story marks. | Accepted |
+| DEC-116 | Stable visual identity is separated from mutable visual layers so equipment/clothing can change without regenerating the survivor's identity. | Accepted |
+| DEC-117 | Historical scenes/journal entries retain visual snapshots or version fingerprints so old artwork does not retroactively adopt current equipment or appearance. | Accepted |
+| DEC-118 | Visual equipment is a presentation projection of authoritative inventory/equipment state and can never grant gameplay ownership or capability. | Accepted |
+| DEC-119 | Approved survivor/equipment visual assets are versioned and reusable; missing combinations may trigger generation using the Style Bible, identity reference and canonical visual state. | Accepted |
