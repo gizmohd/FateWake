@@ -1,8 +1,11 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 namespace Fatewake.Infrastructure.Persistence.Migrations;
 
+[DbContext(typeof(FatewakeDbContext))]
+[Migration("20261006000100_Initial")]
 public partial class Initial : Migration
 {
     protected override void Up(MigrationBuilder m)

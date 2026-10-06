@@ -9,11 +9,14 @@ var artworkKeys=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 foreach(var file in Directory.EnumerateFiles(source,"*.cs",SearchOption.AllDirectories).Concat(Directory.EnumerateFiles(source,"*.razor",SearchOption.AllDirectories)))
 {
     var text=File.ReadAllText(file);
-    foreach(Match m in Regex.Matches(text,"\"(?<key>(?:day1|bg|char|prop|fg|light|effect|wear|tool|injury|condition)-[a-z0-9-]+)\""))
+    foreach(Match m in Regex.Matches(text,"\"(?<key>(?:bg|char|prop|fg|light|effect|wear|tool|injury|condition)-[a-z0-9-]+)\""))
+        artworkKeys.Add(m.Groups["key"].Value);
+    // Composition keys belong to scene beats and artwork switches, not scene IDs or rules versions.
+    foreach(Match m in Regex.Matches(text,"(?:BeatKind\\.\\w+\\s*,\\s*\"(?<key>[a-z0-9-]+)\"|\"(?<key>day1-[a-z0-9-]+)\"\\s*=>)"))
         artworkKeys.Add(m.Groups["key"].Value);
 }
-var promptKeys=Directory.Exists(prompts)?Directory.EnumerateFiles(prompts,"*.md").Select(Path.GetFileNameWithoutExtension).ToHashSet(StringComparer.OrdinalIgnoreCase):[];
-var assetKeys=Directory.Exists(assets)?Directory.EnumerateFiles(assets,"*.*",SearchOption.AllDirectories).Where(x=>new[]{".webp",".png",".jpg",".jpeg"}.Contains(Path.GetExtension(x),StringComparer.OrdinalIgnoreCase)).Select(Path.GetFileNameWithoutExtension).ToHashSet(StringComparer.OrdinalIgnoreCase):[];
+var promptKeys=Directory.Exists(prompts)?Directory.EnumerateFiles(prompts,"*.md").Select(Path.GetFileNameWithoutExtension).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase):[];
+var assetKeys=Directory.Exists(assets)?Directory.EnumerateFiles(assets,"*.*",SearchOption.AllDirectories).Where(x=>new[]{".webp",".png",".jpg",".jpeg"}.Contains(Path.GetExtension(x),StringComparer.OrdinalIgnoreCase)).Select(Path.GetFileNameWithoutExtension).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase):[];
 
 var missingPrompts=artworkKeys.Where(x=>!promptKeys.Contains(x)).Order().ToArray();
 var placeholders=artworkKeys.Where(x=>!assetKeys.Contains(x)).Order().ToArray();
@@ -21,7 +24,7 @@ var orphanPrompts=promptKeys.Where(x=>!artworkKeys.Contains(x)&&!x.StartsWith("T
 
 Console.WriteLine($"Fatewake Asset Report");
 Console.WriteLine($"Referenced artwork keys : {artworkKeys.Count}");
-Console.WriteLine($"Approved/render assets : {artworkKeys.Count-placeholderholders.Length}");
+Console.WriteLine($"Approved/render assets : {artworkKeys.Count-placeholders.Length}");
 Console.WriteLine($"Placeholders            : {placeholders.Length}");
 Console.WriteLine($"Missing prompts          : {missingPrompts.Length}");
 Console.WriteLine($"Orphan prompts           : {orphanPrompts.Length}");

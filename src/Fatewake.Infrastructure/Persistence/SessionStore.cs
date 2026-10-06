@@ -20,8 +20,8 @@ public sealed class SessionStore(FatewakeDbContext db):ISessionStore
             var existing=await db.Survivors.SingleOrDefaultAsync(x=>x.Id==id,ct);
             if(existing is not null)
             {
-                var episode=await db.EventInstances.Where(x=>x.SurvivorId==id&&x.Status=="active").OrderBy(x=>x.SurvivorDay).FirstAsync(ct);
-                return ToState(existing,episode);
+                var existingEpisode=await db.EventInstances.Where(x=>x.SurvivorId==id&&x.Status=="active").OrderBy(x=>x.SurvivorDay).FirstAsync(ct);
+                return ToState(existing,existingEpisode);
             }
         }
         var realm=await db.Realms.SingleAsync(x=>x.Key=="the-silence",ct);var now=DateTimeOffset.UtcNow;
