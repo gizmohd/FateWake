@@ -1,21 +1,21 @@
 # Characters
 
-## Maya Torres
+## Michelle Summers
 Neighbor and nurse. Practical, capable and protective. Her first impression of the player can vary significantly based on Day 1.
 
-## Eli Torres
-Maya's eight-year-old son. Observant and prone to noticing details adults dismiss. He remembers player behavior.
+## Eli Summers
+Michelle's eight-year-old son. Observant and prone to noticing details adults dismiss. He remembers player behavior.
 
-## Marcus Reed
+## Mark Garcia
 Former military/logistics background. Highly useful during collapse conditions but increasingly comfortable with authoritarian solutions.
 
-## Dr. Lena Park
+## Dr. Iris Johnson
 Communications engineer who suspects the outage and broadcasts do not fit official explanations.
 
-## Jonah Mercer
+## Joe McDermott
 Charismatic survivor who organizes people unusually quickly. His motivations and knowledge remain uncertain.
 
-## Noah
+## Michael McDermott
 Teenager encountered stealing food on Day 3. He claims to be caring for his younger sister. Their parents vanished during The Silence rather than being found dead.
 
 ## Character Rule
