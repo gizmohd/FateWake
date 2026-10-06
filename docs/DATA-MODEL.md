@@ -480,3 +480,41 @@ The first executable Day 1 migration only needs:
 - narrative_render
 
 Add generalized organization/settlement and broader information-transmission structures as their gameplay enters the executable slice, while retaining this model as the target architecture.
+
+## Generated Content Assets
+
+### generated_content_asset
+Durable reusable AI/authored content.
+
+- id uuid PK
+- asset_type text
+- content_key text nullable
+- content text/jsonb
+- context_fingerprint text
+- applicability jsonb
+- prompt_version text nullable
+- rules_version text nullable
+- content_version integer
+- provider text nullable
+- model text nullable
+- validation_status text
+- token_usage jsonb nullable
+- estimated_cost numeric nullable
+- usage_count bigint
+- created_at timestamptz
+- last_used_at timestamptz nullable
+- superseded_by_id uuid nullable
+
+Index exact reusable lookups by asset_type + context_fingerprint + validation_status. Content with player-private inputs must include those constraints in applicability/fingerprinting and must not leak across survivors.
+
+### generated_content_usage
+Records where an asset was reused or generated so quality and savings can be measured.
+
+- id uuid PK
+- asset_id uuid FK
+- survivor_id uuid nullable FK
+- event_instance_id uuid nullable FK
+- usage_type text
+- used_at timestamptz
+
+Narrative renders may reference generated_content_asset rather than duplicating provenance on every use.
