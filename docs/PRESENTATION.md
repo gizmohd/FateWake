@@ -47,3 +47,31 @@ The Day 1 6:17 opening is the reference implementation for Fatewake's visual lan
 7. radio anomaly
 8. 6:43 shutdown
 9. recap
+
+
+## Placeholder Prompt Contract
+Every application artwork placeholder must use a stable `ArtworkKey`. Before or with introduction of a new key, add `art/prompts/{ArtworkKey}.md`.
+
+A prompt file is incomplete unless it:
+- references the current Style Bible;
+- references every recurring character/location continuity sheet visible in the panel;
+- states narrative purpose and known story state;
+- defines composition/crop safe areas;
+- identifies details the player must not learn yet;
+- explicitly excludes generated UI/dialogue text unless text is a physical story clue.
+
+When an image becomes approved, future panels featuring the same character/location should use that approved image as a visual reference when supported. Text prompts alone are not sufficient for long-term identity continuity.
+
+### Art asset metadata
+Production assets should eventually record:
+- artwork key
+- prompt version
+- Style Bible version
+- referenced character/location versions
+- generation provider/model
+- reference asset IDs
+- approval status
+- continuity notes
+- created timestamp
+
+This metadata belongs to presentation provenance, not canonical game state.
