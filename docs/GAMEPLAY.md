@@ -76,3 +76,15 @@ Free-form journal entries are themselves meaningful input. A player may notice a
 The system may extract candidate observations from a note, including people, places, objects, events, relationships, promises, suspicions, theories, questions and intended future actions. These can influence what the game pays attention to and what contextual opportunities become available, but an interpretation is not automatically a fact about the world.
 
 The original player-authored entry is preserved separately from machine-derived interpretation. This distinction allows Fatewake to remember what the player actually wrote while safely revising an incorrect interpretation later.
+
+## Information as World State
+Information is a first-class gameplay resource. Secrets, warnings, coordinates, technical knowledge, rumors, misinformation and discoveries can create Wakes and propagate between characters, players, settlements and regions.
+
+Important information should retain provenance where feasible: who originated it, who observed or received it, how it was transmitted, whether it was altered, and what evidence supports it. This allows consequences such as leaked secrets, rumors and betrayals to arise from causal history rather than narrative invention.
+
+NPC memory follows plausible perception. A character may remember something they witnessed without the UI announcing that they noticed it. NPC deception must likewise respect knowledge and motivation: characters can lie, omit or manipulate, but cannot conveniently know facts unavailable to them without an established explanation.
+
+Players can deliberately lie through authored or free-form interactions. Recipients are not shown an authoritative truth indicator.
+
+## Deep Discovery
+Some mysteries, clues and systemic patterns should be genuinely difficult to discover and may remain unknown to most players. A rare observation by one player can become a larger social investigation when shared through Fatewake or external community discussion. These discoveries should arise from coherent underlying rules so collective investigation can produce real answers rather than arbitrary puzzle solutions.
