@@ -112,3 +112,16 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-053 | An ordinary player may rarely develop into the Fatewake equivalent of a Wayfinder; this must be earned through history and cannot be selected during character creation. | Accepted direction |
 | DEC-054 | Most players remain ordinary humans; non-Gift paths such as leadership, medicine, engineering, trade, scouting, combat and diplomacy remain equally meaningful. | Accepted |
 | DEC-055 | Early Gift development is communicated diegetically through perception, events and narrative changes rather than visible ability points or explicit labels. | Accepted |
+
+## Information, Journal and Player-Observation Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-056 | Expose countable physical resources numerically where appropriate, but communicate relationships, morale and similar human state primarily through qualitative/diegetic signals rather than meters. | Accepted |
+| DEC-057 | The Journal/History exposes known significant events while hidden Wakes and future consequence mechanics remain undisclosed until they surface naturally. | Accepted |
+| DEC-058 | Players retain a long-term browsable personal history across their Fatewake life and seasons. | Accepted |
+| DEC-059 | Authoritative UI/state should not deliberately lie; characters, incomplete information, perceptions and anomalous experiences may be unreliable. | Accepted |
+| DEC-060 | Notifications should be restrained and primarily diegetic/in-world rather than engagement-spam mechanics. | Accepted |
+| DEC-061 | The journal is a player-owned artifact supporting personal free-form notes alongside automatically recorded history. | Accepted |
+| DEC-062 | Player-authored journal entries may be analyzed for observations, theories, entities, promises, concerns and other potentially meaningful context that authored content or telemetry did not anticipate. | Accepted direction |
+| DEC-063 | Journal analysis is interpretive, not authoritative: the original note is preserved, extracted interpretations retain provenance/confidence, and no inferred claim becomes canonical world state without deterministic validation or later evidence. | Accepted |
