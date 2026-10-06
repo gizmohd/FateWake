@@ -2,7 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Fatewake.AppHost/Fatewake.AppHost.csproj" />
     <Project Path="src/Fatewake.ServiceDefaults/Fatewake.ServiceDefaults.csproj" />
-    <Project Path="src/Fatewake.Api/Fatewake.Api.csproj" />
+    <Project Path="src/Fatewake.Api/Fatewake.Api.csproj" />\n    <Project Path="src/Fatewake.Web/Fatewake.Web.csproj" />
     <Project Path="src/Fatewake.GameEngine/Fatewake.GameEngine.csproj" />
     <Project Path="src/Fatewake.Infrastructure/Fatewake.Infrastructure.csproj" />
   </Folder>
