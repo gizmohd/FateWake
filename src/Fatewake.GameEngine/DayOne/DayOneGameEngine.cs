@@ -20,22 +20,22 @@ public sealed class DayOneGameEngine : IGameEngine
     private static ActionResolution Help() => new(
         true,
         "injured_stranger_helped",
-        [new("relationship", "maya.trust", "increased"), new("fact", "player.exposed_self_to_danger", "true")],
-        [new("first_impression", "Personal", "maya", 2, new Dictionary<string,string>{{"reason","helped_injured_stranger"}})],
-        new Dictionary<string,string>{{"mayaReaction","The player stepped out to help."},{"injuredStranger","Received immediate assistance."}},
+        [new("relationship", "michelle.trust", "increased"), new("fact", "player.exposed_self_to_danger", "true")],
+        [new("first_impression", "Personal", "michelle", 2, new Dictionary<string,string>{{"reason","helped_injured_stranger"}})],
+        new Dictionary<string,string>{{"michelleReaction","The player stepped out to help."},{"injuredStranger","Received immediate assistance."}},
         "day1-v1");
 
     private static ActionResolution CallFromSafety() => new(
         true, "called_from_safety",
-        [new("relationship","maya.trust","slightly_increased")],
-        [new("first_impression","Personal","maya",1,new Dictionary<string,string>{{"reason","helped_from_safety"}})],
-        new Dictionary<string,string>{{"mayaReaction","The player tried to help without stepping outside."}}, "day1-v1");
+        [new("relationship","michelle.trust","slightly_increased")],
+        [new("first_impression","Personal","michelle",1,new Dictionary<string,string>{{"reason","helped_from_safety"}})],
+        new Dictionary<string,string>{{"michelleReaction","The player tried to help without stepping outside."}}, "day1-v1");
 
     private static ActionResolution StayInside() => new(
         true, "remained_inside",
-        [new("relationship","maya.trust","decreased")],
-        [new("first_impression","Personal","maya",2,new Dictionary<string,string>{{"reason","did_not_intervene"}})],
-        new Dictionary<string,string>{{"mayaReaction","Maya saw that no help came from the player's home."}}, "day1-v1");
+        [new("relationship","michelle.trust","decreased")],
+        [new("first_impression","Personal","michelle",2,new Dictionary<string,string>{{"reason","did_not_intervene"}})],
+        new Dictionary<string,string>{{"michelleReaction","Michelle saw that no help came from the player's home."}}, "day1-v1");
 
     private static ActionResolution InvestigateRadio() => new(
         true, "radio_investigated",
