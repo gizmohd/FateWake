@@ -33,3 +33,17 @@ The world uses fictionalized real-world geography. Real cities, regions and broa
 
 ## Real-Player Discovery
 A survivor controlled by another human need not be labeled as a player on first encounter. The game may reveal that relationship after meaningful contact. Real-player discovery should be a narrative/social moment rather than ordinary MMO UI metadata.
+
+## Mortality and Succession
+Player-character death can be permanent but should be rare and narratively earned. It should usually follow accumulated risk, unresolved Wakes or serious circumstances rather than a single arbitrary failure. The player's account and world history continue through a successor, while the deceased character remains part of canonical history.
+
+## Player Conflict
+Players may attack, injure, capture, rob, deceive and betray one another. Direct PvP should not, by itself, allow one player to permanently erase another player's established character. Permanent death can still result from broader deterministic consequences when appropriately earned by the story and rules.
+
+Betrayal and broken promises are legitimate gameplay. The Wake system records them so trust, reputation and future relationships can react over time.
+
+## Relationships and Families
+Relationships may range from friendship and rivalry through mentorship, family-like bonds, romance and marriage. Settlements may include families and children, and survival pressures can affect them. Presentation should respect age/content settings and does not need graphic depiction to create meaningful stakes.
+
+## Player Communication
+Player-to-player interaction should combine contextual suggested dialogue/actions with moderated free-form communication. Communication remains part of the fiction and should integrate with identity, relationships, Wakes and safety systems rather than behaving like an unrelated global chat room.
