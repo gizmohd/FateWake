@@ -84,3 +84,20 @@ Implementation rules:
 - Image generation, processing, persistence and asset validation must operate on both Linux and Windows.
 - CI should validate both Linux and Windows when changes touch runtime/platform-sensitive code.
 - Container support must not make direct Windows execution a second-class configuration, and Windows support must not require Windows containers.
+
+
+## Source code documentation and file structure
+
+Fatewake uses a strict source-documentation standard for all new and modified C# code.
+
+- **One declared type per C# source file.** Classes, interfaces, records, structs, and enums each receive their own file. Nested private implementation types are discouraged and should be extracted when they have independent behavior. Compiler-generated/partial framework patterns may be exceptions only when the framework requires them.
+- File names match the declared type name.
+- Every public/internal type has XML documentation explaining its responsibility and architectural role.
+- Public/internal constructors, properties, methods, parameters, return values, exceptions, concurrency/idempotency behavior, and important side effects are documented with XML comments where applicable.
+- Comments explain intent, invariants, lifecycle and non-obvious behavior rather than restating syntax.
+- Every C# source file has a companion Markdown document dedicated to that type. The canonical convention is `docs/code/<project-relative-source-path-without-.cs>.md`. Example: `src/Fatewake.Infrastructure/Work/WorkJobBuilder.cs` is documented by `docs/code/src/Fatewake.Infrastructure/Work/WorkJobBuilder.md`.
+- Companion documentation describes purpose, usage, dependencies, inputs/outputs, lifecycle, thread/concurrency behavior, distributed/Kubernetes considerations, failure/retry/idempotency semantics, configuration and a usage example when meaningful.
+- Documentation changes ship in the same commit/change set as source behavior changes.
+- Generated code, EF migrations and framework-generated artifacts may be exempt from one-type-per-file/companion-document requirements, but hand-authored runtime code is not.
+
+Existing code predating this decision is technical debt. When an existing file is materially modified, it should be brought toward this standard rather than adding more undocumented/multi-type structure.
