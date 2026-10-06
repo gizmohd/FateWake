@@ -190,3 +190,14 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-096 | Fatewake starts on .NET 10 with .NET Aspire as the local application orchestration and service-development foundation. | Accepted |
 | DEC-097 | The MVP is a modular application with explicit project/domain boundaries rather than a microservice architecture. Services may be separated later only where operational or scaling requirements justify it. | Accepted |
 | DEC-098 | Initial application stack is Blazor Web App/PWA, ASP.NET Core APIs, EF Core with Npgsql/PostgreSQL, and Aspire orchestration. Redis, messaging, search and Kubernetes are deferred until demonstrated requirements justify them. | Accepted |
+
+## Domain Persistence Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-099 | Fatewake persistence separates canonical append-oriented history, current-state projections and graph-style relationship/causality structures. | Accepted |
+| DEC-100 | World truth, actor knowledge and player belief are modeled separately; inferred belief cannot directly mutate canonical truth. | Accepted |
+| DEC-101 | Wakes form an explicitly traversable causal graph using Wake relationships/edges while strongly typed domain entities remain relational. | Accepted |
+| DEC-102 | AI/static narrative renders are replaceable presentation artifacts generated from authoritative narrative facts and are never the sole canonical record. | Accepted |
+| DEC-103 | GameEngine domain types remain persistence-agnostic; EF Core/Npgsql mappings and migrations live in Infrastructure rather than defining the domain model. | Accepted |
+| DEC-104 | Consequential player actions resolve transactionally: validate authoritative state, record resolution/events/Wakes, update projections, commit, then perform replaceable narrative rendering. | Accepted |
