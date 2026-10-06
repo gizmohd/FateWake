@@ -1,3 +1,4 @@
+using Fatewake.Web.Features;
 using Fatewake.Web.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Threading.RateLimiting;
@@ -15,6 +16,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     options.ExpireTimeSpan = TimeSpan.FromHours(8);
 }).AddExternalSignIn(builder.Configuration);
 builder.Services.AddAuthorization();
+builder.Services.Configure<CharacterCustomizationOptions>(builder.Configuration.GetSection(CharacterCustomizationOptions.SectionName));
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticatedApiClient>();
 builder.Services.AddRateLimiter(options =>
