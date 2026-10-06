@@ -2,6 +2,7 @@ using Fatewake.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Fatewake.Observability;
 
 namespace Fatewake.Infrastructure.Authentication;
 
@@ -26,6 +27,7 @@ public sealed class LocalAccountService(
     /// <returns>The created account or a safe registration error.</returns>
     public async Task<LocalAccountResult> RegisterAsync(string? email, string? password, CancellationToken ct)
     {
+        using var operation = OperationTelemetry.Start("auth.register", log);
         if (!EmailAddressNormalizer.TryNormalize(email, out var normalized))
             return new(null, null, "Enter a valid email address.");
         if (password is null || password.Length is < 12 or > 128)
@@ -44,6 +46,7 @@ public sealed class LocalAccountService(
     /// <returns>The account on success or a generic invalid-credentials result.</returns>
     public async Task<LocalAccountResult> LoginAsync(string? email, string? password, CancellationToken ct)
     {
+        using var operation = OperationTelemetry.Start("auth.login", log);
         if (!EmailAddressNormalizer.TryNormalize(email, out var normalized) || password is null || password.Length is < 1 or > 128)
             return new(null, null, InvalidLogin);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -88,6 +91,7 @@ public sealed class LocalAccountService(
     /// <summary>Sets the initial local password for a verified external account; existing passwords are never overwritten.</summary>
     public async Task<LocalAccountResult> SetPasswordAsync(Guid accountId, string? password, CancellationToken ct)
     {
+        using var operation = OperationTelemetry.Start("auth.set_password", log);
         if (password is null || password.Length is < 12 or > 128)
             return new(null, null, "Use a password between 12 and 128 characters.");
         await using var tx = await db.Database.BeginTransactionAsync(ct);

@@ -1,16 +1,20 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Fatewake.Observability;
+using Microsoft.Extensions.Logging;
 
 namespace Fatewake.Infrastructure.Persistence;
 
 /// <summary>Creates or resumes guest/account-owned survivors and persists presentation progress.</summary>
 /// <param name="db">Scoped canonical PostgreSQL persistence context.</param>
+/// <param name="log">Typed logger; optional for isolated persistence tests.</param>
 /// <see href="../../../docs/code/src/Fatewake.Infrastructure/Persistence/SessionStore.md">SessionStore documentation</see>
-public sealed class SessionStore(FatewakeDbContext db):ISessionStore
+public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? log = null):ISessionStore
 {
     /// <inheritdoc />
     public async Task<SessionState> StartOrResumeAsync(Guid? survivorId,string broadRegion,CancellationToken ct=default,Guid? accountId=null)
     {
+        using var operation = OperationTelemetry.Start("session.start_or_resume", log);
         await using var transaction = accountId is not null ? await db.Database.BeginTransactionAsync(ct) : null;
         if (accountId is {} owner)
         {
@@ -41,6 +45,7 @@ public sealed class SessionStore(FatewakeDbContext db):ISessionStore
     /// <inheritdoc />
     public async Task<SessionState?> SavePresentationProgressAsync(Guid survivorId,Guid eventInstanceId,string sceneKey,string beatKey,CancellationToken ct=default)
     {
+        using var operation = OperationTelemetry.Start("session.save_progress", log);
         var survivor=await db.Survivors.SingleOrDefaultAsync(x=>x.Id==survivorId,ct);
         var episode=await db.EventInstances.SingleOrDefaultAsync(x=>x.Id==eventInstanceId&&x.SurvivorId==survivorId,ct);
         if(survivor is null||episode is null)return null;

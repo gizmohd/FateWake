@@ -92,3 +92,31 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Validate artwork contract
         run: dotnet run --project tools/Fatewake.AssetValidator/Fatewake.AssetValidator.csproj --configuration Release -- .
+
+  observability-and-benchmark-smoke:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build
+        run: dotnet build Fatewake.slnx --configuration Release
+      - name: Verify telemetry transport and privacy
+        run: dotnet test tests/Fatewake.IntegrationTests/Fatewake.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~ObservabilityTests"
+      - name: Benchmark harness smoke check (not a performance baseline)
+        run: dotnet run --project benchmarks/Fatewake.Benchmarks/Fatewake.Benchmarks.csproj --configuration Release --no-build -- --filter '*' --job Dry --artifacts artifacts/benchmark-smoke
+      - name: Upload benchmark smoke results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-smoke-${{ matrix.os }}
+          path: artifacts/benchmark-smoke/
+          if-no-files-found: ignore
+          retention-days: 14

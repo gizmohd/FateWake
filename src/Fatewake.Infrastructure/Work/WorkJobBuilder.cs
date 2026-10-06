@@ -1,6 +1,7 @@
 using Fatewake.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Fatewake.Observability;
 
 namespace Fatewake.Infrastructure.Work;
 
@@ -10,6 +11,7 @@ public sealed class WorkJobBuilder(FatewakeDbContext db,IWorkSignalBus signals,I
 {
     public async Task<CreatedWorkJob> CreateAsync(WorkJobDefinition definition,CancellationToken ct=default)
     {
+        using var operation = OperationTelemetry.Start("work.create_job", log);
         Validate(definition);
         var existing=await db.WorkJobs.AsNoTracking().SingleOrDefaultAsync(x=>x.JobType==definition.JobType&&x.IdempotencyKey==definition.IdempotencyKey,ct);
         if(existing is not null)

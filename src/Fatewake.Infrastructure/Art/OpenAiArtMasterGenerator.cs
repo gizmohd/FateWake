@@ -2,13 +2,16 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using Fatewake.Observability;
+using Microsoft.Extensions.Logging;
 namespace Fatewake.Infrastructure.Art;
 /// <summary>Generates canonical PNG masters with the OpenAI Image API, optionally using approved reference images.</summary>
 /// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Art/OpenAiArtMasterGenerator.md">OpenAiArtMasterGenerator documentation</see>.</remarks>
-public sealed class OpenAiArtMasterGenerator(HttpClient http,IOptions<OpenAiArtGenerationOptions> configured,IArtBinaryStorage storage):IArtMasterGenerator
+public sealed class OpenAiArtMasterGenerator(HttpClient http,IOptions<OpenAiArtGenerationOptions> configured,IArtBinaryStorage storage, ILogger<OpenAiArtMasterGenerator>? log = null):IArtMasterGenerator
 {
  public async Task<GeneratedArtMaster> GenerateAsync(ArtGenerationInvocation invocation,CancellationToken ct=default)
  {
+ using var operation = OperationTelemetry.Start("art.generate.openai", log);
   var o=configured.Value;if(!o.Enabled||string.IsNullOrWhiteSpace(o.ApiKey))throw new InvalidOperationException("OpenAI art generation is not configured.");
   using var request=new HttpRequestMessage(HttpMethod.Post,(invocation.Request.ReferenceImages?.Count??0)>0?"images/edits":"images/generations");
   request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",o.ApiKey);
@@ -22,7 +25,7 @@ public sealed class OpenAiArtMasterGenerator(HttpClient http,IOptions<OpenAiArtG
   }
   else request.Content=JsonContent.Create(new{model=invocation.Request.Model??o.Model,prompt,size=o.Size,quality=o.Quality,output_format="png",background=o.Background});
   using var response=await http.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,ct);var body=await response.Content.ReadAsStringAsync(ct);
-  if(!response.IsSuccessStatusCode)throw new HttpRequestException($"OpenAI image generation failed ({(int)response.StatusCode}): {body[..Math.Min(body.Length,1000)]}");
+  if(!response.IsSuccessStatusCode)throw new HttpRequestException($"OpenAI image generation failed ({(int)response.StatusCode}).", null, response.StatusCode);
   using var json=JsonDocument.Parse(body);var root=json.RootElement;var first=root.GetProperty("data")[0];
   byte[] bytes;if(first.TryGetProperty("b64_json",out var b64))bytes=Convert.FromBase64String(b64.GetString()??throw new InvalidDataException("OpenAI returned empty image data."));else throw new InvalidDataException("OpenAI response did not contain PNG image data.");
   var requestId=response.Headers.TryGetValues("x-request-id",out var values)?values.FirstOrDefault():null;

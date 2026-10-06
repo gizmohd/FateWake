@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Fatewake.GameEngine;
 using Microsoft.EntityFrameworkCore;
+using Fatewake.Observability;
+using Microsoft.Extensions.Logging;
 
 namespace Fatewake.Infrastructure.Persistence;
 
@@ -9,10 +11,11 @@ public interface IResolutionStore
     Task<ActionResolution> PersistAsync(Guid eventInstanceId, Guid survivorId, Guid timelineId, Guid idempotencyKey, CandidateAction action, ActionResolution resolution, CancellationToken cancellationToken = default);
 }
 
-public sealed class ResolutionStore(FatewakeDbContext db) : IResolutionStore
+public sealed class ResolutionStore(FatewakeDbContext db, ILogger<ResolutionStore>? log = null) : IResolutionStore
 {
     public async Task<ActionResolution> PersistAsync(Guid eventInstanceId, Guid survivorId, Guid timelineId, Guid idempotencyKey, CandidateAction action, ActionResolution resolution, CancellationToken cancellationToken = default)
     {
+        using var operation = OperationTelemetry.Start("game.persist_resolution", log);
         var prior = await (from a in db.ActionAttempts
                            join r in db.ActionResolutions on a.Id equals r.ActionAttemptId
                            where a.EventInstanceId == eventInstanceId && a.IdempotencyKey == idempotencyKey

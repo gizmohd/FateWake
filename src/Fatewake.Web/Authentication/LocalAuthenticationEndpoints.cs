@@ -4,6 +4,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Fatewake.Observability;
 
 namespace Fatewake.Web.Authentication;
 
@@ -45,6 +46,7 @@ public static class LocalAuthenticationEndpoints
     private static async Task<IResult> AuthenticateAsync(HttpContext context, IAntiforgery antiforgery,
         IHttpClientFactory clients, ILoggerFactory logs, bool register)
     {
+        using var operationTelemetry = OperationTelemetry.Start("web.account_form");
         if (!await ValidateFormAsync(context, antiforgery, logs)) return Results.BadRequest("Invalid form token. Reload the login page.");
         var form = await context.Request.ReadFormAsync(context.RequestAborted);
         var page = register ? "/register" : "/login";
@@ -67,11 +69,13 @@ public static class LocalAuthenticationEndpoints
         }
         catch (HttpRequestException ex)
         {
+            operationTelemetry.Fail(ex);
             logs.CreateLogger(typeof(LocalAuthenticationEndpoints)).LogError(ex, "Account service request failed");
             return Results.LocalRedirect(page + "?error=unavailable");
         }
         catch (OperationCanceledException ex) when (!context.RequestAborted.IsCancellationRequested)
         {
+            operationTelemetry.Fail(ex);
             logs.CreateLogger(typeof(LocalAuthenticationEndpoints)).LogError(ex, "Account service request timed out");
             return Results.LocalRedirect(page + "?error=unavailable");
         }
@@ -80,6 +84,7 @@ public static class LocalAuthenticationEndpoints
     private static async Task<IResult> AccountFormAsync(HttpContext context, IAntiforgery antiforgery,
         IHttpClientFactory clients, ILoggerFactory logs, string operation, string page)
     {
+        using var operationTelemetry = OperationTelemetry.Start("web.account_action");
         context.Response.Headers.CacheControl = "no-store";
         context.Response.Headers["Referrer-Policy"] = "no-referrer";
         if (!await ValidateFormAsync(context, antiforgery, logs)) return Results.BadRequest("Invalid form token. Reload the page.");
@@ -107,11 +112,13 @@ public static class LocalAuthenticationEndpoints
         }
         catch (HttpRequestException ex)
         {
+            operationTelemetry.Fail(ex);
             logs.CreateLogger(typeof(LocalAuthenticationEndpoints)).LogError(ex, "Account {Operation} failed", operation);
             return Results.LocalRedirect(page + "?error=unavailable");
         }
         catch (OperationCanceledException ex) when (!context.RequestAborted.IsCancellationRequested)
         {
+            operationTelemetry.Fail(ex);
             logs.CreateLogger(typeof(LocalAuthenticationEndpoints)).LogError(ex, "Account {Operation} timed out", operation);
             return Results.LocalRedirect(page + "?error=unavailable");
         }

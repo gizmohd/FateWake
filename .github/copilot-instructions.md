@@ -31,7 +31,7 @@ This checks that every referenced artwork key has a prompt file (missing prompts
 ## Architecture
 
 Solution (`Fatewake.slnx`) layout:
-- `src/Fatewake.AppHost` — .NET Aspire orchestration (local dev: Web/API/Worker + PostgreSQL + RabbitMQ). Run `dotnet run --project src\Fatewake.AppHost\Fatewake.AppHost.csproj`; the launch profile configures the dashboard. Select `ASPIRE_CONTAINER_RUNTIME=docker` or `podman` if needed.
+- `src/Fatewake.AppHost` — .NET Aspire orchestration (local dev: Web/API/Worker + PostgreSQL + RabbitMQ). Run `dotnet run --project src\Fatewake.AppHost\Fatewake.AppHost.csproj`; the default launch profile configures the dashboard and explicitly selects Docker. Use `--launch-profile Fatewake.AppHost.Podman` for Podman. With `--no-launch-profile`, configure the runtime and dashboard endpoints explicitly.
 - `src/Fatewake.ServiceDefaults` — shared Aspire/telemetry/health-check wiring.
 - `src/Fatewake.GameEngine` — deterministic game core (Events, Choices, Consequences, Characters, Relationships, Resources, WorldState). **Must not depend on** Aspire, EF Core, PostgreSQL, HTTP, or any AI provider.
 - `src/Fatewake.AI` — Narrator/Dialogue/ContentGuardrails; renders authoritative GameEngine results into presentation text. Does not decide game outcomes.
@@ -55,6 +55,8 @@ Character appearance/visual assets are durable canonical state, not regenerated 
 Full design docs live under `docs/` (GDD, WORLD, GAMEPLAY, WAKE-SYSTEM, AI-DESIGN, ARCHITECTURE, DATA-MODEL, TIMELINES-AND-CONVERGENCE) and `docs/decisions/DECISION-LOG.md` — these are the design source of truth; check them before making gameplay/architecture decisions that aren't obvious from code.
 
 ## Conventions
+
+- **Permanent observability rule for every existing/new/modified file and method:** follow `docs/OBSERVABILITY.md`. All hosts use shared Serilog-backed Microsoft logging and OpenTelemetry logs/traces/metrics. Runtime libraries use injected `ILogger<T>` (never global Serilog), constant structured templates, actionable lifecycle/error events, and operation-boundary spans/latency via `Fatewake.Observability`. Use bounded metric labels and mark errors/cancellation at handling boundaries. Never export credentials, verification links/tokens, user input/prompts, SQL parameters, or provider response bodies. Do not add noisy entry/exit logs to trivial helpers/DTOs or telemetry dependencies inside GameEngine; instrument its caller and benchmark performance-critical pure paths using BenchmarkDotNet. New hot-path changes require representative benchmark updates; new telemetry requires focused tests. This applies to future work as well as the currently implemented runtime surfaces.
 
 - **Cross-platform first**: server apps and tools must run on both Linux and Windows. No OS-specific path separators, shell assumptions, or native-only dependencies without cross-platform support. Storage keys are portable logical paths translated by platform-specific adapters.
 - **One declared type per C# file**, file name matches the type name. Nested private types should be extracted unless genuinely coupled. `Program.cs` top-level entry points are exempt; other types declared alongside them are not.

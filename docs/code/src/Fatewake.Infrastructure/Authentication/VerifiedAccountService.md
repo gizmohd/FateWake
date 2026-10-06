@@ -1,5 +1,7 @@
 # VerifiedAccountService
 
+Pending registration, external resolution, resend and verification each emit a payload-free fixed-name operation span/duration. ILogger remains typed; hashes, email addresses and proof tokens never enter telemetry dimensions.
+
 Coordinates pending registration, mailbox verification, resend, and provider account linking. Only validated provider claims may enter ExternalAsync. Google email_verified proves ownership; Microsoft email claims always require mailbox proof for first linking. Known linked subjects retain their canonical account even if provider email claims change.
 
 Email/subject PostgreSQL advisory locks serialize registration and linking across replicas. Canonical normalized email is unique. Matching proven addresses link to the same account and retain its verified local password. Unverified legacy passwords are removed before an external email owner claims the account; unsolicited pending registrations cannot overwrite a subsequently created account. Confirming pending local registration requires its chosen password as well as the email token, preventing pre-registration password activation by an unsuspecting recipient.

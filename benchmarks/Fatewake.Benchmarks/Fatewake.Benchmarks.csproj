@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Fatewake.GameEngine/Fatewake.GameEngine.csproj" />
+    <ProjectReference Include="../../src/Fatewake.Infrastructure/Fatewake.Infrastructure.csproj" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+  </ItemGroup>
+</Project>

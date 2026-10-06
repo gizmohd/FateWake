@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Fatewake.Observability;
 
 namespace Fatewake.Infrastructure.Work;
 
@@ -28,8 +29,16 @@ public sealed class DurableWorkWorker(IServiceScopeFactory scopes,IOptions<WorkE
                 await store.PromoteReadyStepsAsync(ct);
                 var lease=await store.ClaimAsync(queue,workerId,options.Value.LeaseDuration,ct);
                 if(lease is null){await wakeup.WaitAsync(queue,options.Value.PollInterval,ct);continue;}
+                using var operation = OperationTelemetry.Start("work.execute", log);
+                using var logScope = log.BeginScope(new Dictionary<string, object> { ["JobId"] = lease.JobId, ["StepId"] = lease.StepId, ["Queue"] = queue });
                 var handler=scope.ServiceProvider.GetServices<IWorkStepHandler>().SingleOrDefault(x=>x.StepType==lease.StepType);
-                if(handler is null){await store.FailAsync(lease.StepId,lease.LeaseToken,"handler_missing",$"No handler for {lease.StepType}",TimeSpan.Zero,ct);continue;}
+                if(handler is null)
+                {
+                    operation.Fail(new InvalidOperationException("Work handler is missing."));
+                    log.LogError("No handler for work step type {StepType}", lease.StepType);
+                    await store.FailAsync(lease.StepId,lease.LeaseToken,"handler_missing",$"No handler for {lease.StepType}",TimeSpan.Zero,ct);
+                    continue;
+                }
                 try
                 {
                     using var executionCts=CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -39,9 +48,10 @@ public sealed class DurableWorkWorker(IServiceScopeFactory scopes,IOptions<WorkE
                     finally{executionCts.Cancel();try{await heartbeat;}catch(OperationCanceledException){ }}
                     await store.CompleteAsync(lease.StepId,lease.LeaseToken,output,ct);
                 }
-                catch(OperationCanceledException) when(ct.IsCancellationRequested){throw;}
+                catch(OperationCanceledException ex) when(ct.IsCancellationRequested){operation.Fail(ex);throw;}
                 catch(Exception ex)
                 {
+                    operation.Fail(ex);
                     log.LogError(ex,"Work step {StepId} failed on {WorkerId}",lease.StepId,workerId);
                     await store.FailAsync(lease.StepId,lease.LeaseToken,"execution_failed",ex.Message,TimeSpan.FromSeconds(Math.Min(300,Math.Pow(2,lease.Attempt)*5)),ct);
                 }

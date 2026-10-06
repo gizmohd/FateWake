@@ -3,6 +3,7 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
   <ItemGroup><ProjectReference Include="../Fatewake.GameEngine/Fatewake.GameEngine.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../Fatewake.Observability/Fatewake.Observability.csproj" /></ItemGroup>
   <ItemGroup><PackageReference Include="Microsoft.Extensions.Identity.Core" Version="10.0.0" /></ItemGroup>
   <ItemGroup><PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" /><PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" /><PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" /><PackageReference Include="SkiaSharp" Version="3.119.1" /><PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.1" /><PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="3.119.1" /><PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" /><PackageReference Include="RabbitMQ.Client" Version="7.1.2" /></ItemGroup>
 </Project>

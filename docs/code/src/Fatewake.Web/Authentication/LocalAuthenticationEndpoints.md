@@ -1,5 +1,7 @@
 # LocalAuthenticationEndpoints
 
+Browser credential/action forms emit payload-free operation spans and latency; caught transport errors/timeouts mark failure/cancellation. Raw form values and bearer tokens are never recorded.
+
 Processes same-origin login, registration, and logout forms with antiforgery validation. Credential submission is rate-limited. On successful API authentication, Web reads canonical identity and issues an eight-hour, non-sliding HttpOnly cookie carrying the opaque API token. Production cookies require HTTPS. Redirects use fixed local paths.
 
 Invalid credentials, duplicate registration, throttling, password confirmation mismatch, and API transport errors produce visible messages. Logout deletes the browser cookie; previously copied API bearer tokens expire independently.

@@ -35,6 +35,10 @@ Prototype Fatewake as a mobile-first web application/PWA. Evaluate native packag
 ## Boundary
 Game state and consequence resolution remain deterministic and testable. AI-generated text is presentation layered on authoritative state.
 
+## Observability boundary
+
+All hosts use shared Serilog-backed Microsoft `ILogger<T>` logging and OpenTelemetry logs, traces, and metrics. Runtime libraries expose payload-free operation spans through `Fatewake.Observability`; HTTP/database/runtime instrumentation and OTLP exporters are host-owned. GameEngine stays deterministic and free of logging/telemetry dependencies: its runtime caller is instrumented, and performance-critical pure methods have BenchmarkDotNet coverage. The permanent existing/future-file policy is [OBSERVABILITY.md](OBSERVABILITY.md).
+
 ## Near-Term Goal
 Implement only enough architecture for a playable Days 1–7 vertical slice, validate the return loop, then expand.
 

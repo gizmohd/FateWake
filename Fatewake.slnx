@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Fatewake.AppHost/Fatewake.AppHost.csproj" />
     <Project Path="src/Fatewake.ServiceDefaults/Fatewake.ServiceDefaults.csproj" />
+    <Project Path="src/Fatewake.Observability/Fatewake.Observability.csproj" />
     <Project Path="src/Fatewake.Api/Fatewake.Api.csproj" />\n    <Project Path="src/Fatewake.AI/Fatewake.AI.csproj" />\n    <Project Path="src/Fatewake.Web/Fatewake.Web.csproj" />
     <Project Path="src/Fatewake.GameEngine/Fatewake.GameEngine.csproj" />
     <Project Path="src/Fatewake.Infrastructure/Fatewake.Infrastructure.csproj" />
@@ -12,5 +13,8 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Fatewake.GameEngine.Tests/Fatewake.GameEngine.Tests.csproj" />\n    <Project Path="tests/Fatewake.IntegrationTests/Fatewake.IntegrationTests.csproj" />\n    <Project Path="tests/Fatewake.Web.Tests/Fatewake.Web.Tests.csproj" />
+  </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Fatewake.Benchmarks/Fatewake.Benchmarks.csproj" />
   </Folder>
 </Solution>

@@ -22,7 +22,9 @@ Install the .NET 10 SDK and start Docker or Podman, then run:
 dotnet run --project src\Fatewake.AppHost\Fatewake.AppHost.csproj
 ```
 
-AppHost starts PostgreSQL, RabbitMQ (with its management UI), the API, the background worker, and the Blazor Web app. Its launch profile configures the local Aspire dashboard, and user secrets retain local resource passwords across restarts of persisted volumes. If Aspire selects the wrong container runtime, set `$env:ASPIRE_CONTAINER_RUNTIME = "docker"` (or `"podman"`) before running.
+AppHost starts PostgreSQL, RabbitMQ (with its management UI), the API, the background worker, and the Blazor Web app. Its default launch profile explicitly selects Docker, configures the local Aspire dashboard, and overrides an inherited `DOTNET_ASPIRE_CONTAINER_RUNTIME` setting. User secrets retain local resource passwords across restarts of persisted volumes. For Podman, run with `--launch-profile Fatewake.AppHost.Podman`; make sure the selected runtime is installed and running.
+
+The host is a long-running process: after startup, use the printed Aspire dashboard URL to see resource status and service logs. If resources remain waiting, check the host output for container-runtime warnings. To diagnose a silent `dotnet run` during restore/build, run `dotnet build src\Fatewake.AppHost\Fatewake.AppHost.csproj --tl:off --verbosity minimal` first, then run with `--no-build`. When using `--no-launch-profile`, set `ASPIRE_CONTAINER_RUNTIME` explicitly and supply the dashboard/OTLP endpoint settings normally provided by the profile.
 
 The API applies migrations before becoming healthy; Web and Worker wait for it. API and Worker share the repository-local `data\art` filesystem storage, which is ignored by Git. Deployed workers require an explicitly configured `ArtStorage:RootPath` on shared persistent storage.
 
@@ -73,6 +75,12 @@ To enable real email delivery, configure these settings in AppHost user secrets 
 SMTP failures are logged and returned visibly; enabled SMTP never silently falls back to disk. A persisted pending verification can be retried using resend after one minute. Password recovery and guest-to-account transfer are not implemented.
 
 ## Documentation
+
+### Logging and performance
+
+API, Web, Worker, AppHost, and the asset-validator tool use Serilog behind Microsoft's typed `ILogger<T>` API. Console output includes service/category and trace correlation. Aspire receives OTLP logs, traces, and metrics; standalone hosts enable export when `OTEL_EXPORTER_OTLP_ENDPOINT` is configured. Operation timings cover accounts, sessions, artwork, and durable work without exposing passwords/tokens/prompts.
+
+See [the permanent observability policy](docs/OBSERVABILITY.md) for configuration, safe logging, instrumentation boundaries, and BenchmarkDotNet commands. The benchmark project measures deterministic resolution and appearance fingerprint allocations/latency; production operation metrics are not a substitute for repeatable benchmarks.
 
 - [Game Design Document](docs/GDD.md)
 - [World & Lore](docs/WORLD.md)

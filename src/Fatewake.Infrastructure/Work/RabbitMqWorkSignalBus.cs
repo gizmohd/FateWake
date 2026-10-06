@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
+using Fatewake.Observability;
 
 namespace Fatewake.Infrastructure.Work;
 
@@ -15,6 +16,7 @@ public sealed class RabbitMqWorkSignalBus(IOptions<RabbitMqWorkOptions> options)
     /// <inheritdoc />
     public async Task SignalAsync(string queue, Guid stepId, CancellationToken ct = default)
     {
+        using var operation = OperationTelemetry.Start("messaging.publish");
         await _gate.WaitAsync(ct);
         try
         {
@@ -34,6 +36,7 @@ public sealed class RabbitMqWorkSignalBus(IOptions<RabbitMqWorkOptions> options)
             var props = new BasicProperties { Persistent = true, MessageId = stepId.ToString("N"), ContentType = "application/json" };
             await _channel.BasicPublishAsync(options.Value.Exchange, queue, false, props, body, ct);
         }
+        catch (Exception ex) { operation.Fail(ex); throw; }
         finally
         {
             _gate.Release();

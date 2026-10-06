@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Fatewake.Observability;
 
 namespace Fatewake.Web.Authentication;
 
@@ -12,6 +13,7 @@ public static class BrowserAccountSession
     /// <summary>Reads the API session and account metadata, protects the token in a cookie, and selects password setup when needed.</summary>
     public static async Task<string> SignInAsync(HttpContext context, HttpClient client, HttpResponseMessage response, DateTimeOffset started)
     {
+        using var operation = OperationTelemetry.Start("web.issue_session");
         var token = await response.Content.ReadFromJsonAsync<LocalTokenResponse>(context.RequestAborted)
             ?? throw new InvalidDataException("The API returned no login session.");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.AccessToken);

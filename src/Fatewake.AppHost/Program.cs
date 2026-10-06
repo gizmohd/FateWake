@@ -1,4 +1,7 @@
+using Microsoft.Extensions.Hosting;
+
 var builder = DistributedApplication.CreateBuilder(args);
+builder.Services.AddFatewakeObservability(builder.Configuration, "Fatewake.AppHost");
 
 var postgres = builder.AddPostgres("postgres")
     .WithDataVolume();

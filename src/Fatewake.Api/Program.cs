@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Identity;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
+using Fatewake.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
@@ -64,14 +65,17 @@ builder.Services.Configure<ExternalIdentityOptions>(
 var app = builder.Build();
 app.Use(async (context, next) =>
 {
+    using var operation = OperationTelemetry.Start("api.request");
     try { await next(context); }
     catch (Exception ex) when (context.Request.Path.StartsWithSegments("/api/auth") && (ex is System.Net.Mail.SmtpException or IOException))
     {
+        operation.Fail(ex);
         app.Logger.LogError(ex, "Email delivery or storage operation failed");
         if (context.Response.HasStarted) throw;
         context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
         await context.Response.WriteAsJsonAsync(new { error = "Email delivery is unavailable. Please retry or request another verification email." });
     }
+    catch (Exception ex) { operation.Fail(ex); throw; }
 });
 app.UseAuthentication();
 app.UseAuthorization();
@@ -186,7 +190,9 @@ app.MapPost("/api/day1/resolve", async (
         ? await intents.InterpretAsync(state, request.Action.RawInput, ct)
         : request.Action;
 
-    var resolution = engine.Resolve(state, action);
+    ActionResolution resolution;
+    using (OperationTelemetry.Start("game.resolve"))
+        resolution = engine.Resolve(state, action);
     if (resolution.Accepted)
         await store.PersistAsync(
             request.EventInstanceId,

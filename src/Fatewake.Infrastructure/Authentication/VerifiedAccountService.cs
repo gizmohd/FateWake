@@ -4,6 +4,7 @@ using Fatewake.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Identity;
+using Fatewake.Observability;
 
 namespace Fatewake.Infrastructure.Authentication;
 
@@ -15,6 +16,7 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
     /// <summary>Persists pending local registration and sends mailbox proof without creating an authenticated account.</summary>
     public async Task<LocalAccountResult> RegisterAsync(string email, string passwordHash, CancellationToken ct)
     {
+        using var operation = OperationTelemetry.Start("auth.pending_registration", log);
         if (!EmailAddressNormalizer.TryNormalize(email, out var normalized))
             return new(null, null, "Enter a valid email address.");
         await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -32,6 +34,7 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
     /// <summary>Resolves validated provider claims, requiring proven email before first canonical account linking.</summary>
     public async Task<LocalAccountResult> ExternalAsync(ExternalLogin login, CancellationToken ct)
     {
+        using var operation = OperationTelemetry.Start("auth.external", log);
         if (login.Provider is not ("Google" or "Microsoft") || string.IsNullOrWhiteSpace(login.Subject))
             return new(null, null, "Unsupported external identity.");
         await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -73,6 +76,7 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
     /// <summary>Resends a pending challenge with a cooldown and generic account-existence behavior.</summary>
     public async Task ResendAsync(string? email, CancellationToken ct)
     {
+        using var operation = OperationTelemetry.Start("auth.resend_verification", log);
         if (!EmailAddressNormalizer.TryNormalize(email, out var normalized)) return;
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         await LockEmailAsync(normalized, ct);
@@ -98,6 +102,7 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
     /// <summary>Consumes mailbox proof transactionally; local registrations also require their chosen password.</summary>
     public async Task<LocalAccountResult> VerifyAsync(string? token, CancellationToken ct, string? password = null)
     {
+        using var operation = OperationTelemetry.Start("auth.verify_email", log);
         const string invalid = "The verification link is invalid, expired, or already used.";
         if (token is null || token.Length != 64) return new(null, null, invalid);
         var hash = HashToken(token);

@@ -1,13 +1,16 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using Fatewake.Observability;
+using Microsoft.Extensions.Logging;
 namespace Fatewake.Infrastructure.Art;
 /// <summary>Generates master PNG artwork through ComfyUI, uploading approved continuity references before workflow submission.</summary>
 /// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Art/ComfyUiArtMasterGenerator.md">ComfyUiArtMasterGenerator documentation</see>.</remarks>
-public sealed class ComfyUiArtMasterGenerator(HttpClient http,IOptions<ComfyUiArtGenerationOptions> configured,IArtBinaryStorage storage):IArtMasterGenerator
+public sealed class ComfyUiArtMasterGenerator(HttpClient http,IOptions<ComfyUiArtGenerationOptions> configured,IArtBinaryStorage storage, ILogger<ComfyUiArtMasterGenerator>? log = null):IArtMasterGenerator
 {
  public async Task<GeneratedArtMaster> GenerateAsync(ArtGenerationInvocation invocation,CancellationToken ct=default)
  {
+ using var operation = OperationTelemetry.Start("art.generate.comfyui", log);
   var o=configured.Value;if(!o.Enabled)throw new InvalidOperationException("ComfyUI art generation is not enabled.");
   var path=Path.GetFullPath(o.WorkflowPath);if(!File.Exists(path))throw new FileNotFoundException("ComfyUI API workflow was not found.",path);
   var template=await File.ReadAllTextAsync(path,ct);
@@ -23,7 +26,7 @@ public sealed class ComfyUiArtMasterGenerator(HttpClient http,IOptions<ComfyUiAr
    }
   using var doc=JsonDocument.Parse(workflow);
   using var submit=await http.PostAsJsonAsync("prompt",new{prompt=doc.RootElement.Clone(),client_id=invocation.IdempotencyKey},ct);
-  var submitBody=await submit.Content.ReadAsStringAsync(ct);if(!submit.IsSuccessStatusCode)throw new HttpRequestException($"ComfyUI submission failed ({(int)submit.StatusCode}): {submitBody[..Math.Min(1000,submitBody.Length)]}");
+  var submitBody=await submit.Content.ReadAsStringAsync(ct);if(!submit.IsSuccessStatusCode)throw new HttpRequestException($"ComfyUI submission failed ({(int)submit.StatusCode}).", null, submit.StatusCode);
   using var submitted=JsonDocument.Parse(submitBody);var promptId=submitted.RootElement.GetProperty("prompt_id").GetString()??throw new InvalidDataException("ComfyUI returned no prompt_id.");
   using var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct);timeout.CancelAfter(TimeSpan.FromSeconds(o.TimeoutSeconds));
   while(true)
@@ -47,7 +50,7 @@ public sealed class ComfyUiArtMasterGenerator(HttpClient http,IOptions<ComfyUiAr
   var name=$"fatewake/{Sanitize(jobKey)}/{NormalizeRole(reference.Role)}-{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(ms.ToArray())).ToLowerInvariant()[..16]}.png";
   form.Add(part,"image",Path.GetFileName(name));form.Add(new StringContent(Path.GetDirectoryName(name)!.Replace('\\','/')),"subfolder");form.Add(new StringContent("true"),"overwrite");
   using var response=await http.PostAsync("upload/image",form,ct);var body=await response.Content.ReadAsStringAsync(ct);
-  if(!response.IsSuccessStatusCode)throw new HttpRequestException($"ComfyUI reference upload failed ({(int)response.StatusCode}): {body[..Math.Min(1000,body.Length)]}");
+  if(!response.IsSuccessStatusCode)throw new HttpRequestException($"ComfyUI reference upload failed ({(int)response.StatusCode}).", null, response.StatusCode);
   using var json=JsonDocument.Parse(body);return json.RootElement.TryGetProperty("subfolder",out var sf)&&!string.IsNullOrWhiteSpace(sf.GetString())?$"{sf.GetString()}/{json.RootElement.GetProperty("name").GetString()}":json.RootElement.GetProperty("name").GetString()!;
  }
  private static string NormalizeRole(string role)=>new string(role.Trim().ToUpperInvariant().Select(c=>char.IsLetterOrDigit(c)?c:'_').ToArray());

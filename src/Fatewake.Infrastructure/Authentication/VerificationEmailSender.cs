@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Mail;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Fatewake.Observability;
 
 namespace Fatewake.Infrastructure.Authentication;
 
@@ -12,6 +13,7 @@ public sealed class VerificationEmailSender(IOptions<EmailDeliveryOptions> optio
     /// <summary>Sends or writes a verification message; transport/storage failures propagate without fallback.</summary>
     public async Task SendAsync(string email, string token, CancellationToken ct)
     {
+        using var operation = OperationTelemetry.Start("email.deliver", log);
         var settings = options.Value;
         var link = settings.PublicWebUrl.TrimEnd('/') + "/verify-email?token=" + Uri.EscapeDataString(token);
         const string subject = "Verify your Fatewake email";

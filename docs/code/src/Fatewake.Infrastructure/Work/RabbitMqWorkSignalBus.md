@@ -1,5 +1,7 @@
 # RabbitMqWorkSignalBus
 
+Publication is measured as messaging.publish with payload-free operation tracing and latency. Failures mark the span and propagate to existing typed-log recovery paths; no broker secrets or message body are added to telemetry.
+
 ## Purpose
 RabbitMQ implementation of work signaling. Declares durable direct exchange/queues and publishes persistent lightweight step notifications. Consumers must still claim PostgreSQL leases before executing work.
 

@@ -2,6 +2,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Fatewake.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Fatewake.Observability;
+using Microsoft.Extensions.Logging;
 
 namespace Fatewake.Infrastructure.Art;
 
@@ -22,10 +24,11 @@ public interface IArtAssetIngestionService
     Task<ArtIngestResult> IngestAsync(ArtIngestRequest request,CancellationToken ct=default);
 }
 
-public sealed class ArtAssetIngestionService(FatewakeDbContext db,IArtBinaryStorage storage,IArtImageProcessor images):IArtAssetIngestionService
+public sealed class ArtAssetIngestionService(FatewakeDbContext db,IArtBinaryStorage storage,IArtImageProcessor images, ILogger<ArtAssetIngestionService>? log = null):IArtAssetIngestionService
 {
     public async Task<ArtIngestResult> IngestAsync(ArtIngestRequest request,CancellationToken ct=default)
     {
+        using var operation = OperationTelemetry.Start("art.ingest", log);
         var existing=await db.ArtAssets.AsNoTracking().Where(x=>x.VisualFingerprint==request.VisualFingerprint&&x.Status==ArtAssetStatus.Approved)
             .OrderByDescending(x=>x.Version).FirstOrDefaultAsync(ct);
         if(existing is not null)
