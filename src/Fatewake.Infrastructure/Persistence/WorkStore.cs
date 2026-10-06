@@ -2,16 +2,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Fatewake.Infrastructure.Persistence;
 
-public sealed record WorkLease(Guid StepId,Guid JobId,string StepType,string Queue,string Input,Guid LeaseToken,int Attempt);
-public interface IWorkStore
-{
-    Task<WorkLease?> ClaimAsync(string queue,string workerId,TimeSpan leaseDuration,CancellationToken ct=default);
-    Task<bool> HeartbeatAsync(Guid stepId,Guid leaseToken,TimeSpan extendBy,CancellationToken ct=default);
-    Task<bool> CompleteAsync(Guid stepId,Guid leaseToken,string? output,CancellationToken ct=default);
-    Task<bool> FailAsync(Guid stepId,Guid leaseToken,string errorCode,string? detail,TimeSpan retryDelay,CancellationToken ct=default);
-    Task<int> PromoteReadyStepsAsync(CancellationToken ct=default);
-}
-
+/// <summary>Implements PostgreSQL-backed leasing and state transitions for horizontally distributed workers.</summary>
+/// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Persistence/WorkStore.md">WorkStore documentation</see>. Claims use row locking with SKIP LOCKED and lease tokens fence stale workers.</remarks>
 public sealed class WorkStore(FatewakeDbContext db,Fatewake.Infrastructure.Work.IWorkSignalBus signals):IWorkStore
 {
     public async Task<WorkLease?> ClaimAsync(string queue,string workerId,TimeSpan leaseDuration,CancellationToken ct=default)
