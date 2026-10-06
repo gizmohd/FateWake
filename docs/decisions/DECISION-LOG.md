@@ -182,3 +182,11 @@ When a major choice is made: update this log, update the canonical document, and
 |---|---|---|
 | DEC-094 | PostgreSQL is Fatewake's authoritative primary datastore. The architecture will use relational modeling for known domain entities, JSONB where flexible/evolving payloads are valuable, append-oriented history for consequential state changes, and graph-friendly relationships/recursive traversal for Wakes, causality, information provenance and world relationships. | Accepted |
 | DEC-095 | MongoDB, a dedicated graph database, Redis and other specialized datastores are not MVP dependencies. They may be introduced later only for demonstrated workloads while PostgreSQL remains the source of canonical truth unless a future architecture decision explicitly changes that. | Accepted |
+
+## Application Platform Decision
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-096 | Fatewake starts on .NET 10 with .NET Aspire as the local application orchestration and service-development foundation. | Accepted |
+| DEC-097 | The MVP is a modular application with explicit project/domain boundaries rather than a microservice architecture. Services may be separated later only where operational or scaling requirements justify it. | Accepted |
+| DEC-098 | Initial application stack is Blazor Web App/PWA, ASP.NET Core APIs, EF Core with Npgsql/PostgreSQL, and Aspire orchestration. Redis, messaging, search and Kubernetes are deferred until demonstrated requirements justify them. | Accepted |
