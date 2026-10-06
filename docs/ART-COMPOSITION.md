@@ -144,3 +144,32 @@ The asset record should capture at minimum:
 - derivative relationship and generation timestamp.
 
 If a delivery derivative is missing or its encoding policy changes, it should be recreated from the archival master without invoking the AI image provider again.
+
+
+## Generation Prompt Audit Trail
+
+Every AI-generated or AI-altered visual asset must retain the prompt information used to create it as part of its immutable generation provenance.
+
+Store both:
+
+- **Prompt template/version** — the reusable authored prompt or template from which the request was constructed.
+- **Resolved provider prompt** — the exact final prompt/instructions actually submitted for that generation or edit, after character continuity, scene state, Style Bible requirements, negative constraints and other runtime/template substitutions have been resolved.
+
+Where supported or applicable, also retain:
+- negative prompt/instructions;
+- provider/model identifier and model version;
+- reference/source asset IDs and versions;
+- generation/edit parameters;
+- safety/content settings relevant to the request;
+- prompt-builder/application version;
+- Style Bible version;
+- continuity/reference-sheet versions;
+- canonical visual-state/projection fingerprint;
+- provider request/job identifier when available;
+- generation timestamp and cost/usage metadata.
+
+Prompt provenance is retained for debugging, continuity review, quality investigation, moderation/safety investigation and reproducibility. It must remain associated with the immutable generated asset version even if the prompt template is later changed.
+
+Sensitive information, secrets, authentication data and unnecessary player/private data must never be inserted into or persisted as image-generation prompts. Player-derived prompt data should be minimized to the visual information necessary to generate the requested artwork.
+
+An AI edit or derivative stores its own resolved prompt and references its parent asset; it must not rely solely on the parent's prompt history.
