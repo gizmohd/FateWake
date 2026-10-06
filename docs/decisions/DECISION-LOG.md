@@ -92,3 +92,13 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-044 | Familiar anomalous voices may genuinely originate from known people across another branch/reality; responding can have variable consequences. | Accepted direction |
 | DEC-045 | Fatewake should not reduce its ultimate conflict to a single conventional villain; human antagonists may exist while the deeper conflict concerns humanity's interaction with a poorly understood phenomenon. | Accepted |
 | DEC-046 | Fatewake may share deep cosmology with **The Wayfinder Legacy**, particularly the Echo and its ancient network/paths, while remaining independently understandable and not requiring knowledge of the novels. | Accepted direction |
+
+## Wayfinder Realm Integration Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-047 | Fatewake explicitly shares the larger universe/cosmology of **The Wayfinder Legacy** rather than remaining only an Easter-egg connection. | Accepted direction |
+| DEC-048 | Fatewake may be one of the connected Realms referenced by Wayfinder canon, allowing it to have its own history, terminology, cultures and expression of Echo-related phenomena. | Accepted direction |
+| DEC-049 | Fatewake can contain Wayfinders or analogous Gift-bearing people, but should primarily introduce its own characters rather than depend on Ian, James or other novel protagonists. | Accepted direction |
+| DEC-050 | Wayfinder cosmology can guide Fatewake's foundational character/archetype design, while Fatewake-specific manifestations remain possible. | Accepted direction |
+| PROP-008 | Significant emergent Fatewake events may be promoted into canonical Wayfinder-universe history after editorial review. | Proposed |
