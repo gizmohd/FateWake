@@ -282,7 +282,7 @@ Fatewake.Infrastructure
 Fatewake.Tests
 ```
 
-Blazor Web App/PWA + ASP.NET Core + PostgreSQL. Add Redis/SignalR only when a validated use case requires them.
+**.NET 10 + .NET Aspire + Blazor Web App/PWA + ASP.NET Core + EF Core/Npgsql + PostgreSQL.** Aspire is the initial local orchestration foundation. Keep the system modular rather than decomposing it into microservices. Add Redis/SignalR or other infrastructure only when a validated use case requires them.
 
 ## Testing Requirements
 The GameEngine must be testable without an AI provider.
