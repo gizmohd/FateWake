@@ -19,3 +19,7 @@ Answers are intentionally not locked yet.
 
 ## First Week Arc
 Day 1 destroys normalcy. Days 2–3 establish scarcity, relationships and human ambiguity. Day 4 confirms the broadcasts are anomalous. Day 5 forces a resource conflict without a clean moral answer. Day 6 shows someone knows about 6:17. Day 7 expands private survival into a global human decision.
+
+## 90-Day Structure
+
+Season One uses nine ten-day acts. The canonical act-level structure, multiplayer escalation and cross-act Wake lattice are defined in [Season One — 90-Day World Bible](SEASON-01-90-DAY-WORLD-BIBLE.md).
