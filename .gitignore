@@ -60,3 +60,4 @@ nunit-*.xml
 /emails/
 **/emails/
 BenchmarkDotNet.Artifacts/
+/.vs
