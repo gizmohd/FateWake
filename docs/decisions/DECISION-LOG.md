@@ -45,3 +45,14 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-018 | Convergence occurs through in-world events such as communication, travel, settlements or other story mechanisms. | Accepted |
 | DEC-019 | Early timelines are activity-driven and may pause when nobody is playing. Exact clock rules remain to be specified. | Accepted direction |
 | PROP-007 | Conflicting timeline memories may eventually become part of Fatewake lore rather than only a technical implementation detail. | Concept only |
+
+## Player Experience Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-020 | Player identity is hybrid: players may play a version of themselves or create a fictional identity. | Accepted |
+| DEC-021 | Geography is fictionalized real-world geography: real cities/regions may exist while specific locations, organizations and details can be fictionalized. | Accepted |
+| DEC-022 | Content intensity is age-aware: generally mature, with occasional darker/brutal consequences where appropriate for the player's age/content setting. | Accepted direction |
+| DEC-023 | Real-player identity is not necessarily revealed at first contact; meaningful interaction can later reveal that a survivor represents another human player. | Accepted |
+| DEC-024 | Player agency uses controlled freedom: authored boundaries remain, while plausible unscripted actions can be interpreted and resolved by deterministic systems. | Accepted |
+| DEC-025 | Meaningful interactions should support both presented choices and free-form input as interfaces into the same action-resolution system. | Accepted |
