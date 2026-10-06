@@ -15,6 +15,10 @@ builder.Services.AddSingleton<IGameEngine, DayOneGameEngine>();
 builder.Services.AddScoped<IResolutionStore, ResolutionStore>();
 builder.Services.AddScoped<ISessionStore, SessionStore>();
 builder.Services.AddScoped<IAccountStore, AccountStore>();
+var artStorageRoot=builder.Configuration["Art:StorageRoot"];
+if(string.IsNullOrWhiteSpace(artStorageRoot))
+    artStorageRoot=Path.Combine(builder.Environment.ContentRootPath,"data","art");
+builder.Services.AddSingleton<IArtBinaryStorage>(_=>new FileSystemArtBinaryStorage(artStorageRoot));
 builder.Services.AddScoped<IArtAssetStore, ArtAssetStore>();
 builder.Services.AddScoped<IArtAssetIngestionService, ArtAssetIngestionService>();
 builder.Services.AddScoped<IArtResolutionService, ArtResolutionService>();
