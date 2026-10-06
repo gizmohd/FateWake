@@ -12,6 +12,7 @@ builder.Services.AddDbContext<FatewakeDbContext>(options =>
 builder.Services.Configure<WorkExecutionOptions>(builder.Configuration.GetSection("Work"));
 builder.Services.Configure<RabbitMqWorkOptions>(builder.Configuration.GetSection("RabbitMq"));
 builder.Services.Configure<ArtStorageOptions>(builder.Configuration.GetSection(ArtStorageOptions.SectionName));
+builder.Services.Configure<OpenAiArtGenerationOptions>(builder.Configuration.GetSection(OpenAiArtGenerationOptions.SectionName));
 
 var storage=builder.Configuration.GetSection(ArtStorageOptions.SectionName).Get<ArtStorageOptions>()??new ArtStorageOptions();
 if(!string.Equals(storage.Provider,"FileSystem",StringComparison.OrdinalIgnoreCase))
@@ -33,7 +34,14 @@ builder.Services.AddScoped<IWorkStepHandler,ArtInspectMetadataWorkStepHandler>()
 builder.Services.AddScoped<IWorkStepHandler,ArtValidateWorkStepHandler>();
 builder.Services.AddScoped<IWorkStepHandler,ArtFinalizeWorkStepHandler>();
 
-// GenerateMaster is registered only when a real IArtMasterGenerator provider is configured.
+var openAi=builder.Configuration.GetSection(OpenAiArtGenerationOptions.SectionName).Get<OpenAiArtGenerationOptions>()??new OpenAiArtGenerationOptions();
+if(openAi.Enabled)
+{
+    if(string.IsNullOrWhiteSpace(openAi.ApiKey))throw new InvalidOperationException("ArtGeneration:OpenAI:ApiKey is required when OpenAI art generation is enabled.");
+    builder.Services.AddHttpClient<IArtMasterGenerator,OpenAiArtMasterGenerator>(client=>client.BaseAddress=new Uri(openAi.BaseUrl));
+    builder.Services.AddScoped<IWorkStepHandler,ArtGenerateMasterWorkStepHandler>();
+}
+
 builder.Services.AddHostedService<DurableWorkWorker>();
 
 await builder.Build().RunAsync();
