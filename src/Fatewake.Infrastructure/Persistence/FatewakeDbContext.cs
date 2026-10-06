@@ -4,10 +4,10 @@ namespace Fatewake.Infrastructure.Persistence;
 
 public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> options) : DbContext(options)
 {
-    public DbSet<RealmRecord> Realms => Set<RealmRecord>(); public DbSet<TimelineRecord> Timelines => Set<TimelineRecord>(); public DbSet<SurvivorRecord> Survivors => Set<SurvivorRecord>(); public DbSet<EventInstanceRecord> EventInstances => Set<EventInstanceRecord>(); public DbSet<ActionAttemptRecord> ActionAttempts => Set<ActionAttemptRecord>(); public DbSet<ActionResolutionRecord> ActionResolutions => Set<ActionResolutionRecord>(); public DbSet<GameEventRecord> GameEvents => Set<GameEventRecord>(); public DbSet<WakeRecord> Wakes => Set<WakeRecord>();
+    public DbSet<AccountRecord> Accounts => Set<AccountRecord>(); public DbSet<ExternalIdentityRecord> ExternalIdentities => Set<ExternalIdentityRecord>(); public DbSet<RealmRecord> Realms => Set<RealmRecord>(); public DbSet<TimelineRecord> Timelines => Set<TimelineRecord>(); public DbSet<SurvivorRecord> Survivors => Set<SurvivorRecord>(); public DbSet<EventInstanceRecord> EventInstances => Set<EventInstanceRecord>(); public DbSet<ActionAttemptRecord> ActionAttempts => Set<ActionAttemptRecord>(); public DbSet<ActionResolutionRecord> ActionResolutions => Set<ActionResolutionRecord>(); public DbSet<GameEventRecord> GameEvents => Set<GameEventRecord>(); public DbSet<WakeRecord> Wakes => Set<WakeRecord>();
     protected override void OnModelCreating(ModelBuilder m)
     {
-        m.Entity<RealmRecord>(b=>{b.ToTable("realm");b.HasKey(x=>x.Id);b.HasIndex(x=>x.Key).IsUnique();b.Property(x=>x.Properties).HasColumnType("jsonb");});
+        m.Entity<AccountRecord>(b=>{b.ToTable("account");b.HasKey(x=>x.Id);});\n        m.Entity<ExternalIdentityRecord>(b=>{b.ToTable("external_identity");b.HasKey(x=>x.Id);b.HasIndex(x=>new{x.Provider,x.ProviderSubject}).IsUnique();b.HasIndex(x=>x.AccountId);b.Property(x=>x.ClaimsSnapshot).HasColumnType("jsonb");});\n        m.Entity<RealmRecord>(b=>{b.ToTable("realm");b.HasKey(x=>x.Id);b.HasIndex(x=>x.Key).IsUnique();b.Property(x=>x.Properties).HasColumnType("jsonb");});
         m.Entity<TimelineRecord>(b=>{b.ToTable("timeline");b.HasKey(x=>x.Id);});
         m.Entity<SurvivorRecord>(b=>{b.ToTable("survivor");b.HasKey(x=>x.Id);b.HasIndex(x=>x.TimelineId);});
         m.Entity<EventInstanceRecord>(b=>{b.ToTable("event_instance");b.HasKey(x=>x.Id);b.Property(x=>x.State).HasColumnType("jsonb");b.Property(x=>x.Version).IsConcurrencyToken();});
