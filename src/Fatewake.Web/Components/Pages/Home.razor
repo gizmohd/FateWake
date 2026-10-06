@@ -6,77 +6,32 @@
 <PageTitle>Fatewake — The Silence</PageTitle>
 <main class="scene">
   <section class="episode">
-    <div class="time">6:17 <span>AM</span></div>
-    <div class="day">SURVIVOR DAY 1</div>
-    <div class="signal">NO SERVICE</div>
-    <div class="story">
-      <p>Your phone has signal bars, but nothing connects.</p>
-      <p>The lights flicker once. Twice. Then the house goes quiet.</p>
-      <p>Outside, car alarms begin waking the neighborhood.</p>
-      <p class="sound">BANG. BANG. BANG.</p>
-      <p>Someone is pounding on the house next door.</p>
-      <p>Through the window you see <strong>Maya Torres</strong>, your neighbor, struggling to hold up an injured man. Her eight-year-old son Eli stands frozen behind her.</p>
-      <p class="maya">“I need help!”</p>
+    <div class="art-panel" data-artwork="day1-maya-street">
+      <div class="panel-label">THE SILENCE · SURVIVOR DAY 1</div>
+      <div class="time">6:17 <span>AM</span></div>
+      <div class="signal">NO SERVICE</div>
+      <div class="caption">
+        Your phone has signal bars, but nothing connects. The lights flicker twice, then the house goes quiet. Outside, car alarms wake the neighborhood.
+      </div>
+      <div class="dialogue">
+        <div class="speaker">MAYA TORRES</div>
+        <div class="line">“I need help!”</div>
+      </div>
     </div>
-    @if (!_ready) { <div class="wake">REMEMBERING…</div> }
+    @if (!_ready) { <div class="interaction"><div class="wake">REMEMBERING…</div></div> }
     else if (_resolution is null)
     {
-      <div class="choices" aria-label="Choose what you do">
-        <button @onclick='() => Act("help_injured_stranger")'>Go outside and help Maya.</button>
-        <button @onclick='() => Act("call_from_safety")'>Call to her from the doorway.</button>
-        <button @onclick='() => Act("stay_inside")'>Stay inside and watch.</button>
-        <button @onclick='() => Act("investigate_radio")'>Check the radio first.</button>
+      <div class="interaction">
+        <div class="choices">
+          <button @onclick='() => Act("help_injured_stranger")'>Help Maya</button>
+          <button @onclick='() => Act("call_from_safety")'>Call Out</button>
+          <button @onclick='() => Act("stay_inside")'>Stay Inside</button>
+          <button @onclick='() => Act("investigate_radio")'>Check Radio</button>
+        </div>
+        <button class="other-toggle" @onclick="() => _showOther = !_showOther">Do something else…</button>
+        @if (_showOther) { <div class="composer"><textarea @bind="_freeform" placeholder="What do you do?"></textarea><button disabled="@string.IsNullOrWhiteSpace(_freeform)" @onclick="SubmitFreeform">Do it</button></div> }
       </div>
-      <div class="other"><button class="other-toggle" @onclick="() => _showOther = !_showOther">Do something else…</button>
-      @if (_showOther) { <div class="composer"><textarea @bind="_freeform" placeholder="What do you do?"></textarea><button disabled="@string.IsNullOrWhiteSpace(_freeform)" @onclick="SubmitFreeform">Do it</button></div> }</div>
     }
-    else
-    {
-      <section class="result"><p>@_resolutionText</p><div class="wake">Your choice will be remembered.</div></section>
-    }
+    else { <section class="result"><p>@_resolutionText</p><div class="wake">Your choice leaves a wake.</div></section> }
   </section>
 </main>
-
-@code {
-  private bool _ready, _showOther; private string _freeform="", _resolutionText=""; private Resolution? _resolution;
-  private Guid _eventInstanceId, _survivorId, _timelineId;
-
-  protected override async Task OnAfterRenderAsync(bool firstRender)
-  {
-    if (!firstRender) return;
-    var stored=await JS.InvokeAsync<string?>("localStorage.getItem","fatewake.survivorId");
-    Guid? prior=Guid.TryParse(stored,out var parsed)?parsed:null;
-    var client=HttpClientFactory.CreateClient("fatewake-api");
-    var response=await client.PostAsJsonAsync("/api/session/start",new StartSessionRequest(prior,"unknown"));
-    var session=await response.Content.ReadFromJsonAsync<SessionState>();
-    if(session is not null) {
-      _survivorId=session.SurvivorId; _timelineId=session.TimelineId; _eventInstanceId=session.EventInstanceId;
-      await JS.InvokeVoidAsync("localStorage.setItem","fatewake.survivorId",_survivorId.ToString());
-      if(!string.IsNullOrWhiteSpace(session.LastOutcome)) RestoreOutcome(session.LastOutcome);
-    }
-    _ready=true; StateHasChanged();
-  }
-
-  private async Task Act(string actionType,string? raw=null)
-  {
-    var client=HttpClientFactory.CreateClient("fatewake-api");
-    var req=new ResolveRequest(_eventInstanceId,_survivorId,_timelineId,Guid.NewGuid(),new CandidateAction(actionType,new Dictionary<string,string>(),raw));
-    var response=await client.PostAsJsonAsync("/api/day1/resolve",req);
-    _resolution=await response.Content.ReadFromJsonAsync<Resolution>();
-    _resolutionText=OutcomeText(_resolution?.OutcomeKey ?? "");
-  }
-  private Task SubmitFreeform()=>Act("freeform",_freeform);
-  private void RestoreOutcome(string outcome) { _resolution=new(true,outcome,[],[],new(),"day1-v1"); _resolutionText=OutcomeText(outcome); }
-  private static string OutcomeText(string outcome)=>outcome switch {
-    "injured_stranger_helped"=>"You step outside. Maya shifts the man's weight toward you. For a second, relief breaks through the fear on her face.",
-    "called_from_safety"=>"You open the door but stay behind the threshold. Maya hears you. She knows you're there—even if you haven't stepped into the street.",
-    "remained_inside"=>"You stay behind the glass. Maya looks toward your house once before turning back to the injured man.",
-    "radio_investigated"=>"Static. Then a voice. Beneath it, a timestamp catches your eye. Tomorrow. 6:17 AM.",
-    _=>"Nothing happens. Not yet."
-  };
-  public sealed record StartSessionRequest(Guid? SurvivorId,string? BroadRegion);
-  public sealed record SessionState(Guid SurvivorId,Guid TimelineId,Guid EventInstanceId,int SurvivorDay,string EventKey,string Status,string? LastOutcome,Dictionary<string,string> NarrativeFacts);
-  public sealed record ResolveRequest(Guid EventInstanceId,Guid SurvivorId,Guid TimelineId,Guid IdempotencyKey,CandidateAction Action);
-  public sealed record CandidateAction(string ActionType,Dictionary<string,string> Arguments,string? RawInput=null);
-  public sealed record Resolution(bool Accepted,string OutcomeKey,List<object> Effects,List<object> Wakes,Dictionary<string,string> NarrativeFacts,string RulesVersion);
-}
