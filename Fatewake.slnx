@@ -5,6 +5,7 @@
     <Project Path="src/Fatewake.Api/Fatewake.Api.csproj" />\n    <Project Path="src/Fatewake.AI/Fatewake.AI.csproj" />\n    <Project Path="src/Fatewake.Web/Fatewake.Web.csproj" />
     <Project Path="src/Fatewake.GameEngine/Fatewake.GameEngine.csproj" />
     <Project Path="src/Fatewake.Infrastructure/Fatewake.Infrastructure.csproj" />
+    <Project Path="src/Fatewake.Worker/Fatewake.Worker.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Fatewake.AssetValidator/Fatewake.AssetValidator.csproj" />
