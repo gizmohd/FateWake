@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.Services.AddDbContext<FatewakeDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("fatewake")));
-builder.Services.AddSingleton<IGameEngine, DayOneGameEngine>();\nbuilder.Services.AddScoped<IResolutionStore, ResolutionStore>();\nbuilder.Services.AddScoped<ISessionStore, SessionStore>();\nbuilder.Services.AddSingleton<IIntentInterpreter, BaselineIntentInterpreter>();
+builder.Services.AddSingleton<IGameEngine, DayOneGameEngine>();\nbuilder.Services.AddScoped<IResolutionStore, ResolutionStore>();\nbuilder.Services.AddScoped<ISessionStore, SessionStore>();\nbuilder.Services.AddScoped<IAccountStore, AccountStore>();\nbuilder.Services.Configure<Fatewake.Api.Authentication.ExternalIdentityOptions>(builder.Configuration.GetSection("Authentication"));\nbuilder.Services.AddSingleton<IIntentInterpreter, BaselineIntentInterpreter>();
 var app = builder.Build();\nawait using (var scope = app.Services.CreateAsyncScope())\n{\n    var db = scope.ServiceProvider.GetRequiredService<FatewakeDbContext>();\n    await DatabaseInitializer.InitializeAsync(db);\n}
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
