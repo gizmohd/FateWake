@@ -102,3 +102,22 @@ Fatewake uses a strict source-documentation standard for all new and modified C#
 - Generated code, EF migrations and framework-generated artifacts may be exempt from one-type-per-file/companion-document requirements. Conventional top-level `Program.cs` application entry points are also explicitly exempt: keep idiomatic .NET/Aspire top-level hosting code rather than introducing a synthetic `Program` class solely for documentation compliance. Types declared alongside a `Program.cs` entry point are not exempt and must be moved to their own documented files.
 
 Existing code predating this decision is technical debt. When an existing file is materially modified, it should be brought toward this standard rather than adding more undocumented/multi-type structure.
+
+
+## Reusable Character Appearance Assets
+
+Character appearance customization is modeled as durable canonical state, not as an instruction to regenerate artwork on every use.
+
+The visual identity pipeline is:
+
+`Base Identity → Appearance Configuration → Equipment/Loadout → Condition/Injuries → Scene/Pose/Camera → Rendered Asset`
+
+Appearance configuration includes stable normalized values such as hairstyle, hair color, eye color, facial hair style/color and other supported mutable identity features. Each normalized combination receives a deterministic fingerprint that includes the base identity/reference version and every appearance property material to the resulting artwork.
+
+Before any AI generation, Fatewake must perform an exact approved-asset lookup by this fingerprint. Once a combination has been generated, validated and approved, that asset remains reusable. Switching away from a configuration does not supersede or delete it; switching back should resolve the previously approved asset without another provider generation call.
+
+Appearance assets and scene renders are separate cache/reuse layers. A reusable appearance asset can feed many equipment states and scenes. A fully rendered scene additionally fingerprints the canonical appearance version, loadout, condition, injuries, pose, camera, environment and other material visual state.
+
+Generated variants retain immutable provenance including their parent/base identity, normalized appearance state, source/reference assets, prompt/provider/model details and generation cost. Semantic similarity may locate candidates but cannot substitute a different appearance combination.
+
+Default male/female player identities are valid base identities and remain active while requested custom appearance generation runs asynchronously. A completed and approved requested identity/appearance becomes active automatically. A successor character may explicitly reuse an approved visual identity from a deceased prior character; death does not invalidate or delete reusable artwork.
