@@ -42,13 +42,13 @@
   private async Task Act(string actionType, string? raw=null)
   {
     var client=HttpClientFactory.CreateClient("fatewake-api");
-    var req=new ResolveRequest(_eventInstanceId,_survivorId,_timelineId,new CandidateAction(actionType,new Dictionary<string,string>(),raw));
+    var req=new ResolveRequest(_eventInstanceId,_survivorId,_timelineId,Guid.NewGuid(),new CandidateAction(actionType,new Dictionary<string,string>(),raw));
     var response=await client.PostAsJsonAsync("/api/day1/resolve",req);
     _resolution=await response.Content.ReadFromJsonAsync<Resolution>();
     _resolutionText=_resolution?.OutcomeKey switch { "injured_stranger_helped"=>"You step outside. Maya shifts the man's weight toward you. For a second, relief breaks through the fear on her face.", "called_from_safety"=>"You open the door but stay behind the threshold. Maya hears you. She knows you're there—even if you haven't stepped into the street.", "remained_inside"=>"You stay behind the glass. Maya looks toward your house once before turning back to the injured man.", "radio_investigated"=>"Static. Then a voice. Beneath it, a timestamp catches your eye. Tomorrow. 6:17 AM.", _=>"Nothing happens. Not yet." };
   }
   private Task SubmitFreeform()=>Act("freeform",_freeform);
-  public sealed record StartSessionRequest(Guid? SurvivorId,string? BroadRegion);\n  public sealed record SessionState(Guid SurvivorId,Guid TimelineId,Guid EventInstanceId,int SurvivorDay,string EventKey,string Status);\n  public sealed record ResolveRequest(Guid EventInstanceId,Guid SurvivorId,Guid TimelineId,CandidateAction Action);
+  public sealed record StartSessionRequest(Guid? SurvivorId,string? BroadRegion);\n  public sealed record SessionState(Guid SurvivorId,Guid TimelineId,Guid EventInstanceId,int SurvivorDay,string EventKey,string Status);\n  public sealed record ResolveRequest(Guid EventInstanceId,Guid SurvivorId,Guid TimelineId,Guid IdempotencyKey,CandidateAction Action);
   public sealed record CandidateAction(string ActionType,Dictionary<string,string> Arguments,string? RawInput=null);
   public sealed record Resolution(bool Accepted,string OutcomeKey,List<object> Effects,List<object> Wakes,Dictionary<string,string> NarrativeFacts,string RulesVersion);
 }
