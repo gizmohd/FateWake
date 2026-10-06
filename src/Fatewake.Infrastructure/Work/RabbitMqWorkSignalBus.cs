@@ -5,12 +5,8 @@ using RabbitMQ.Client;
 
 namespace Fatewake.Infrastructure.Work;
 
-public sealed class RabbitMqWorkOptions
-{
-    public string ConnectionString{get;set;}="amqp://guest:guest@localhost:5672";
-    public string Exchange{get;set;}="fatewake.work";
-}
-
+/// <summary>Publishes durable-work availability notifications to RabbitMQ.</summary>
+/// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Work/RabbitMqWorkSignalBus.md">RabbitMqWorkSignalBus documentation</see>. RabbitMQ accelerates dispatch but does not own durable work state.</remarks>
 public sealed class RabbitMqWorkSignalBus:IWorkSignalBus,IAsyncDisposable
 {
     private readonly RabbitMqWorkOptions _options; private readonly IConnection _connection; private readonly IChannel _channel;
