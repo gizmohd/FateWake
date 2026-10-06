@@ -125,3 +125,14 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-061 | The journal is a player-owned artifact supporting personal free-form notes alongside automatically recorded history. | Accepted |
 | DEC-062 | Player-authored journal entries may be analyzed for observations, theories, entities, promises, concerns and other potentially meaningful context that authored content or telemetry did not anticipate. | Accepted direction |
 | DEC-063 | Journal analysis is interpretive, not authoritative: the original note is preserved, extracted interpretations retain provenance/confidence, and no inferred claim becomes canonical world state without deterministic validation or later evidence. | Accepted |
+
+## Information Propagation and Secrets Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-064 | NPCs may remember relevant events they plausibly witnessed even when the player is not explicitly told that the event was observed. | Accepted |
+| DEC-065 | Information itself can create Wakes; secrets, warnings, instructions, coordinates, rumors and misinformation can propagate and cause persistent consequences. | Accepted |
+| DEC-066 | Meaningful information propagation should retain provenance so the simulation can trace who learned, transmitted or altered information and through what path. | Accepted |
+| DEC-067 | Players may deliberately lie or mislead others; recipients do not receive magical truth labels. | Accepted |
+| DEC-068 | NPCs may lie or mislead when consistent with their knowledge, motives, personality and circumstances; they cannot fabricate knowledge they could not plausibly possess without an explanation. | Accepted |
+| DEC-069 | Fatewake should contain genuinely discoverable secrets and patterns that may be found by only a small fraction of players and can become community-scale investigations. | Accepted |
