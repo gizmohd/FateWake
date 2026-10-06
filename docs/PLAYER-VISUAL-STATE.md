@@ -76,3 +76,30 @@ The authoritative flow is:
 Owning an item never implies it is shown. Equipping/carrying an item still does not guarantee it is shown. Stored and concealed items are omitted by default. Scene actions can explicitly reveal, suppress, or place an item in-hand. Pose compatibility can also suppress an otherwise visible layer.
 
 Historical visual snapshots capture the projected appearance, while canonical inventory/history separately records actual possession.
+
+
+## Later Work — Player-Generated Survivor Reference Sheet
+
+**Status: Deferred / post-MVP.**
+
+Players should eventually be offered an optional workflow to generate and approve a canonical visual reference sheet for their own survivor. Once approved, that reference becomes the stable visual-identity input for future generated artwork depicting that survivor.
+
+The workflow should support:
+- creating a survivor visually from player-selected appearance attributes and/or other supported user-provided visual inputs;
+- generating a consistent reference sheet with useful face angles, full-body proportions and baseline expressions;
+- allowing the player to regenerate/edit candidates before approval;
+- explicit player approval before a generated candidate becomes the survivor's canonical visual reference;
+- versioning so a later approved identity update does not silently rewrite historical artwork;
+- use of the approved reference as an image-reference input whenever the artwork provider supports reference images.
+
+The reference sheet establishes **identity**, not gameplay state. It must not independently decide what the survivor owns, carries, wears, has suffered or is doing.
+
+The rendering pipeline remains:
+
+**Approved Survivor Identity Reference → Canonical Inventory → Loadout → Scene/Pose/Camera Projection → Visible Assets → Composition**
+
+Therefore, a reference sheet can preserve face, body type, hair and other stable identity characteristics while authoritative state determines clothing, equipment, injuries, condition and story-specific visible details.
+
+Historical artwork should retain the identity-reference version and visual-state/projection fingerprint used when it was created.
+
+This feature should remain optional. Players who do not create a custom reference sheet must still receive a coherent default survivor presentation.
