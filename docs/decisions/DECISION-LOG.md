@@ -67,3 +67,15 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-029 | Relationships may develop deeply, including friendship, rivalry, enmity, mentorship, family-like bonds, romance and marriage where appropriate. | Accepted direction |
 | DEC-030 | Families and children may exist and be affected by survival pressures, with age/content-aware handling and without requiring graphic depiction. | Accepted direction |
 | DEC-031 | Player-to-player communication uses a hybrid model: contextual/suggested dialogue and actions plus moderated free-form communication when available. | Accepted direction |
+
+## Simulation and Pacing Decisions
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-032 | The world may continue while a player is absent, but the player's character does not autonomously make major irreversible personal decisions. | Accepted direction |
+| DEC-033 | Early personal timeline progression is episode/activity-driven rather than strictly tied to one real-world day. As convergence approaches, pacing progressively synchronizes with shared-world time. | Accepted direction |
+| DEC-034 | Early onboarding may be binged with intentional pacing friction; the first few days can progress quickly before stronger real-time/daily cadence emerges. | Accepted direction |
+| DEC-035 | Survival simulation should be credible rather than tedious: meaningful scarcity and logistics without unnecessary micromanagement. | Accepted |
+| DEC-036 | Inventory combines abstract resource pools with significant named physical items that can carry state, history and Wakes. | Accepted |
+| DEC-037 | Geography follows realistic regional climate and seasons, but weather is simulation/story-driven rather than controlled by live real-world weather. | Accepted |
+| DEC-038 | Players can substantially influence settlement leadership, rules, defense, priorities, alliances, membership and projects, while NPCs retain independent agency. | Accepted direction |
