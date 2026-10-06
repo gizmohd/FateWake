@@ -49,3 +49,25 @@ The primary graph domains are expected to include:
 - information provenance showing how claims, secrets, rumors and discoveries move between actors.
 
 PostgreSQL extensions such as pgvector may be adopted when semantic retrieval becomes necessary. Redis or a dedicated graph/search platform should be added only after a concrete performance or capability requirement justifies another consistency boundary. MongoDB and a dedicated graph database are not required for the MVP.
+
+## .NET and Aspire Foundation
+The MVP targets **.NET 10** and uses **.NET Aspire** for local orchestration, service discovery, configuration, health/telemetry integration and PostgreSQL development resources.
+
+The initial system is deliberately a modular application rather than a microservice estate. Logical boundaries remain explicit so components can be separated later without paying the operational cost prematurely.
+
+Initial projects:
+
+```
+Fatewake.AppHost
+Fatewake.ServiceDefaults
+Fatewake.Web
+Fatewake.Api
+Fatewake.GameEngine
+Fatewake.AI
+Fatewake.Infrastructure
+Fatewake.Tests
+```
+
+Dependency direction should preserve the GameEngine as a deterministic core with no dependency on Aspire, EF Core, PostgreSQL, HTTP or an AI provider. Infrastructure implements persistence and external integrations; AI interprets/renders around authoritative GameEngine results; API/application orchestration coordinates use cases; Web presents them.
+
+Aspire initially orchestrates the web/API application and PostgreSQL. Additional resources such as Redis should be introduced only when their use case is implemented and measured.
