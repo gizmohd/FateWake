@@ -7,9 +7,9 @@ public static class DayOneScenes
         [
             new("phone-0617",BeatKind.Establishing,"day1-phone-0617","6:17 AM","NO SERVICE","You wake to a phone that insists it has signal. Nothing connects.",null,[],false),
             new("house-flicker",BeatKind.Narration,"day1-house-flicker","6:18 AM",null,"The lights flicker twice. Somewhere outside, car alarms begin answering one another.",null,[],false),
-            new("street-reveal",BeatKind.Dialogue,"day1-maya-street","6:19 AM",null,"Across the threshold, Maya is carrying most of an injured man's weight. Eli stands behind her.",new("MAYA TORRES","I need help!"),[],false),
-            new("first-choice",BeatKind.Interaction,"day1-maya-street","6:19 AM",null,null,null,[
-                new("help_injured_stranger","Help Maya"),
+            new("street-reveal",BeatKind.Dialogue,"day1-michelle-street","6:19 AM",null,"Across the threshold, Michelle is carrying most of an injured man's weight. Eli stands behind her.",new("MICHELLE SUMMERS","I need help!"),[],false),
+            new("first-choice",BeatKind.Interaction,"day1-michelle-street","6:19 AM",null,null,null,[
+                new("help_injured_stranger","Help Michelle"),
                 new("call_from_safety","Call Out"),
                 new("stay_inside","Stay Inside"),
                 new("investigate_radio","Check Radio"),
