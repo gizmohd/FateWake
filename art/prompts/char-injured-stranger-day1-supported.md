@@ -1,0 +1,2 @@
+# Asset Prompt — char-injured-stranger-day1-supported
+Apply art/STYLE-BIBLE.md and art/characters/INJURED-STRANGER-DAY1.md. Reusable isolated full-body/three-quarter injured stranger posed with one arm over an unseen support person's shoulder to his right, impaired stance, weight shifted, significant but non-graphic injury. Transparent background / clean alpha-ready silhouette. Match early-morning directional lighting. Pale overshirt and work pants. No visible cause of injury, symbols, uniform, gore, scenery or text.
