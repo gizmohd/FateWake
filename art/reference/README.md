@@ -10,9 +10,9 @@ For recurring characters and locations:
 5. add additional approved angle/expression references without replacing historical versions.
 
 Recommended packs:
-- Maya Torres: neutral 3/4, front, profile, Day 1 supporting pose.
-- Eli Torres: neutral 3/4, front, Day 1 observing pose.
-- Day 1 neighborhood: threshold master, street reverse angle, Maya-home orientation.
+- Michelle Summers: neutral 3/4, front, profile, Day 1 supporting pose.
+- Eli Summers: neutral 3/4, front, Day 1 observing pose.
+- Day 1 neighborhood: threshold master, street reverse angle, Michelle-home orientation.
 - Player home: bedroom/hallway/radio-room orientation.
 
 Do not use an unapproved generation as a continuity reference.
