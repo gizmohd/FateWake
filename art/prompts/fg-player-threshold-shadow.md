@@ -1,0 +1,2 @@
+# Asset Prompt — fg-player-threshold-shadow
+Apply art/STYLE-BIBLE.md. Reusable foreground framing overlay representing the dark interior edge of a doorway/window from player POV: soft near-black architectural silhouettes and subtle interior shadow, designed to frame rather than obscure subjects. 9:16 transparent overlay, center/right viewing opening, lower interaction safe area, no characters, no text.
