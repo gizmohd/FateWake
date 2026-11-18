@@ -6,6 +6,7 @@
     <UserSecretsId>fatewake-apphost</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="../Fatewake.ServiceDefaults/Fatewake.ServiceDefaults.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Fatewake.Api/Fatewake.Api.csproj" />
     <ProjectReference Include="../Fatewake.Web/Fatewake.Web.csproj" />

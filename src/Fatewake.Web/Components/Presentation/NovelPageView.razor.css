@@ -1,0 +1,10 @@
+.comic-page { --paper:#e6dfcf; background:var(--paper); color:#242626; padding:clamp(1rem,4vw,3rem); margin:2.5rem auto; border:1px solid #b4aa92; box-shadow:0 15px 45px #0008; max-width:900px; break-after:page; }
+.recto { border-left:8px solid #c3bba7; }
+.verso { border-right:8px solid #c3bba7; }
+header, footer { display:flex; justify-content:space-between; gap:1rem; font:.65rem/1.5 sans-serif; letter-spacing:.14em; }
+header { padding-bottom:1rem; border-bottom:1px solid #b4aa92; margin-bottom:1.25rem; }
+footer { padding-top:1.25rem; }
+.live-area { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:clamp(.8rem,2vw,1.4rem); align-items:start; }
+.splash .live-area { grid-template-columns:1fr; }
+@media(max-width:600px) { .live-area {grid-template-columns:1fr;} .comic-page {margin:1.5rem auto;border-width:1px;} header,footer {font-size:.6rem;letter-spacing:.08em;} }
+@media print { .comic-page {margin:0;box-shadow:none;max-width:none;border:0;padding:.5in;} .live-area {grid-template-columns:repeat(2,minmax(0,1fr));} }

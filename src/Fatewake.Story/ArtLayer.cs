@@ -1,4 +1,4 @@
-namespace Fatewake.Web.Presentation;
+namespace Fatewake.Story;
 
 /// <summary>Defines placement and rendering attributes for one asset in a composition.</summary>
 /// <param name="AssetKey">Stable key of the artwork asset.</param>

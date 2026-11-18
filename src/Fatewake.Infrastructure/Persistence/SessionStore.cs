@@ -36,7 +36,7 @@ public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? lo
         var realm=await db.Realms.SingleAsync(x=>x.Key=="the-silence",ct);var now=DateTimeOffset.UtcNow;
         var timeline=new TimelineRecord{Id=Guid.NewGuid(),RealmId=realm.Id,ProgressionState="personal",ConvergenceState="isolated",WorldClockPolicy="activity",CurrentSurvivorDay=1,CreatedAt=now};
         var survivor=new SurvivorRecord{Id=Guid.NewGuid(),AccountId=accountId,TimelineId=timeline.Id,DisplayName="Survivor",IdentityMode="undetermined",BroadRegion=broadRegion,SurvivorDay=1,Status=SurvivorStatus.Active,CreatedAt=now,UpdatedAt=now};
-        var episode=new EventInstanceRecord{Id=Guid.NewGuid(),TimelineId=timeline.Id,SurvivorId=survivor.Id,EventKey="day-001-injured-stranger",Status=EventInstanceStatus.Active,SurvivorDay=1,StartedAt=now,State=JsonSerializer.Serialize(new{sceneKey="day1-0617-0643",beatKey="phone-0617"})};
+        var episode=new EventInstanceRecord{Id=Guid.NewGuid(),TimelineId=timeline.Id,SurvivorId=survivor.Id,EventKey="day-001-injured-stranger",Status=EventInstanceStatus.Active,SurvivorDay=1,StartedAt=now,State=JsonSerializer.Serialize(new{sceneKey=StartSceneKey,beatKey=StartBeatKey})};
         db.Timelines.Add(timeline);db.Survivors.Add(survivor);db.EventInstances.Add(episode);await db.SaveChangesAsync(ct);
         if (transaction is not null) await transaction.CommitAsync(ct);
         return ToState(survivor,episode);
@@ -50,9 +50,39 @@ public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? lo
         var episode=await db.EventInstances.SingleOrDefaultAsync(x=>x.Id==eventInstanceId&&x.SurvivorId==survivorId,ct);
         if(survivor is null||episode is null)return null;
         var state=ReadState(episode.State);
+        // A presentation client cannot use the journal to reveal unseen future beats.
+        var scene = Fatewake.Story.DayOneScenes.Opening;
+        var target = scene.Beats.ToList().FindIndex(x => x.Key == beatKey);
+        var current = scene.Beats.ToList().FindIndex(x => x.Key == state.beat);
+        if (sceneKey != scene.Key || target < 0 || target > current + 1 ||
+            (target > scene.IndexOf("first-choice") && string.IsNullOrWhiteSpace(state.outcome))) return null;
+
         episode.State=JsonSerializer.Serialize(new{lastOutcome=state.outcome,narrativeFacts=state.facts,sceneKey,beatKey});
         episode.Version++;await db.SaveChangesAsync(ct);return ToState(survivor,episode);
     }
+
+    /// <inheritdoc />
+    public async Task<SessionState?> ResetChapterAsync(Guid survivorId,Guid eventInstanceId,CancellationToken ct=default)
+    {
+        using var operation = OperationTelemetry.Start("session.reset_chapter", log);
+        await using var transaction=await db.Database.BeginTransactionAsync(ct);
+        var survivor=await db.Survivors.SingleOrDefaultAsync(x=>x.Id==survivorId,ct);
+        var episode=await db.EventInstances.SingleOrDefaultAsync(x=>x.Id==eventInstanceId&&x.SurvivorId==survivorId&&x.Status==EventInstanceStatus.Active,ct);
+        if(survivor is null||episode is null)return null;
+        var attempts=db.ActionAttempts.Where(x=>x.EventInstanceId==eventInstanceId&&x.SurvivorId==survivorId);
+        var events=db.GameEvents.Where(e=>e.SurvivorId==survivorId&&attempts.Any(a=>a.IdempotencyKey==e.CorrelationId));
+        await db.Set<StoryPanelRecord>().Where(p=>p.EventInstanceId==eventInstanceId || events.Any(e=>e.Id==p.SourceEventId)).ExecuteDeleteAsync(ct);
+        var wakes=await db.Wakes.Where(w=>events.Any(e=>e.Id==w.OriginEventId)).ExecuteDeleteAsync(ct);
+        var gameEvents=await events.ExecuteDeleteAsync(ct);
+        await db.ActionResolutions.Where(r=>attempts.Any(a=>a.Id==r.ActionAttemptId)).ExecuteDeleteAsync(ct);
+        var actions=await attempts.ExecuteDeleteAsync(ct);
+        episode.State=JsonSerializer.Serialize(new{sceneKey=StartSceneKey,beatKey=StartBeatKey});
+        episode.Version++;await db.SaveChangesAsync(ct);await transaction.CommitAsync(ct);
+        log?.LogInformation("Development chapter reset for survivor {SurvivorId} discarded {Actions} actions, {Events} events, and {Wakes} wakes",survivorId,actions,gameEvents,wakes);
+        return ToState(survivor,episode);
+    }
+
+    private const string StartSceneKey="day1-0617-0643",StartBeatKey="phone-0617";
 
     private static SessionState ToState(SurvivorRecord survivor,EventInstanceRecord episode)
     {
@@ -62,7 +92,7 @@ public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? lo
 
     private static (string? outcome,IReadOnlyDictionary<string,string> facts,string scene,string beat) ReadState(string? json)
     {
-        string? outcome=null;IReadOnlyDictionary<string,string> facts=new Dictionary<string,string>();var scene="day1-0617-0643";var beat="phone-0617";
+        string? outcome=null;IReadOnlyDictionary<string,string> facts=new Dictionary<string,string>();var scene=StartSceneKey;var beat=StartBeatKey;
         if(!string.IsNullOrWhiteSpace(json)&&json!="{}"){using var doc=JsonDocument.Parse(json);var r=doc.RootElement;
             if(r.TryGetProperty("lastOutcome",out var o))outcome=o.GetString();
             if(r.TryGetProperty("narrativeFacts",out var f))facts=JsonSerializer.Deserialize<Dictionary<string,string>>(f.GetRawText())??new();

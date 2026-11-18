@@ -4,7 +4,7 @@ This is a permanent repository requirement for existing runtime operations and e
 
 ## Runtime logging
 
-- Every host uses `AddServiceDefaults`, or `AddObservability` for non-service tools; AppHost uses `AddFatewakeObservability`. Serilog is the backend, not the library-facing API.
+- Every host uses `AddServiceDefaults`, or `AddObservability` for non-service tools; AppHost uses `AddFatewakeObservability`. Serilog is the backend, not the library-facing API. `src/Fatewake.AppHost/appsettings.json` suppresses AppHost health-check polling logs, because expected failures while containers warm up otherwise flood the console with stack traces. Resource health stays visible in the dashboard.
 - Runtime services receive `ILogger<T>` from Microsoft.Extensions.Logging. Use structured constant message templates, named properties, appropriate levels, and scopes. Do not use global `Serilog.Log` or create per-library providers/sinks.
 - Log meaningful lifecycle transitions and recoverable failures. Use Debug for operation timing; Information for business transitions; Warning for recoverable outages/rejected operations; Error for failures requiring investigation. Do not log every poll, getter, collection iteration, or method call.
 - Never log passwords, password hashes, email-verification tokens/links, bearer tokens, authorization/cookie headers, SMTP secrets, provider response bodies, raw player input, resolved prompts, or SQL parameter values. Do not enable EF sensitive-data logging or verbose HTTP URL logging in deployed applications.

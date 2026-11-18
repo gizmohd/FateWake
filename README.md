@@ -22,13 +22,29 @@ Install the .NET 10 SDK and start Docker or Podman, then run:
 dotnet run --project src\Fatewake.AppHost\Fatewake.AppHost.csproj
 ```
 
-AppHost starts PostgreSQL, RabbitMQ (with its management UI), the API, the background worker, and the Blazor Web app. Its default launch profile explicitly selects Docker, configures the local Aspire dashboard, and overrides an inherited `DOTNET_ASPIRE_CONTAINER_RUNTIME` setting. User secrets retain local resource passwords across restarts of persisted volumes. For Podman, run with `--launch-profile Fatewake.AppHost.Podman`; make sure the selected runtime is installed and running.
+AppHost starts PostgreSQL, RabbitMQ (with its management UI), the API, the background worker, and the Blazor Web app. Its default launch profile explicitly selects Docker, configures the local Aspire dashboard, and overrides an inherited `DOTNET_ASPIRE_CONTAINER_RUNTIME` setting. User secrets retain local resource passwords across restarts of persisted volumes. The PostgreSQL and RabbitMQ containers are persistent: they keep running after AppHost stops and are reused on the next start. Stop or remove them explicitly with `docker stop`/`docker rm` when needed. For Podman, run with `--launch-profile Fatewake.AppHost.Podman`; make sure the selected runtime is installed and running. Visual Studio checks the container runtime named by the user/machine `DOTNET_ASPIRE_CONTAINER_RUNTIME` environment variable before launching, ignoring the launch profile override. If that variable names a runtime that isn't installed, F5 hangs before `Program.cs` runs. Set it to an installed runtime, or remove it, then restart Visual Studio. The AppHost launch profiles set `"hotReloadEnabled": false` because Visual Studio's Hot Reload startup hook can block before `Main` runs. Hot Reload still works for the API, Web, and Worker projects.
 
 The host is a long-running process: after startup, use the printed Aspire dashboard URL to see resource status and service logs. If resources remain waiting, check the host output for container-runtime warnings. To diagnose a silent `dotnet run` during restore/build, run `dotnet build src\Fatewake.AppHost\Fatewake.AppHost.csproj --tl:off --verbosity minimal` first, then run with `--no-build`. When using `--no-launch-profile`, set `ASPIRE_CONTAINER_RUNTIME` explicitly and supply the dashboard/OTLP endpoint settings normally provided by the profile.
 
-The API applies migrations before becoming healthy; Web and Worker wait for it. API and Worker share the repository-local `data\art` filesystem storage, which is ignored by Git. Deployed workers require an explicitly configured `ArtStorage:RootPath` on shared persistent storage.
+The API applies migrations before becoming healthy; Web and Worker wait for it. API and Worker share `src\Fatewake.Web\wwwroot\art` filesystem storage. Generated files live in its ignored `art` subdirectory. AppHost configuration `ArtStorage:RootPath` can override this location. Deployed workers require an explicitly configured `ArtStorage:RootPath` on shared persistent storage.
 
-`ArtGeneration:Provider` defaults to `None`: approved artwork can be reused without generating new images. For new artwork, configure the worker with `OpenAI`, `Local`, or `ComfyUI` and enable the corresponding provider section. Keep API keys outside tracked configuration files. RabbitMQ supplies wakeup hints; PostgreSQL leases and periodic polling remain the durable execution/recovery mechanism.
+`ArtGeneration:Provider` defaults to `None`: approved artwork can be reused without generating new images. For new artwork, configure the worker with `OpenAI`, `Local`, or `ComfyUI` and enable the corresponding provider section. Keep API keys outside tracked configuration files; `src\Fatewake.Worker\appsettings.json` lists every setting with disabled/empty defaults, and the same template appears in `src\Fatewake.AppHost\appsettings.json`. Under AppHost, set them as AppHost user secrets. The same pattern applies to every secret-bearing section (`ArtGeneration`, `Authentication`, `Email`): tracked `appsettings.json` holds empty defaults, and AppHost forwards each non-empty user-secret value to the consuming services with `ApiKey`/`ClientSecret`/`Password`-style keys masked as secret parameters:
+
+```powershell
+dotnet user-secrets set "ArtGeneration:Provider" "OpenAI" --project src\Fatewake.AppHost
+dotnet user-secrets set "ArtGeneration:OpenAI:Enabled" "true" --project src\Fatewake.AppHost
+dotnet user-secrets set "ArtGeneration:OpenAI:ApiKey" "<api-key>" --project src\Fatewake.AppHost
+```
+
+For an OpenAI-compatible image server, use `Provider=Local` with `ArtGeneration:Local:Enabled`, `BaseUrl`, optional `ApiKey`, and `Model`. Restart AppHost after changing secrets. RabbitMQ supplies wakeup hints; PostgreSQL leases and periodic polling remain the durable execution/recovery mechanism.
+
+Day 1 scenes now resolve their authored layers through `POST /api/art/scene/resolve`. Approved artwork is reused; missing layers create one durable job per prompt/style fingerprint. The renderer polls pending work every five seconds and displays approved PNG/WebP derivatives through the web app's same-origin `/art/{key}/{version}/{format}` route. Disabled providers and terminal job failures are visible in the scene. Scene requests accept only shipped layer keys, never client-supplied prompts.
+
+When running through AppHost, configure `ArtGeneration:*` in AppHost user-secrets or environment variables; AppHost forwards them to both API and Worker. When running services separately, provide the same provider configuration to both and the same persistent `ArtStorage:RootPath`. Authored prompts, style, character and location context ship with API build/publish output. `ArtGeneration:CatalogRoot` can override the catalog directory. For ComfyUI setup, see [the local generation guide](docs/COMFYUI-LOCAL-SETUP.md). For portrait output, configure the selected provider's size or ComfyUI workflow accordingly; reusable overlays require alpha-capable workflows/models.
+
+ComfyUI generation stays disabled until the configured workflow file exists, avoiding failed jobs during initial setup. When running API and Worker separately, make that workflow available at the configured path in both services. After exporting the workflow and starting ComfyUI, reload the scene to request its missing artwork.
+
+The PostgreSQL artwork smoke test uses `FATEWAKE_ART_TEST_CONNECTION`, which must point to an isolated, empty test database. It sends concurrent scene requests through the production routes, runs all seven worker handlers using a deterministic image generator, and verifies PNG/WebP delivery without paid image calls.
 
 Database tests use `FATEWAKE_TEST_CONNECTION` and **delete/recreate that database**. Never point it at your development database. `FATEWAKE_TEST_RABBITMQ` enables the broker wakeup integration test.
 
@@ -95,3 +111,5 @@ See [the permanent observability policy](docs/OBSERVABILITY.md) for configuratio
 - [Days 1–7](story/DAYS-001-007.md)
 
 These files are the design source of truth for Fatewake.
+
+Administrator artwork reviews: the first account to complete a successful verified sign-in receives the persisted Admin role; all later accounts receive User. Registration alone does not grant Admin. Assignment is atomic across API processes. Admins can critique scene compositions and versioned layers and request replacements.

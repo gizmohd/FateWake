@@ -1,4 +1,4 @@
-namespace Fatewake.Web.Presentation;
+namespace Fatewake.Story;
 
 /// <summary>Represents a line of character or source-attributed dialogue.</summary>
 /// <param name="Speaker">Speaker label shown with the line.</param>

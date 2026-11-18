@@ -1,4 +1,4 @@
-namespace Fatewake.Web.Presentation;
+namespace Fatewake.Story;
 
 /// <summary>Contains the authored scene definitions for the first day.</summary>
 /// <see href="../../../docs/code/src/Fatewake.Web/Presentation/DayOneScenes.md">DayOneScenes documentation</see>

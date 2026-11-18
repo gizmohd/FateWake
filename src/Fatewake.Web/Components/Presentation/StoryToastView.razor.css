@@ -1,0 +1,8 @@
+.story-toast { background: #242522; color: #f4efdf; border: 1px solid #b09563; border-left: 4px solid #b09563; padding: 1.2rem; box-shadow: 0 8px 30px #0008; border-radius: .3rem; animation: enter .2s ease-out; }
+strong { font: 1rem Georgia, serif; }
+p { white-space: pre-line; line-height: 1.5; font-size: .9rem; max-height: 12rem; overflow: auto; }
+.toast-actions { display: flex; gap: .75rem; }
+button { color: #f4efdf; background: #343832; border: 1px solid #817557; border-radius: .2rem; padding: .6rem .8rem; cursor: pointer; }
+button:focus-visible { outline: 2px solid #e0c98c; outline-offset: 3px; }
+@keyframes enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .story-toast { animation: none; } }

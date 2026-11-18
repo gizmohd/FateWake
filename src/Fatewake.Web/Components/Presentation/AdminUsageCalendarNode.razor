@@ -1,0 +1,100 @@
+@using Fatewake.Observability
+@using Fatewake.Web.Presentation
+@using System.Net.Http.Json
+@implements IDisposable
+@inject Fatewake.Web.Authentication.AuthenticatedApiClient Api
+<div class="calendar-node" role="rowgroup">
+    <div class="calendar-row" role="row" aria-level="@Depth" aria-expanded="@_open">
+        <div role="gridcell"><button class="expand" @onclick="Toggle" aria-expanded="@_open" aria-label="Expand @Group.Key">@(_open ? "▾" : "▸") @Group.Key</button></div>
+        <div role="gridcell">@Group.Metrics.Calls.ToString("N0")</div>
+        <div role="gridcell">@Group.Metrics.Succeeded / @Group.Metrics.Failed</div>
+        <div role="gridcell">@AdminDashboardQuery.Number(Group.Metrics.TotalTokens)</div>
+        <div role="gridcell">@AdminDashboardQuery.Number(Group.Metrics.Credits)</div>
+        <div role="gridcell">@AdminDashboardQuery.Costs(Group.Costs)</div>
+    </div>
+    @if (_open)
+    {
+        <div class="children">
+            @if (_loading) { <p role="status">Refreshing @Group.Key…</p> }
+            @if (_error is not null) { <p role="alert">@_error <button @onclick="Load">Retry</button></p> }
+            @if (Level != "day")
+            {
+                @foreach (var child in _children)
+                {
+                    <AdminUsageCalendarNode @key="child.Key" Group="child" Level="@(Level == "year" ? "month" : "day")" Depth="@(Depth+1)" Filters="Filters" RefreshVersion="RefreshVersion" GroupSort="@GroupSort" GroupDescending="GroupDescending" />
+                }
+                @if (!_loading && _children.Length == 0 && _error is null) { <p>No requests in this period.</p> }
+            }
+            else if (_requests is not null)
+            {
+                <div class="request-scroll"><table>
+                    <caption>Individual requests on @Group.Key · @Filters.TimeZone</caption>
+                    <thead><tr>
+                        @foreach (var column in Columns) { <th scope="col" aria-sort="@(column.Key==_sort ? _descending?"descending":"ascending" : "none")"><button @onclick="()=>Sort(column.Key)">@column.Label @(column.Key==_sort?_descending?"↓":"↑":"")</button></th> }
+                        <th scope="col">Credits</th><th scope="col">Cost</th><th scope="col">Request</th>
+                    </tr></thead><tbody>
+                    @foreach (var request in _requests.Items)
+                    {
+                        <tr><td>@AdminDashboardQuery.Date(request.StartedAt,Filters.TimeZone)</td><td>@request.User</td><td>@request.Provider<br />@request.Model</td><td>@request.Operation<br />@request.Outcome</td><td>@AdminDashboardQuery.Number(request.TotalTokens)</td><td>@AdminDashboardQuery.Number(request.Credits)</td><td>@(request.Cost is {} cost ? $"{cost:0.####} {request.Currency}" : "Unavailable")</td><td><button @onclick="()=>_selected=_selected?.Id==request.Id?null:request">Details</button></td></tr>
+                    }
+                    </tbody></table></div>
+                @if (_requests.Total==0) { <p>No requests in this period.</p> }
+                <div class="pagination"><button disabled="@(_page==1||_loading)" @onclick="()=>Page(-1)">Previous</button><span>Page @_page · @_requests.Total requests</span><button disabled="@(_page*_requests.PageSize>=_requests.Total||_loading)" @onclick="()=>Page(1)">Next</button></div>
+                @if (_selected is {} selected)
+                {
+                    <section class="request-detail" aria-label="Request details">
+                        <h3>Request @selected.Id</h3><p>@selected.Provider · @selected.Model · @selected.Operation · @selected.Outcome</p>
+                        <dl><dt>User</dt><dd>@selected.User</dd><dt>Account / survivor</dt><dd>@selected.AccountId / @selected.SurvivorId</dd><dt>Provider request</dt><dd>@(selected.ProviderRequestId??"Unavailable")</dd><dt>Started / completed</dt><dd>@AdminDashboardQuery.Date(selected.StartedAt,Filters.TimeZone) / @AdminDashboardQuery.Date(selected.CompletedAt,Filters.TimeZone)</dd><dt>Input / output / total tokens</dt><dd>@AdminDashboardQuery.Number(selected.InputTokens) / @AdminDashboardQuery.Number(selected.OutputTokens) / @AdminDashboardQuery.Number(selected.TotalTokens)</dd><dt>Cached tokens</dt><dd>@AdminDashboardQuery.Number(selected.CachedTokens)</dd><dt>Text input / image input / image output tokens</dt><dd>@AdminDashboardQuery.Number(selected.TextInputTokens) / @AdminDashboardQuery.Number(selected.ImageInputTokens) / @AdminDashboardQuery.Number(selected.ImageOutputTokens)</dd><dt>Provider compute seconds</dt><dd>@AdminDashboardQuery.Number(selected.ComputeSeconds)</dd></dl>
+                        @if (selected.CountedElsewhere) { <p>This provider execution was already counted on another attempt; its usage is not added twice.</p> }
+                        @if (selected.Outcome=="started") { <p>Completion has not been recorded. Consumption may be unavailable after an interrupted request.</p> }
+                        @if (selected.WorkJobId is {} job) { <a href="/admin?job=@job">View generation job</a> }
+                    </section>
+                }
+            }
+        </div>
+    }
+</div>
+@code {
+    [Parameter,EditorRequired] public AiCalendarGroup Group {get;set;}=default!;
+    [Parameter] public string Level {get;set;}="year";
+    [Parameter] public int Depth {get;set;}=1;
+    [Parameter,EditorRequired] public AdminDashboardFilter Filters {get;set;}=default!;
+    [Parameter] public int RefreshVersion {get;set;}
+    [Parameter] public string GroupSort {get;set;}="date";
+    [Parameter] public bool GroupDescending {get;set;}=true;
+    private bool _open,_loading,_descending=true;
+    private int _version=-1,_page=1;
+    private string _sort="date";
+    private string? _error;
+    private AiCalendarGroup[] _children=[];
+    private AdminResultPage<AdminUsageRow>? _requests;
+    private AdminUsageRow? _selected;
+    private readonly CancellationTokenSource _stop=new();
+    private static readonly (string Key,string Label)[] Columns=[("date","Started"),("user","User"),("provider","Provider / model"),("status","Operation / outcome"),("tokens","Tokens")];
+    protected override async Task OnParametersSetAsync()
+    {
+        if(_version==RefreshVersion) return;
+        _version=RefreshVersion;
+        if(_open) await Load();
+    }
+    private async Task Toggle() { _open=!_open; if(_open) await Load(); }
+    private async Task Sort(string key) { _descending=key==_sort?!_descending:true; _sort=key; _page=1; await Load(); }
+    private async Task Page(int direction) { _page+=direction; await Load(); }
+    private async Task Load()
+    {
+        if(_loading) return; _loading=true;
+        try
+        {
+            using var client=await Api.CreateAsync();
+            var query=AdminDashboardQuery.Build(Filters)+"&parent="+Uri.EscapeDataString(Group.Key);
+            if(Level=="day") _requests=await client.GetFromJsonAsync<AdminResultPage<AdminUsageRow>>("/api/admin/usage?"+query+$"&level=request&page={_page}&sort={_sort}&descending={_descending}",_stop.Token);
+            else _children=await client.GetFromJsonAsync<AiCalendarGroup[]>("/api/admin/usage/groups?"+query+$"&level={(Level=="year"?"month":"day")}&sort={GroupSort}&descending={GroupDescending}",_stop.Token)??[];
+            _error=null;
+        }
+        catch(HttpRequestException) { _error="Could not refresh these requests. Previously loaded rows are retained."; }
+        catch(System.Text.Json.JsonException) { _error="The request data could not be read."; }
+        catch(OperationCanceledException) when(_stop.IsCancellationRequested) { }
+        finally { _loading=false; }
+    }
+    public void Dispose() { _stop.Cancel(); _stop.Dispose(); }
+}

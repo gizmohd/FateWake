@@ -1,0 +1,11 @@
+.novel { max-width: 1100px; margin: 0 auto; padding: 2rem 1.25rem 5rem; color: #f4efdf; }
+nav a { color: #dac7a1; }
+header { padding: 3rem 0 2rem; border-bottom: 1px solid #4b4842; }
+.eyebrow { letter-spacing: .2em; font: .75rem sans-serif; color: #c2ac7e; }
+h1 { font: 3rem Georgia, serif; margin: 1rem 0; }
+h2 { font: 1.5rem Georgia, serif; margin: 2.5rem 0 1.25rem; }
+.pages { margin: 0 auto; }
+.archive-note, .end-page { color: #b8b5ad; line-height: 1.6; }
+.end-page { text-align: center; padding: 3rem; }
+@media (max-width: 600px) { .novel { padding:1rem .5rem 3rem; } }
+@media print { nav, header, .archive-note, .end-page {display:none;} .novel {max-width:none;padding:0;color:#222;} h2 {break-after:avoid;} }

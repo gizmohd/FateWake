@@ -1,0 +1,14 @@
+.calendar-row { display: grid; grid-template-columns: minmax(130px, 1.4fr) .6fr .8fr 1fr .8fr 1.2fr; gap: .75rem; padding: .85rem; border-top: 1px solid #343b3b; align-items: center; font-size: .85rem; }
+.children { padding-left: 1rem; border-left: 2px solid #596057; }
+button { color: #f0eee3; background: #262d2d; border: 1px solid #586362; padding: .4rem .6rem; border-radius: .2rem; cursor: pointer; }
+.expand { background: transparent; border: 0; font-weight: bold; text-align: left; }
+.request-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .8rem; }
+caption { text-align: left; padding: 1rem 0; color: #d7bd83; }
+th, td { text-align: left; padding: .65rem; border-bottom: 1px solid #343b3b; overflow-wrap: anywhere; }
+.pagination { display: flex; gap: 1rem; align-items: center; padding: 1rem 0; }
+.request-detail { border: 1px solid #536059; background: #172021; padding: 1rem; margin-bottom: 1rem; }
+dl { display: grid; grid-template-columns: 1fr 2fr; gap: .5rem; font-size: .85rem; }
+dd { margin: 0; overflow-wrap: anywhere; }
+a { color: #d7bd83; }
+@media(max-width:700px) { .calendar-row { min-width: 650px; } .children { padding-left: .5rem; } }

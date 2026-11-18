@@ -1,4 +1,4 @@
-namespace Fatewake.Web.Presentation;
+namespace Fatewake.Story;
 
 /// <summary>Defines an episode scene as ordered beats for a survivor's day.</summary>
 /// <param name="Key">Stable scene identifier.</param>

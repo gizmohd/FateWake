@@ -1,0 +1,11 @@
+@using Fatewake.Web.Presentation
+<section class="comic-page @(Page.Panels.Length==1?"splash":"") @(Page.Number%2==0?"verso":"recto")" aria-label="Page @Page.Number, survivor day @Page.SurvivorDay">
+    <header><span>THE SILENCE</span><span>SURVIVOR DAY @Page.SurvivorDay</span></header>
+    <div class="live-area">
+        @foreach(var panel in Page.Panels) { <NovelPanelView @key="panel.Id" Panel="panel" /> }
+    </div>
+    <footer><span>@(Page.Panels[0].Kind=="cutscene"?"A TURN OF FATE":"THE STORY SO FAR")</span><span aria-label="Page @Page.Number">@Page.Number.ToString("D2")</span></footer>
+</section>
+@code {
+    [Parameter,EditorRequired] public NovelPage Page {get;set;}=default!;
+}

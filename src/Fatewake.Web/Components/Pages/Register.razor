@@ -1,9 +1,13 @@
 @page "/register"
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Environment
 
 <PageTitle>Create an account - Fatewake</PageTitle>
 <main class="account-page">
     <h1>Create an account</h1>
-    <p>Use a password between 12 and 128 characters. We will email a verification link before you can sign in.</p>
+    <p>Use a password between 12 and 128 characters.
+        @if (Environment.IsDevelopment()) { <span>Development mode automatically verifies your email and signs you in.</span> }
+        else { <span>We will email a verification link before you can sign in.</span> }
+    </p>
     @if (Error is not null)
     {
         <p role="alert">@Message</p>

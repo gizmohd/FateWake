@@ -1,4 +1,4 @@
-namespace Fatewake.Web.Presentation;
+namespace Fatewake.Story;
 
 /// <summary>Maps day-one artwork keys to their ordered composition layers.</summary>
 /// <see href="../../../docs/code/src/Fatewake.Web/Presentation/DayOneArt.md">DayOneArt documentation</see>

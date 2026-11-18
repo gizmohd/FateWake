@@ -1,0 +1,29 @@
+.art-layer-picture {
+    position: absolute;
+    display: block;
+    pointer-events: none;
+}
+
+.art-layer {
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.art-overlay { object-fit: contain; }
+.art-background { object-fit: cover; }
+
+.art-generation-status {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    right: 1rem;
+    z-index: 210;
+    width: fit-content;
+    padding: .4rem .7rem;
+    border-radius: .35rem;
+    background: rgba(8, 10, 12, .85);
+    color: #ced2d5;
+    font-size: .75rem;
+    pointer-events: none;
+}

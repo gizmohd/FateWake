@@ -7,3 +7,5 @@ Guest sessions use a browser-stored survivor ID. Authenticated sessions resolve 
 Signing in never attaches an arbitrary guest ID to an account. Guest progress and account progress remain separate.
 
 Initial account-owned session creation locks the account row in a transaction, preventing concurrent first visits from creating duplicate account survivors.
+
+Development-only `ResetChapterAsync` rewinds the survivor's active chapter (event instance) to its first beat. In one transaction it deletes the chapter's action attempts and resolutions, the game events correlated with them, and Wakes originating from those events, then clears the outcome and narrative facts. The survivor, account ownership, timeline, and visual identity are kept. Timeline event sequence numbers are not reused, so gaps are expected after a reset.

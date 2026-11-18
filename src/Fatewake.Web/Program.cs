@@ -42,5 +42,18 @@ app.UseAuthorization();
 app.UseRateLimiter();
 app.UseAntiforgery();
 app.MapLocalAuthentication();
+// Keep artwork same-origin while the API owns approved assets and binary storage.
+app.MapGet("/art/{key}/{version:int}/{format}", async (string key, int version, string format,
+    IHttpClientFactory clients, HttpContext context, CancellationToken ct) =>
+{
+    if (version < 1 || format is not ("png" or "webp")) return Results.NotFound();
+    using var response = await clients.CreateClient("fatewake-api").GetAsync(
+        $"/api/art/{Uri.EscapeDataString(key)}/{version}/{format}", HttpCompletionOption.ResponseHeadersRead, ct);
+    if (!response.IsSuccessStatusCode) return Results.StatusCode((int)response.StatusCode);
+    context.Response.ContentType = "image/" + format;
+    context.Response.Headers.CacheControl = "public,max-age=31536000,immutable";
+    await response.Content.CopyToAsync(context.Response.Body, ct);
+    return Results.Empty;
+});
 app.MapRazorComponents<Fatewake.Web.Components.App>().AddInteractiveServerRenderMode();
 app.Run();

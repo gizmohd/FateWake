@@ -1,0 +1,64 @@
+@using System.Net.Http.Json
+@implements IAsyncDisposable
+@inject Fatewake.Web.Authentication.AuthenticatedApiClient ApiClient
+@inject NavigationManager Navigation
+@inject ILogger<StoryToasts> Logger
+<div class="story-toasts" aria-live="polite" aria-relevant="additions">
+    @foreach (var notice in _notices.Take(3))
+    {
+        <StoryToastView @key="(notice.PanelId, notice.Revision)" Notice="notice" Read="() => Acknowledge(notice, true)" Dismiss="() => Acknowledge(notice, false)" />
+    }
+    @if (_error is not null) { <p role="alert">@_error</p> }
+</div>
+@code {
+    [Parameter] public Guid SurvivorId { get; set; }
+    private StoryNotice[] _notices = [];
+    private readonly CancellationTokenSource _stop = new();
+    private Task? _poll;
+    private string? _error;
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) _poll = PollAsync(_stop.Token);
+        return Task.CompletedTask;
+    }
+    private async Task PollAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                try
+                {
+                    using var client = await ApiClient.CreateAsync();
+                    using var response = await client.GetAsync($"/api/story/{SurvivorId}/notices", ct);
+                    response.EnsureSuccessStatusCode();
+                    _notices = await response.Content.ReadFromJsonAsync<StoryNotice[]>(ct) ?? [];
+                    await InvokeAsync(StateHasChanged);
+                }
+                catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException && !ct.IsCancellationRequested)
+                { Logger.LogDebug(ex, "Story notification polling failed"); }
+                await Task.Delay(TimeSpan.FromSeconds(15), ct);
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+    }
+    private async Task Acknowledge(StoryNotice notice, bool read)
+    {
+        try
+        {
+            using var client = await ApiClient.CreateAsync();
+            using var response = await client.PostAsync($"/api/story/{SurvivorId}/notices/{notice.PanelId}/{notice.Revision}/ack", null, _stop.Token);
+            response.EnsureSuccessStatusCode();
+            _notices = _notices.Where(x => x.PanelId != notice.PanelId || x.Revision != notice.Revision).ToArray(); _error = null;
+            if (read) Navigation.NavigateTo($"/novel/{SurvivorId}#panel-{notice.PanelId}", forceLoad: true);
+        }
+        catch (HttpRequestException ex) { Logger.LogWarning(ex, "Story notification acknowledgement failed"); _error = "Could not dismiss this update. Please try again."; }
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
+    }
+    public async ValueTask DisposeAsync()
+    {
+        await _stop.CancelAsync();
+        if (_poll is not null) await _poll;
+        _stop.Dispose();
+    }
+}

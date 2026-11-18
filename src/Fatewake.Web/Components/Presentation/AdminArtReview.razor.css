@@ -1,0 +1,13 @@
+.art-review-panel { position: relative; margin: 1rem 0; padding: 1rem; border: 1px solid #62686b; background: #14181a; color: #eee; font-family: system-ui,sans-serif; }
+summary { cursor: pointer; font-weight: 600; }
+label { display: block; margin: 1rem 0; }
+textarea,select { display:block; box-sizing:border-box; width:100%; margin-top:.4rem; padding:.6rem; color:#eee; background:#24292c; border:1px solid #7b858b; border-radius:.25rem; }
+button { padding:.6rem; color:#eee; background:#293238; border:1px solid #7b858b; border-radius:.25rem; cursor:pointer; }
+button:disabled { opacity:.5; cursor:default; }
+.review-layer-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:.6rem; margin-top:1rem; }
+.review-layer img { display:block; height:140px; width:100%; object-fit:contain; background:repeating-conic-gradient(#515659 0% 25%,#303537 0% 50%) 50% / 16px 16px; }
+.review-layer span { display:block; margin-top:.4rem; font-size:.75rem; overflow-wrap:anywhere; }
+.review-checkbox input { margin-right:.5rem; }
+article { border-top:1px solid #62686b; padding:.75rem 0; }
+article p { white-space:pre-wrap; }
+small { color:#bac4ca; }

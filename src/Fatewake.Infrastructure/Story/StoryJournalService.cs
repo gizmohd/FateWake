@@ -1,0 +1,150 @@
+using System.Text.Json;
+using Fatewake.Infrastructure.Persistence;
+using Fatewake.Story;
+using Microsoft.EntityFrameworkCore;
+namespace Fatewake.Infrastructure.Story;
+/// <summary>Stores seen panels and projects history without executing game actions or image generation.</summary>
+public sealed class StoryJournalService(FatewakeDbContext db)
+{
+    /// <summary>Records an accepted authoritative decision even if the client disconnects before advancing.</summary>
+    public async Task RecordOutcomeAsync(Guid survivorId, Guid eventInstanceId, Fatewake.GameEngine.ActionResolution outcome, CancellationToken ct = default)
+    {
+        var episode = await db.EventInstances.SingleAsync(x => x.Id == eventInstanceId && x.SurvivorId == survivorId, ct);
+        var state = new SessionState(survivorId, episode.TimelineId, eventInstanceId, episode.SurvivorDay, episode.EventKey,
+            "active", outcome.OutcomeKey, outcome.NarrativeFacts, DayOneScenes.Opening.Key, "choice-wake");
+        await RecordBeatAsync(state, DayOneScenes.Opening.Beat("choice-wake"), false, ct);
+    }
+    /// <summary>Recovers already-reached legacy beats once, then records the current beat.</summary>
+    public async Task RecordProgressAsync(SessionState state, CancellationToken ct = default)
+    {
+        if (state.SceneKey != DayOneScenes.Opening.Key) return;
+        var beat = DayOneScenes.Opening.Beats.FirstOrDefault(x => x.Key == state.BeatKey);
+        if (beat is null) return;
+        var index = DayOneScenes.Opening.IndexOf(beat.Key);
+        if (index > 0)
+            foreach (var prior in DayOneScenes.Opening.Beats.Take(index))
+                await RecordBeatAsync(state, prior, true, ct);
+        await RecordBeatAsync(state, beat, false, ct);
+        if (!string.IsNullOrWhiteSpace(state.LastOutcome))
+            await RecordBeatAsync(state, DayOneScenes.Opening.Beat("choice-wake"), false, ct);
+    }
+
+    private async Task RecordBeatAsync(SessionState state, BeatDefinition beat, bool reconstructed, CancellationToken ct)
+    {
+        if (beat.Kind == BeatKind.Consequence && string.IsNullOrWhiteSpace(state.LastOutcome)) return;
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await LockTimelineAsync(state.TimelineId, ct);
+        var key = $"beat:{state.EventInstanceId}:{beat.Key}";
+        if (await db.Set<StoryPanelRecord>().AnyAsync(x => x.SurvivorId == state.SurvivorId && x.EntryKey == key, ct)) return;
+        var layers = DayOneArt.For(beat.ArtworkKey).Select(x => x with { AssetVersion = 0 }).ToArray();
+        if (reconstructed)
+            for (var i = 0; i < layers.Length; i++)
+            {
+                var assetKey = layers[i].AssetKey;
+                var version = await db.ArtAssets.Where(x => x.Key == assetKey && x.Status == ArtAssetStatus.Approved)
+                    .OrderByDescending(x => x.Version).Select(x => (int?)x.Version).FirstOrDefaultAsync(ct);
+                layers[i] = layers[i] with { AssetVersion = version ?? 0 };
+            }
+        db.Add(new StoryPanelRecord { Id=Guid.NewGuid(), SurvivorId=state.SurvivorId, TimelineId=state.TimelineId,
+            EventInstanceId=state.EventInstanceId, EntryKey=key, Sequence=await NextSequenceAsync(state.TimelineId,ct),
+            SurvivorDay=state.SurvivorDay, Kind=beat.Kind==BeatKind.Consequence ? "consequence" : "scene", Title=DayOneScenes.Opening.Title,
+            TimeLabel=beat.Time, Narration=beat.Kind==BeatKind.Consequence ? DayOneOutcomes.Text(state.LastOutcome!,state.NarrativeFacts) : beat.Narration ?? "At the doorway, you decide how to respond to Michelle’s plea.",
+            DialogueSpeaker=beat.Dialogue?.Speaker, DialogueText=beat.Dialogue?.Text, Layers=JsonSerializer.Serialize(layers),
+            VisibleFromDay=state.SurvivorDay, Reconstructed=reconstructed, RecordedAt=DateTimeOffset.UtcNow });
+        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+    }
+
+    /// <summary>Pins first displayed approved versions; later regeneration cannot rewrite historical artwork.</summary>
+    public async Task<bool> PinArtworkAsync(Guid survivorId, Guid eventInstanceId, string beatKey,
+        IReadOnlyDictionary<string,int?> versions, CancellationToken ct = default)
+    {
+        var key=$"beat:{eventInstanceId}:{beatKey}";
+        var panel=await db.Set<StoryPanelRecord>().SingleOrDefaultAsync(x=>x.SurvivorId==survivorId&&x.EntryKey==key,ct);
+        if (panel is null) return false;
+        await using var tx=await db.Database.BeginTransactionAsync(ct);
+        await LockTimelineAsync(panel.TimelineId,ct);
+        await db.Entry(panel).ReloadAsync(ct);
+        var layers=JsonSerializer.Deserialize<ArtLayer[]>(panel.Layers) ?? [];
+        if (versions.Keys.Any(key=>!layers.Any(x=>x.AssetKey==key))) return false;
+        for (var i=0;i<layers.Length;i++)
+            if (layers[i].AssetVersion==0&&versions.GetValueOrDefault(layers[i].AssetKey) is {} version)
+            {
+                if (!await db.ArtAssets.AnyAsync(x=>x.Key==layers[i].AssetKey&&x.Version==version&&x.Status==ArtAssetStatus.Approved,ct)) return false;
+                layers[i]=layers[i] with { AssetVersion=version };
+            }
+        panel.Layers=JsonSerializer.Serialize(layers);
+        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); return true;
+    }
+
+    /// <summary>Reads only reached, audience-owned panels and explicitly revealed cause narration.</summary>
+    public async Task<NovelPanel[]> ReadAsync(Guid survivorId, CancellationToken ct = default)
+    {
+        var day=await db.Survivors.Where(x=>x.Id==survivorId).Select(x=>x.SurvivorDay).SingleAsync(ct);
+        var entries=await db.Set<StoryPanelRecord>().AsNoTracking().Where(x=>x.SurvivorId==survivorId&&x.VisibleFromDay<=day)
+            .OrderBy(x=>x.Sequence).ToArrayAsync(ct);
+        return entries.Select(x=>new NovelPanel(x.Id,x.Sequence,x.SurvivorDay,x.Kind,x.Title,x.TimeLabel,
+            x.CauseRevealed&&!string.IsNullOrWhiteSpace(x.HiddenCauseNarration) ? $"{x.Narration}\n\n{x.HiddenCauseNarration}" : x.Narration,
+            x.DialogueSpeaker,x.DialogueText,JsonSerializer.Deserialize<ArtLayer[]>(x.Layers) ?? [],x.Reconstructed)).ToArray();
+    }
+
+    /// <summary>Engine-facing integration for an external user, NPC, group or world event affecting this survivor.</summary>
+    /// <remarks>Observable narration must already be approved for this audience. Hidden cause text is never returned until explicitly revealed.</remarks>
+    public async Task<Guid> RecordInfluenceAsync(Guid survivorId, Guid sourceEventId, string observableImpact,
+        string? hiddenCause, int visibleFromDay, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(observableImpact)||visibleFromDay<1) throw new ArgumentException("Audience-safe impact and visibility day are required.");
+        var survivor=await db.Survivors.SingleAsync(x=>x.Id==survivorId,ct);
+        var source=await db.GameEvents.SingleAsync(x=>x.Id==sourceEventId,ct);
+        var sourceRealm=await db.Timelines.Where(x=>x.Id==source.TimelineId).Select(x=>x.RealmId).SingleAsync(ct);
+        var targetRealm=await db.Timelines.Where(x=>x.Id==survivor.TimelineId).Select(x=>x.RealmId).SingleAsync(ct);
+        if (sourceRealm!=targetRealm) throw new InvalidOperationException("Influences must be within the same Realm.");
+        await using var tx=await db.Database.BeginTransactionAsync(ct);
+        await LockTimelineAsync(survivor.TimelineId,ct);
+        var key=$"influence:{sourceEventId}";
+        var existing=await db.Set<StoryPanelRecord>().Where(x=>x.SurvivorId==survivorId&&x.EntryKey==key).Select(x=>(Guid?)x.Id).SingleOrDefaultAsync(ct);
+        if (existing is {} id) return id;
+        var panel=new StoryPanelRecord { Id=Guid.NewGuid(),SurvivorId=survivorId,TimelineId=survivor.TimelineId,SourceEventId=sourceEventId,
+            EntryKey=key,Sequence=await NextSequenceAsync(survivor.TimelineId,ct),SurvivorDay=survivor.SurvivorDay,Kind="cutscene",Title="A turn of fate",
+            Narration=observableImpact,HiddenCauseNarration=hiddenCause,VisibleFromDay=visibleFromDay,Layers="[]",RecordedAt=DateTimeOffset.UtcNow,
+            NotificationRevision=1 };
+        db.Add(panel); await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); return panel.Id;
+    }
+
+    /// <summary>Called by authoritative reveal rules when this audience may learn the external cause.</summary>
+    public async Task RevealCauseAsync(Guid panelId, CancellationToken ct = default)
+    {
+        var panel=await db.Set<StoryPanelRecord>().SingleAsync(x=>x.Id==panelId&&x.Kind=="cutscene",ct);
+        await using var tx=await db.Database.BeginTransactionAsync(ct);
+        await LockTimelineAsync(panel.TimelineId,ct);
+        await db.Entry(panel).ReloadAsync(ct);
+        if (panel.CauseRevealed) return;
+        panel.CauseRevealed=true;
+        if (!string.IsNullOrWhiteSpace(panel.HiddenCauseNarration)) panel.NotificationRevision++;
+        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+    }
+    /// <summary>Returns pending important updates using the same disclosure gates as the novel.</summary>
+    public async Task<StoryNotice[]> NoticesAsync(Guid survivorId, CancellationToken ct = default)
+    {
+        var day=await db.Survivors.Where(x=>x.Id==survivorId).Select(x=>x.SurvivorDay).SingleAsync(ct);
+        var panels=await db.Set<StoryPanelRecord>().AsNoTracking().Where(x=>x.SurvivorId==survivorId&&x.VisibleFromDay<=day&&x.NotificationRevision>x.SeenRevision)
+            .OrderBy(x=>x.Sequence).Take(10).ToArrayAsync(ct);
+        return panels.Select(x=>new StoryNotice(x.Id,x.NotificationRevision,
+            x.CauseRevealed ? "Your story is clearer" : "Your timeline has changed",
+            x.CauseRevealed&&!string.IsNullOrWhiteSpace(x.HiddenCauseNarration) ? $"{x.Narration}\n\n{x.HiddenCauseNarration}" : x.Narration)).ToArray();
+    }
+    /// <summary>Acknowledges only the displayed revision; a later revelation remains unread.</summary>
+    public async Task<bool> AcknowledgeAsync(Guid survivorId, Guid panelId, int revision, CancellationToken ct = default)
+    {
+        var panel=await db.Set<StoryPanelRecord>().SingleOrDefaultAsync(x=>x.Id==panelId&&x.SurvivorId==survivorId,ct);
+        if (panel is null) return false;
+        await using var tx=await db.Database.BeginTransactionAsync(ct);
+        await LockTimelineAsync(panel.TimelineId,ct); await db.Entry(panel).ReloadAsync(ct);
+        var day=await db.Survivors.Where(x=>x.Id==survivorId).Select(x=>x.SurvivorDay).SingleAsync(ct);
+        if (revision<1 || revision>panel.NotificationRevision || panel.VisibleFromDay>day) return false;
+        panel.SeenRevision=Math.Max(panel.SeenRevision,revision);
+        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); return true;
+    }
+    private Task<int> LockTimelineAsync(Guid timelineId,CancellationToken ct) => db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM timeline WHERE \"Id\" = {timelineId} FOR UPDATE",ct);
+    private async Task<long> NextSequenceAsync(Guid timelineId,CancellationToken ct) =>
+        (await db.Set<StoryPanelRecord>().Where(x=>x.TimelineId==timelineId).MaxAsync(x=>(long?)x.Sequence,ct) ?? 0)+1;
+}

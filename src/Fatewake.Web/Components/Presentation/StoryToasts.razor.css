@@ -1,0 +1,2 @@
+.story-toasts { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 1000; display: grid; gap: .75rem; width: min(390px, calc(100vw - 2.5rem)); max-height: 85vh; overflow: auto; }
+.story-toasts > p { background: #242522; color: #f4efdf; padding: .75rem; }

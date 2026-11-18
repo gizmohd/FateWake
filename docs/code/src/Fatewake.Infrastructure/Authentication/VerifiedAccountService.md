@@ -1,5 +1,7 @@
 # VerifiedAccountService
 
+Local registration automatically creates a verified account only when the server hosting environment is `Development`. It sends no email or challenge in that environment. The registration endpoint signs the account in through the normal role-assignment flow. Production, Staging, and a missing environment retain mailbox verification. External provider linking continues to require validated ownership claims or mailbox proof.
+
 Pending registration, external resolution, resend and verification each emit a payload-free fixed-name operation span/duration. ILogger remains typed; hashes, email addresses and proof tokens never enter telemetry dimensions.
 
 Coordinates pending registration, mailbox verification, resend, and provider account linking. Only validated provider claims may enter ExternalAsync. Google email_verified proves ownership; Microsoft email claims always require mailbox proof for first linking. Known linked subjects retain their canonical account even if provider email claims change.

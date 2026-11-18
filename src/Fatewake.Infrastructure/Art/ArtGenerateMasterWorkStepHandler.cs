@@ -22,7 +22,7 @@ public sealed class ArtGenerateMasterWorkStepHandler(IWorkArtifactStore artifact
             var reusedJson=JsonSerializer.Serialize(reused);await artifacts.PutAsync(context.JobId,"art.master",reusedJson,ct);return reusedJson;
         }
 
-        var invocation=new ArtGenerationInvocation($"art:{context.JobId:N}",request);
+        var invocation=new ArtGenerationInvocation($"art:{context.JobId:N}",request,context.JobId,context.Attempt);
         var references=JsonSerializer.Serialize(request.ReferenceImages??[]);
         var parameters=JsonSerializer.Serialize(new{request.Provider,request.Model,request.AssetType});
         await generations.EnsurePendingAsync(context.JobId,invocation.IdempotencyKey,"generate",request.ResolvedPrompt,request.NegativeInstructions,request.Provider,request.Model,request.PromptTemplateId,request.PromptTemplateVersion,request.StyleBibleVersion,references,parameters,"{}",request.VisualFingerprint,ct);

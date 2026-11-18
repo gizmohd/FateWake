@@ -1,0 +1,45 @@
+@page "/novel/{SurvivorId:guid}"
+@using System.Net.Http.Json
+@using Fatewake.Web.Components.Presentation
+@using Fatewake.Web.Presentation
+@inject Fatewake.Web.Authentication.AuthenticatedApiClient ApiClient
+@inject ILogger<Novel> Logger
+<PageTitle>Your story — Fatewake</PageTitle>
+<main class="novel">
+    <nav><a href="/">Continue your story</a></nav>
+    <header><div class="eyebrow">FATEWAKE · THE STORY SO FAR</div><h1>Your story</h1><p>Every remembered moment, in the order it happened.</p></header>
+    @if (_error is not null) { <p role="alert">@_error</p> }
+    else if (_panels is null) { <p role="status">Opening your story…</p> }
+    else if (_panels.Length == 0) { <p>Your story has no recorded panels yet. Continue playing to begin.</p> }
+    else
+    {
+        @if (_panels.Any(x => x.Reconstructed)) { <p class="archive-note">Earlier pages were recovered from your saved progress. Their artwork reflects the versions available when this journal began.</p> }
+        @foreach (var chapter in NovelPage.Arrange(_panels).GroupBy(x => x.SurvivorDay))
+        {
+            <section aria-label="Survivor day @chapter.Key"><h2>Survivor day @chapter.Key</h2><div class="pages">
+                @foreach (var page in chapter) { <NovelPageView @key="page.Panels[0].Id" Page="page" /> }
+            </div></section>
+        }
+        <p class="end-page">You have reached the present.</p>
+    }
+</main>
+<StoryToasts @key="SurvivorId" SurvivorId="SurvivorId" @rendermode="InteractiveServer" />
+@code {
+    [Parameter] public Guid SurvivorId { get; set; }
+    private NovelPanel[]? _panels;
+    private string? _error;
+    protected override async Task OnParametersSetAsync()
+    {
+        _panels = null; _error = null;
+        try
+        {
+            using var client = await ApiClient.CreateAsync();
+            using var response = await client.GetAsync($"/api/story/{SurvivorId}");
+            if (response.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Unauthorized)
+            { _error = "This story is unavailable for your account. Sign in to the account that owns it."; return; }
+            response.EnsureSuccessStatusCode();
+            _panels = await response.Content.ReadFromJsonAsync<NovelPanel[]>() ?? [];
+        }
+        catch (HttpRequestException ex) { Logger.LogWarning(ex, "Story reader could not load"); _error = "Your story could not be loaded. Please reload this page."; }
+    }
+}

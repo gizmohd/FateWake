@@ -1,0 +1,10 @@
+<aside class="story-toast" role="status">
+    <strong>@Notice.Title</strong>
+    <p>@Notice.Message</p>
+    <div class="toast-actions"><button @onclick="Read">Read the story</button><button aria-label="Dismiss story notification" @onclick="Dismiss">Dismiss</button></div>
+</aside>
+@code {
+    [Parameter, EditorRequired] public StoryNotice Notice { get; set; } = default!;
+    [Parameter] public EventCallback Read { get; set; }
+    [Parameter] public EventCallback Dismiss { get; set; }
+}

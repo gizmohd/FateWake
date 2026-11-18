@@ -1,4 +1,4 @@
-namespace Fatewake.Web.Presentation;
+namespace Fatewake.Story;
 
 /// <summary>Defines an action offered to the player during a scene beat.</summary>
 /// <param name="ActionType">Stable action identifier.</param>

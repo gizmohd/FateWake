@@ -7,6 +7,7 @@
 <PageTitle>Account - Fatewake</PageTitle>
 <main class="account-page">
     <h1>Account</h1>
+    <AuthorizeView Roles="Admin"><Authorized><p><a href="/admin">Admin dashboard</a></p></Authorized></AuthorizeView>
     <AuthorizeView>
         <Authorized>
             <p>Signed in as @context.User.Identity?.Name</p>

@@ -587,6 +587,43 @@ public sealed class DayOnePersistenceTests
         Assert.Single(await db.ActionResolutions.ToListAsync(ct)); Assert.Single(await db.GameEvents.ToListAsync(ct)); Assert.Single(await db.Wakes.ToListAsync(ct));
     }
 
+    /// <summary>Development chapter reset discards only the active chapter's actions, events, and Wakes, then rewinds to the first beat.</summary>
+    [Fact]
+    public async Task Reset_chapter_discards_chapter_history_and_rewinds_to_first_beat()
+    {
+        var cs = Environment.GetEnvironmentVariable("FATEWAKE_TEST_CONNECTION");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(cs), "Requires an isolated FATEWAKE_TEST_CONNECTION database.");
+        var ct = TestContext.Current.CancellationToken;
+        var options = new DbContextOptionsBuilder<FatewakeDbContext>().UseNpgsql(cs).Options;
+        await using var db = new FatewakeDbContext(options);
+        await db.Database.EnsureDeletedAsync(ct);
+        await DatabaseInitializer.InitializeAsync(db, ct);
+        var sessions = new SessionStore(db);
+        var session = await sessions.StartOrResumeAsync(null, "test", ct);
+        var other = await sessions.StartOrResumeAsync(null, "test", ct);
+        var action = new CandidateAction("help_injured_stranger", new Dictionary<string, string>());
+        foreach (var s in new[] { session, other })
+        {
+            var result = new DayOneGameEngine().Resolve(new GameSnapshot(s.SurvivorId, s.TimelineId, 1, s.EventKey, new Dictionary<string, string>()), action);
+            await new ResolutionStore(db).PersistAsync(s.EventInstanceId, s.SurvivorId, s.TimelineId, Guid.NewGuid(), action, result, ct);
+        }
+        await sessions.SavePresentationProgressAsync(session.SurvivorId, session.EventInstanceId, session.SceneKey, "choice-wake", ct);
+
+        var reset = await sessions.ResetChapterAsync(session.SurvivorId, session.EventInstanceId, ct);
+
+        Assert.NotNull(reset);
+        Assert.Equal("phone-0617", reset.BeatKey);
+        Assert.Null(reset.LastOutcome);
+        Assert.Empty(reset.NarrativeFacts);
+        Assert.False(await db.ActionAttempts.AnyAsync(x => x.SurvivorId == session.SurvivorId, ct));
+        Assert.False(await db.GameEvents.AnyAsync(x => x.SurvivorId == session.SurvivorId, ct));
+        Assert.False(await db.Wakes.AnyAsync(x => x.TimelineId == session.TimelineId, ct));
+        Assert.Single(await db.ActionResolutions.ToListAsync(ct));
+        Assert.Single(await db.Wakes.Where(x => x.TimelineId == other.TimelineId).ToListAsync(ct));
+        Assert.Equal(session.SurvivorId, (await sessions.StartOrResumeAsync(session.SurvivorId, "test", ct)).SurvivorId);
+        Assert.Null(await sessions.ResetChapterAsync(session.SurvivorId, other.EventInstanceId, ct));
+    }
+
     /// <summary>The status migration preserves existing rows and supports rollback.</summary>
     [Fact]
     public async Task Status_migration_preserves_existing_data_and_can_roll_back()

@@ -1,0 +1,147 @@
+@using Fatewake.Observability
+@using Fatewake.Web.Presentation
+@using Fatewake.Web.Components.Presentation
+@using System.Net.Http.Json
+@implements IAsyncDisposable
+@inject Fatewake.Web.Authentication.AuthenticatedApiClient Api
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Authentication
+@inject ILogger<AdminDashboardPanel> Logger
+<PageTitle>Admin dashboard — Fatewake</PageTitle>
+<main class="admin-dashboard">
+    <nav><a href="/">Return to story</a> · <a href="/account">Account</a></nav>
+    <header><div class="eyebrow">FATEWAKE · ADMINISTRATION</div><h1>Generation &amp; AI usage</h1><p>Image pipeline status and provider-reported usage across the application.</p></header>
+    @if (_denied) { <p role="alert">This dashboard requires Admin access. <a href="/login">Sign in</a> with an Admin account.</p> }
+    else
+    {
+        <section class="filters" aria-label="Dashboard filters">
+            <label>Period<select @bind="_range"><option value="7d">Last seven days</option><option value="today">Today</option><option value="30d">Last thirty days</option><option value="all">All time</option><option value="custom">Custom dates</option></select></label>
+            @if (_range=="custom") { <label>From<input type="date" @bind="_from" /></label><label>Through<input type="date" @bind="_through" /></label> }
+            <label>Timezone<select @bind="_zone"><option value="America/New_York">America/New_York</option><option value="UTC">UTC</option></select></label>
+            <label>Provider<select @bind="_provider"><option value="">All providers</option><option>ComfyUI</option><option>OpenAI</option><option>Local</option></select></label>
+            <label>Model<input @bind="_model" placeholder="Exact model name" /></label>
+            <label>Operation<select @bind="_operation"><option value="">All operations</option><option value="image.generate">Image generation</option><option value="image.edit">Image editing</option></select></label>
+            <label>Job status<select @bind="_jobStatus"><option value="">All job statuses</option>@foreach(var status in new[]{"Pending","Running","Completed","Failed","Cancelled"}) { <option>@status</option> }</select></label>
+            <label>AI outcome<select @bind="_outcome"><option value="">All AI outcomes</option>@foreach(var status in new[]{"started","succeeded","failed","timed_out","cancelled"}) { <option>@status</option> }</select></label>
+            <label>Find user<input @bind="_userSearch" placeholder="Email or display name" /></label><button disabled="@_loading" @onclick="FindUsers">Search users</button>
+            <label>User<select @bind="_user"><option value="">All users</option><option value="unknown">Unattributed / guest</option>@foreach(var user in _users) { <option value="@user.Id">@user.Label</option> }</select></label>
+            <button disabled="@_loading" @onclick="Apply">Apply filters</button><button disabled="@_loading" @onclick="Refresh">Refresh</button>
+        </section>
+        @if (_error is not null) { <p role="alert" class="error">@_error</p> }
+        @if (_summary is {} summary)
+        {
+            <p class="updated">Last successful update: @AdminDashboardQuery.Date(summary.UpdatedAt,_active.TimeZone) · refreshes every fifteen seconds @(_loading?"· refreshing…":"")</p>
+            <section class="stats" aria-label="Dashboard totals">
+                @foreach(var status in new[]{"Pending","Running","Completed","Failed","Cancelled"}) { <article><span>@status jobs</span><strong>@summary.Jobs.GetValueOrDefault(status)</strong></article> }
+                <article><span>Image versions</span><strong>@summary.ImageVersions</strong></article><article><span>Distinct assets</span><strong>@summary.DistinctAssets</strong></article><article><span>Jobs reusing artwork</span><strong>@summary.ReusedJobs</strong></article>
+                <article><span>AI attempts</span><strong>@summary.Usage.Calls</strong></article><article><span>Reported tokens</span><strong>@AdminDashboardQuery.Number(summary.Usage.TotalTokens)</strong></article><article><span>Reported credits</span><strong>@AdminDashboardQuery.Number(summary.Usage.Credits)</strong></article><article><span>Reported costs</span><strong>@AdminDashboardQuery.Costs(summary.Costs)</strong></article>
+            </section>
+            <section class="usage-summary"><h2>Usage coverage</h2><p>@summary.Usage.CallsWithTokens of @(summary.Usage.Calls-summary.Usage.DuplicateReports) distinct executions report token measurements; @summary.Usage.DuplicateReports duplicate execution reports excluded from usage totals.</p>
+                <p>Successful: @summary.Usage.Succeeded · Failed: @summary.Usage.Failed · Timed out: @summary.Usage.TimedOut · Cancelled: @summary.Usage.Cancelled · Completion not recorded: @summary.Usage.Started</p>
+                <dl><dt>Input / output tokens</dt><dd>@AdminDashboardQuery.Number(summary.Usage.InputTokens) / @AdminDashboardQuery.Number(summary.Usage.OutputTokens)</dd><dt>Cached tokens</dt><dd>@AdminDashboardQuery.Number(summary.Usage.CachedTokens)</dd><dt>Text input / image input / image output tokens</dt><dd>@AdminDashboardQuery.Number(summary.Usage.TextInputTokens) / @AdminDashboardQuery.Number(summary.Usage.ImageInputTokens) / @AdminDashboardQuery.Number(summary.Usage.ImageOutputTokens)</dd><dt>Provider compute seconds</dt><dd>@AdminDashboardQuery.Number(summary.Usage.ComputeSeconds)</dd></dl>
+                <p>Tracking began @AdminDashboardQuery.Date(summary.TrackingStartedAt,_active.TimeZone). @summary.HistoricalUntrackedGenerations earlier or untracked generation records have no token ledger. Unavailable is not zero. Image counts include masters, not their PNG/WebP derivatives.</p>
+            </section>
+            <section><h2>Image jobs</h2><p>Jobs created in the selected period. Queue age includes time before provider submission; AI elapsed time begins when the provider call is recorded.</p>
+                @if (_jobs is not null)
+                {
+                    <div class="table-scroll"><table><caption>Image generation requests</caption><thead><tr>
+                        @foreach(var column in JobColumns) { <th scope="col" aria-sort="@(column.Key==_jobSort?_jobDescending?"descending":"ascending":"none")"><button @onclick="()=>SortJobs(column.Key)">@column.Label @(column.Key==_jobSort?_jobDescending?"↓":"↑":"")</button></th> }
+                        <th scope="col">Step / attempts</th><th scope="col">Queue age / AI elapsed</th><th scope="col">Preview / details</th>
+                    </tr></thead><tbody>@foreach(var job in _jobs.Items) {
+                        <tr><td>@AdminDashboardQuery.Date(job.CreatedAt,_active.TimeZone)</td><td>@job.AssetKey</td><td>@job.User</td><td>@job.Provider<br />@job.Model</td><td>@job.Status<br />@job.Failure</td><td>@job.CurrentStep<br />@job.Attempts generation attempts</td><td>@Age(job.CreatedAt,job.StartedAt??job.CompletedAt)<br />@Elapsed(job.StartedAt,job.CompletedAt)</td><td>@if(job.AssetVersion is {} version) { <img class="thumbnail" src="/art/@job.AssetKey/@version/webp" alt="@job.AssetKey version @version" loading="lazy" /> }<button @onclick="()=>ShowJob(job.Id)">Details</button></td></tr>
+                    }</tbody></table></div>
+                    @if(_jobs.Total==0) { <p>No image jobs match these filters.</p> }
+                    <div class="pagination"><button disabled="@(_jobPage==1||_loading)" @onclick="()=>PageJobs(-1)">Previous</button><span>Page @_jobPage · @_jobs.Total jobs</span><button disabled="@(_jobPage*_jobs.PageSize>=_jobs.Total||_loading)" @onclick="()=>PageJobs(1)">Next</button></div>
+                }
+                @if (_detail is {} detail) { <section class="job-detail"><h3>Job @detail.Job.Id</h3><p>@detail.Job.AssetKey · @detail.Job.Provider · @detail.Job.Model · @detail.Job.User</p><p>Completed: @AdminDashboardQuery.Date(detail.Job.CompletedAt,_active.TimeZone)</p><ul>@foreach(var step in detail.Steps) { <li>@step.Step — @step.Status · @step.Attempts attempts · @step.Failure</li> }</ul><button @onclick="()=>_detail=null">Close details</button></section> }
+            </section>
+            <section><h2>AI requests by year, month and day</h2><p>Expand a period to see its requests. All summaries and rows use the selected user and usage filters. Calendar boundaries use @_active.TimeZone.</p>
+                <div class="calendar-grid" role="treegrid" aria-label="AI usage by year month and day">
+                    <div class="calendar-heading" role="row"><div role="columnheader"><button @onclick='()=>SortGroups("date")'>Period @(_groupSort=="date"?_groupDescending?"↓":"↑":"")</button></div><div role="columnheader">Attempts</div><div role="columnheader">Success / failure</div><div role="columnheader"><button @onclick='()=>SortGroups("tokens")'>Tokens @(_groupSort=="tokens"?_groupDescending?"↓":"↑":"")</button></div><div role="columnheader">Credits</div><div role="columnheader">Reported cost</div></div>
+                    @foreach(var year in _years) { <AdminUsageCalendarNode @key="(_filterKey,year.Key)" Group="year" Filters="_active" RefreshVersion="_refreshVersion" GroupSort="@_groupSort" GroupDescending="_groupDescending" /> }
+                </div>
+                @if (_years.Length==0) { <p>No AI attempts match these filters. Historical image records remain available above.</p> }
+            </section>
+        }
+        else if (_loading) { <p role="status">Loading dashboard…</p> }
+    }
+</main>
+@code {
+    [Parameter] public Guid? JobId {get;set;}
+    private bool _denied,_loading,_jobDescending=true,_groupDescending=true;
+    private string _range="7d",_zone="America/New_York",_provider="",_model="",_operation="",_jobStatus="",_outcome="",_user="",_userSearch="",_jobSort="date",_groupSort="date",_filterKey="";
+    private DateTime _from=DateTime.Today.AddDays(-7),_through=DateTime.Today;
+    private string? _error;
+    private int _jobPage=1,_refreshVersion;
+    private AdminDashboardFilter _active=new();
+    private AdminDashboardSummary? _summary;
+    private AdminResultPage<AdminJobRow>? _jobs;
+    private AdminJobDetail? _detail;
+    private AiCalendarGroup[] _years=[];
+    private AdminDashboardUser[] _users=[];
+    private readonly CancellationTokenSource _stop=new();
+    private Task? _poll;
+    private Guid? _loadedJobId;
+    private bool _initialized;
+    private static readonly (string Key,string Label)[] JobColumns=[("date","Created"),("asset","Asset"),("user","User"),("provider","Provider / model"),("status","Status")];
+    protected override async Task OnInitializedAsync()
+    {
+        _denied=!(await Authentication.GetAuthenticationStateAsync()).User.IsInRole("Admin");
+        if(_denied) return;
+        await FindUsers(); await Refresh(); _initialized=true;
+    }
+    protected override async Task OnParametersSetAsync()
+    {
+        if(_initialized&&!_denied&&JobId is {} job&&job!=_loadedJobId) { _loadedJobId=job;await ShowJob(job); }
+    }
+    protected override Task OnAfterRenderAsync(bool firstRender) { if(firstRender&&!_denied) _poll=Poll(); return Task.CompletedTask; }
+    private async Task Apply()
+    {
+        if(_range=="custom"&&_through<_from) { _error="Choose an end date on or after the start date.";return; }
+        var zone=TimeZoneInfo.FindSystemTimeZoneById(_zone);
+        var candidate=new AdminDashboardFilter {Range=_range,TimeZone=_zone,Provider=Optional(_provider),Model=Optional(_model),Operation=Optional(_operation),JobStatus=Optional(_jobStatus),Outcome=Optional(_outcome),
+            AccountId=Guid.TryParse(_user,out var user)?user:null,Unattributed=_user=="unknown",
+            From=_range=="custom"?new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(_from.Date,zone)):null,
+            To=_range=="custom"?new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(_through.Date.AddDays(1),zone)):null};
+        await Load(candidate,1);
+    }
+    private Task Refresh()=>Load(_active,_jobPage);
+    private async Task Load(AdminDashboardFilter candidate,int page)
+    {
+        if(_loading||_denied) return;_loading=true;
+        try
+        {
+            using var client=await Api.CreateAsync();var query=AdminDashboardQuery.Build(candidate);
+            // Publish a consistent refresh only after all independent views have loaded successfully.
+            var summary=client.GetFromJsonAsync<AdminDashboardSummary>("/api/admin/summary?"+query,_stop.Token);
+            var jobs=client.GetFromJsonAsync<AdminResultPage<AdminJobRow>>("/api/admin/jobs?"+query+$"&page={page}&sort={_jobSort}&descending={_jobDescending}",_stop.Token);
+            var years=client.GetFromJsonAsync<AiCalendarGroup[]>("/api/admin/usage/groups?"+query+$"&sort={_groupSort}&descending={_groupDescending}",_stop.Token);
+            await Task.WhenAll(summary,jobs,years);_summary=await summary;_jobs=await jobs;_years=await years??[];_active=candidate;_jobPage=page;_filterKey=query;_refreshVersion++;_error=null;
+        }
+        catch(HttpRequestException ex) {Logger.LogWarning(ex,"Admin dashboard refresh failed");_error="Could not refresh the dashboard. Previously loaded results are retained.";}
+        catch(System.Text.Json.JsonException ex) {Logger.LogWarning(ex,"Admin dashboard data invalid");_error="Dashboard data could not be read. Please retry.";}
+        catch(OperationCanceledException) when(_stop.IsCancellationRequested) { }
+        finally {_loading=false;}
+    }
+    private async Task FindUsers()
+    {
+        try {using var client=await Api.CreateAsync();_users=await client.GetFromJsonAsync<AdminDashboardUser[]>("/api/admin/users?search="+Uri.EscapeDataString(_userSearch),_stop.Token)??[];}
+        catch(HttpRequestException) {_error="Could not load the user filter.";}
+    }
+    private async Task ShowJob(Guid id)
+    {
+        try {using var client=await Api.CreateAsync();_detail=await client.GetFromJsonAsync<AdminJobDetail>($"/api/admin/jobs/{id}",_stop.Token);}
+        catch(HttpRequestException) {_error="Could not load that job.";}
+    }
+    private async Task SortJobs(string sort) {_jobDescending=sort==_jobSort?!_jobDescending:true;_jobSort=sort;_jobPage=1;await Refresh();}
+    private async Task SortGroups(string sort) {_groupDescending=sort==_groupSort?!_groupDescending:true;_groupSort=sort;await Refresh();}
+    private async Task PageJobs(int direction) {_jobPage+=direction;await Refresh();}
+    private async Task Poll()
+    {
+        try {while(!_stop.IsCancellationRequested) {await Task.Delay(TimeSpan.FromSeconds(15),_stop.Token);await InvokeAsync(async()=>{await Refresh();StateHasChanged();});}}
+        catch(OperationCanceledException) when(_stop.IsCancellationRequested) { }
+    }
+    private static string? Optional(string value)=>string.IsNullOrWhiteSpace(value)?null:value.Trim();
+    private static string Age(DateTimeOffset start,DateTimeOffset? end)=>$"{Math.Max(0,((end??DateTimeOffset.UtcNow)-start).TotalMinutes):N1} min";
+    private static string Elapsed(DateTimeOffset? start,DateTimeOffset? end)=>start is {} instant?Age(instant,end):"Unavailable";
+    public async ValueTask DisposeAsync() {await _stop.CancelAsync();if(_poll is not null) await _poll;_stop.Dispose();}
+}

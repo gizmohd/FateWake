@@ -1,0 +1,113 @@
+@using Fatewake.Web.Authentication
+@inject AuthenticatedApiClient ApiClients
+@if (Allowed)
+{
+    <details class="art-review-panel">
+        <summary>Review artwork · Admin</summary>
+        <p>Review the complete scene or one generated layer. Describe what is wrong and how it should look.</p>
+        <div class="review-layer-grid">
+            @foreach (var layer in Versions.Where(x => x.Value is not null))
+            {
+                <button type="button" class="review-layer" @onclick="() => SelectLayer(layer.Key)">
+                    <img src="@($"/art/{layer.Key}/{layer.Value}/webp")" alt="@layer.Key" />
+                    <span>@layer.Key · v@layer.Value</span>
+                </button>
+            }
+        </div>
+        <label>Review target
+            <select @bind="Target" @bind:after="TargetChanged">
+                <option value="">Complete composition</option>
+                @foreach (var layer in Versions.Where(x => x.Value is not null))
+                {
+                    <option value="@layer.Key">@layer.Key · v@layer.Value</option>
+                }
+            </select>
+        </label>
+        <label>Critique
+            <textarea @bind="Critique" maxlength="4000" rows="3" placeholder="For example: Michelle is a cropped portrait, but she should be supporting the injured man." />
+        </label>
+        <label>Correction instructions
+            <textarea @bind="Correction" maxlength="4000" rows="3" placeholder="Describe the required subject, pose, framing, scale, or placement." />
+        </label>
+        @if (!string.IsNullOrEmpty(Target))
+        {
+            <label class="review-checkbox"><input type="checkbox" @bind="Regenerate" /> Generate a replacement for this layer (uses generation credits)</label>
+        }
+        else
+        {
+            <p>Composition critiques are saved for review. To regenerate artwork, select the individual layer that needs correction.</p>
+        }
+        <button type="button" disabled="@(Busy || string.IsNullOrWhiteSpace(Critique) || Regenerate && string.IsNullOrWhiteSpace(Correction))" @onclick="SaveAsync">@(Busy ? "Saving…" : "Save critique")</button>
+        @if (Message is not null) { <p role="status">@Message</p> }
+        @if (History.Length > 0)
+        {
+            <h3>Review history</h3>
+            @foreach (var item in History)
+            {
+                <article>
+                    <strong>@(item.AssetKey ?? "Complete composition") @(item.Version is {} version ? $"· v{version}" : "")</strong>
+                    <p>@item.Critique</p>
+                    @if (item.Correction is not null) { <p>Correction: @item.Correction</p> }
+                    <small>@item.CreatedAt.ToString("u") · @(item.Regenerate ? "Replacement requested" : "Critique saved")</small>
+                </article>
+            }
+        }
+    </details>
+}
+@code {
+    [Parameter] public string SceneKey { get; set; } = "";
+    [Parameter] public Dictionary<string, int?> Versions { get; set; } = [];
+    [Parameter] public EventCallback ReplacementRequested { get; set; }
+    private bool Allowed, Busy, Regenerate;
+    private string? LoadedScene, Message;
+    private string Target = "", Critique = "", Correction = "";
+    private Review[] History = [];
+    protected override async Task OnParametersSetAsync()
+    {
+        if (LoadedScene == SceneKey) return;
+        LoadedScene = SceneKey;
+        Target = Critique = Correction = "";
+        Regenerate = Allowed = false;
+        Message = null;
+        await LoadHistoryAsync();
+    }
+    private void SelectLayer(string key) { Target = key; Regenerate = false; }
+    private void TargetChanged() { Regenerate = false; }
+    private async Task LoadHistoryAsync()
+    {
+        try
+        {
+            using var client = await ApiClients.CreateAsync();
+            using var response = await client.GetAsync($"/api/art/reviews?sceneKey={Uri.EscapeDataString(SceneKey)}");
+            Allowed = response.IsSuccessStatusCode;
+            if (Allowed) History = await response.Content.ReadFromJsonAsync<Review[]>() ?? [];
+        }
+        catch (HttpRequestException) { Allowed = false; }
+    }
+    private async Task SaveAsync()
+    {
+        Busy = true; Message = null;
+        var snapshot = new Dictionary<string, int?>(Versions);
+        var asset = string.IsNullOrEmpty(Target) ? null : Target;
+        try
+        {
+            using var client = await ApiClients.CreateAsync();
+            using var response = await client.PostAsJsonAsync("/api/art/reviews", new { SceneKey, AssetKey = asset,
+                Version = asset is null ? (int?)null : snapshot.GetValueOrDefault(asset), Versions = snapshot, Critique,
+                Correction = string.IsNullOrWhiteSpace(Correction) ? null : Correction, Regenerate });
+            if (!response.IsSuccessStatusCode)
+            {
+                Message = response.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.Unauthorized
+                    ? "Administrator access is required." : "The critique could not be saved. Refresh the scene and try again.";
+                return;
+            }
+            Message = Regenerate ? "Critique saved. Replacement artwork is queued." : "Critique saved.";
+            await LoadHistoryAsync();
+            if (Regenerate) await ReplacementRequested.InvokeAsync();
+            Critique = Correction = ""; Regenerate = false;
+        }
+        catch (HttpRequestException) { Message = "The review service is unavailable. Try again."; }
+        finally { Busy = false; }
+    }
+    private sealed record Review(string? AssetKey, int? Version, string Critique, string? Correction, bool Regenerate, DateTimeOffset CreatedAt);
+}

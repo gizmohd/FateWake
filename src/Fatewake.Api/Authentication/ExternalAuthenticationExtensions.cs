@@ -33,13 +33,13 @@ public static class ExternalAuthenticationExtensions
     }
 
     /// <summary>Maps exchanges that accept only provider-validated claims, never caller-supplied subject/email JSON.</summary>
-    public static void MapExternalAuthentication(this WebApplication app, Func<LocalAccountResult, IResult> signIn)
+    public static void MapExternalAuthentication(this WebApplication app, Func<LocalAccountResult, AccountRoleService, CancellationToken, Task<IResult>> signIn)
     {
         foreach (var provider in new[] { "Google", "Microsoft" })
         {
             if (!app.Configuration.GetValue<bool>("Authentication:" + provider + ":Enabled")) continue;
             app.MapPost("/api/auth/external/" + provider.ToLowerInvariant(),
-                async (HttpContext context, VerifiedAccountService accounts, CancellationToken ct) =>
+                async (HttpContext context, VerifiedAccountService accounts, AccountRoleService roles, CancellationToken ct) =>
                 {
                     var authenticated = await context.AuthenticateAsync(provider);
                     if (!authenticated.Succeeded || authenticated.Principal is not {} user) return Results.Unauthorized();
@@ -49,7 +49,7 @@ public static class ExternalAuthenticationExtensions
                     var verified = provider == "Google" && user.FindFirstValue("email_verified")?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
                     var result = await accounts.ExternalAsync(new(provider, subject, email, verified, user.FindFirstValue("name"), null), ct);
                     if (result.VerificationRequired) return Results.Accepted(value: new { verificationRequired = true });
-                    return result.AccountId is null ? Results.BadRequest(new { error = result.Error }) : signIn(result);
+                    return result.AccountId is null ? Results.BadRequest(new { error = result.Error }) : await signIn(result, roles, ct);
                 }).RequireRateLimiting("local-auth");
         }
     }
@@ -62,3 +62,4 @@ public static class ExternalAuthenticationExtensions
         return $"https://login.microsoftonline.com/{tenantId}/v2.0";
     }
 }
+

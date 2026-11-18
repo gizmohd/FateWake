@@ -1,4 +1,4 @@
-namespace Fatewake.Web.Presentation;
+namespace Fatewake.Story;
 
 /// <summary>Identifies the presentation purpose of a scene beat.</summary>
 /// <see href="../../../docs/code/src/Fatewake.Web/Presentation/BeatKind.md">BeatKind documentation</see>

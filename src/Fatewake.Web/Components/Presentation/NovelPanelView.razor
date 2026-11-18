@@ -1,0 +1,26 @@
+<article id="panel-@Panel.Id" class="novel-panel @(Panel.Kind == "cutscene" ? "cutscene" : "")" aria-label="@Panel.Title">
+    @if (Panel.Layers.Any(x => x.AssetVersion > 0))
+    {
+        <div class="illustration" aria-label="Previously generated scene artwork">
+            @foreach (var layer in Panel.Layers.Where(x => x.AssetVersion > 0).OrderBy(x => x.Z))
+            {
+                <picture style="@LayerStyle(layer)">
+                    <source srcset="/art/@layer.AssetKey/@layer.AssetVersion/webp" type="image/webp" />
+                    <img src="/art/@layer.AssetKey/@layer.AssetVersion/png" alt="" loading="lazy" class="@(layer.AssetKey.StartsWith("bg-") ? "background" : "overlay")" />
+                </picture>
+            }
+        </div>
+    }
+    <div class="panel-copy">
+        <div class="panel-heading">@(Panel.Kind == "cutscene" ? "A TURN OF FATE" : Panel.TimeLabel ?? Panel.Title)</div>
+        @if (!string.IsNullOrWhiteSpace(Panel.Narration)) { <p class="narration">@Panel.Narration</p> }
+        @if (Panel.DialogueText is not null)
+        {
+            <blockquote><cite>@Panel.DialogueSpeaker</cite><p>“@Panel.DialogueText”</p></blockquote>
+        }
+    </div>
+</article>
+@code {
+    [Parameter, EditorRequired] public NovelPanel Panel { get; set; } = default!;
+    private static string LayerStyle(ArtLayer x) => FormattableString.Invariant($"z-index:{x.Z};left:{x.X*100:F2}%;top:{x.Y*100:F2}%;width:{x.Width*100:F2}%;height:{x.Height*100:F2}%;opacity:{x.Opacity:F2};transform:translate(-50%,-50%) scale({x.Scale:F3}) rotate({x.Rotation:F2}deg)");
+}

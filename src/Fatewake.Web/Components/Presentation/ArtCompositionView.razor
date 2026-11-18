@@ -1,21 +1,102 @@
 @using Fatewake.Web.Presentation
+@implements IDisposable
+@inject Fatewake.Web.Authentication.AuthenticatedApiClient ApiClient
 <div class="art-composition" data-artwork="@ArtworkKey">
-    @foreach(var layer in Layers.OrderBy(x=>x.Z))
+    @foreach(var layer in Layers.Where(x => ResolvedAssets.GetValueOrDefault(x.AssetKey)?.Status == "ready").OrderBy(x=>x.Z))
     {
         <picture class="art-layer-picture" style="@LayerStyle(layer)">
             <source srcset="@WebPUrl(layer)" type="image/webp" />
-            <img class="art-layer" src="@PngUrl(layer)" alt="" aria-hidden="true"
+            <img class="art-layer @(layer.AssetKey.StartsWith("bg-", StringComparison.Ordinal) ? "art-background" : "art-overlay")" src="@PngUrl(layer)" alt="" aria-hidden="true"
                  onerror="this.closest('picture').style.display='none'" />
         </picture>
     }
     <div class="art-placeholder" aria-hidden="true"><span>@ArtworkKey</span></div>
+    @if (StatusMessage is {} message)
+    {
+        <div class="art-generation-status" role="status">@message</div>
+    }
     @ChildContent
 </div>
+<AdminArtReview SceneKey="@ArtworkKey" Versions="@ReviewVersions" ReplacementRequested="ReloadArtwork" />
 @code {
+    private Dictionary<string, int?> ReviewVersions => Layers.Select(x => x.AssetKey).Distinct()
+        .ToDictionary(key => key, key => ResolvedAssets.GetValueOrDefault(key)?.Version);
+    private void ReloadArtwork()
+    {
+        Loading?.Cancel(); Loading?.Dispose(); Loading = new();
+        StartLoading = true;
+    }
     [Parameter,EditorRequired] public string ArtworkKey {get;set;}="";
     [Parameter] public IReadOnlyList<ArtLayer> Layers {get;set;}=[];
     [Parameter] public RenderFragment? ChildContent {get;set;}
-    private static string WebPUrl(ArtLayer x)=>$"/art/{x.AssetKey}.webp?v={x.AssetVersion}";
-    private static string PngUrl(ArtLayer x)=>$"/art/{x.AssetKey}.png?v={x.AssetVersion}";
+    [Parameter] public EventCallback<ArtworkSnapshot> ArtworkDisplayed { get; set; }
+    [Parameter] public Guid? SurvivorId { get; set; }
+    private Dictionary<string, SceneAsset> ResolvedAssets = new(StringComparer.Ordinal);
+    private CancellationTokenSource? Loading;
+    private string? Signature;
+    private bool StartLoading;
+    private bool Unavailable;
+    private string? StatusMessage => Layers.Count == 0 ? null : Unavailable ? "Artwork is temporarily unavailable. Retrying…"
+        : ResolvedAssets.Values.Any(x => x.Status is "failed" or "cancelled") ? "Some artwork could not be generated."
+        : ResolvedAssets.Values.Any(x => x.Status == "disabled") ? "Artwork generation is not configured."
+        : ResolvedAssets.Count == 0 || ResolvedAssets.Values.Any(x => x.Status == "pending") ? "Preparing artwork…" : null;
+
+    protected override void OnParametersSet()
+    {
+        var signature = string.Join("|", Layers.Select(x => x.AssetKey).Distinct().Order());
+        if (signature == Signature) return;
+        Signature = signature;
+        Loading?.Cancel();
+        Loading?.Dispose();
+        Loading = new();
+        ResolvedAssets = new(StringComparer.Ordinal);
+        Unavailable = false;
+        StartLoading = Layers.Count > 0;
+    }
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (StartLoading)
+        {
+            StartLoading = false;
+            _ = LoadAsync(Layers.Select(x => x.AssetKey).Distinct().ToArray(), Loading!.Token);
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task LoadAsync(string[] keys, CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                try
+                {
+                    using var client = await ApiClient.CreateAsync();
+                    using var response = await client.PostAsJsonAsync("/api/art/scene/resolve", new { keys, SurvivorId }, ct);
+                    response.EnsureSuccessStatusCode();
+                    var assets = await response.Content.ReadFromJsonAsync<SceneAsset[]>(ct) ?? [];
+                    ct.ThrowIfCancellationRequested();
+                    ResolvedAssets = assets.ToDictionary(x => x.Key, StringComparer.Ordinal);
+                    Unavailable = false;
+                }
+                catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException && !ct.IsCancellationRequested)
+                {
+                    Unavailable = true;
+                }
+                await InvokeAsync(StateHasChanged);
+                if (!Unavailable)
+                    await InvokeAsync(() => ArtworkDisplayed.InvokeAsync(new ArtworkSnapshot(ArtworkKey, ReviewVersions)));
+                if (!Unavailable && ResolvedAssets.Values.All(x => x.Status != "pending")) return;
+                await Task.Delay(TimeSpan.FromSeconds(5), ct);
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+    }
+
+    public void Dispose() { Loading?.Cancel(); Loading?.Dispose(); }
+    private string WebPUrl(ArtLayer x)=>$"/art/{x.AssetKey}/{ResolvedAssets[x.AssetKey].Version}/webp";
+    private string PngUrl(ArtLayer x)=>$"/art/{x.AssetKey}/{ResolvedAssets[x.AssetKey].Version}/png";
+    private sealed record SceneAsset(string Key, string Status, int? Version);
     private static string LayerStyle(ArtLayer x)=>$"z-index:{x.Z};left:{x.X*100:F2}%;top:{x.Y*100:F2}%;width:{x.Width*100:F2}%;height:{x.Height*100:F2}%;opacity:{x.Opacity:F2};transform:translate(-50%,-50%) scale({x.Scale:F3}) rotate({x.Rotation:F2}deg);";
 }

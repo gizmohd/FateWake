@@ -1,0 +1,7 @@
+@page "/admin"
+@rendermode InteractiveServer
+@using Fatewake.Web.Components.Presentation
+<AdminDashboardPanel JobId="JobId" />
+@code {
+    [SupplyParameterFromQuery(Name="job")] public Guid? JobId {get;set;}
+}

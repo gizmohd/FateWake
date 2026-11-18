@@ -1,0 +1,16 @@
+.novel-panel { border:2px solid #252a29; background:#111616; color:#252a29; overflow:hidden; break-inside:avoid; min-width:0; }
+.illustration { position:relative; aspect-ratio:3 / 4; overflow:hidden; background:#0d1011; }
+.illustration picture { position:absolute; display:block; }
+.illustration img {width:100%;height:100%;}
+.background {object-fit:cover;} .overlay {object-fit:contain;}
+.panel-copy {padding:clamp(.85rem,2vw,1.3rem);background:#f5f0e4;}
+.panel-heading {font:.65rem/1.5 sans-serif;letter-spacing:.13em;color:#62553f;}
+.narration {white-space:pre-line;font:1rem/1.6 Georgia,serif;margin:.6rem 0;overflow-wrap:anywhere;}
+blockquote {position:relative;margin:1rem 0 .4rem;padding:.85rem 1rem;background:#fffdf6;border-radius:1.2rem;border:1px solid #c5bdad;}
+blockquote::before {content:"";position:absolute;top:-.5rem;left:1.5rem;width:.8rem;height:.8rem;background:#fffdf6;border-left:1px solid #c5bdad;border-top:1px solid #c5bdad;transform:rotate(45deg);}
+blockquote cite {font:normal .6rem/1.5 sans-serif;letter-spacing:.1em;display:block;color:#62553f;}
+blockquote p {font:1.05rem/1.55 Georgia,serif;margin:.4rem 0 0;white-space:pre-line;overflow-wrap:anywhere;}
+.cutscene {border-color:#826636;}
+.cutscene .panel-copy {background:#efe3c9;padding:clamp(1.25rem,3vw,2rem);}
+.cutscene .illustration {aspect-ratio:3 / 4;max-height:650px;}
+@media print { .illustration { print-color-adjust:exact; } }

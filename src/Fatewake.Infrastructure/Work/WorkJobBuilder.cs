@@ -13,16 +13,19 @@ public sealed class WorkJobBuilder(FatewakeDbContext db,IWorkSignalBus signals,I
     {
         using var operation = OperationTelemetry.Start("work.create_job", log);
         Validate(definition);
+        await using var tx=await db.Database.BeginTransactionAsync(ct);
+        // Serialize creators of the same job across API instances, before checking for reuse.
+        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({definition.JobType + ":" + definition.IdempotencyKey}, 0))",ct);
         var existing=await db.WorkJobs.AsNoTracking().SingleOrDefaultAsync(x=>x.JobType==definition.JobType&&x.IdempotencyKey==definition.IdempotencyKey,ct);
         if(existing is not null)
         {
             var existingSteps=await db.WorkSteps.AsNoTracking().Where(x=>x.JobId==existing.Id).ToDictionaryAsync(x=>x.StepType+"|"+x.Queue+"|"+x.Id,x=>x.Id,ct);
+            await tx.CommitAsync(ct);
             return new(existing.Id,true,existingSteps);
         }
 
         var now=DateTimeOffset.UtcNow;var jobId=Guid.NewGuid();
         var ids=definition.Steps.ToDictionary(x=>x.Key,_=>Guid.NewGuid(),StringComparer.Ordinal);
-        await using var tx=await db.Database.BeginTransactionAsync(ct);
         db.WorkJobs.Add(new(){Id=jobId,JobType=definition.JobType,IdempotencyKey=definition.IdempotencyKey,Status=WorkJobStatus.Pending,
             Priority=definition.Priority,Payload=definition.Payload,CreatedAt=now,UpdatedAt=now});
         foreach(var s in definition.Steps)

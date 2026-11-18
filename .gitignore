@@ -61,3 +61,5 @@ nunit-*.xml
 **/emails/
 BenchmarkDotNet.Artifacts/
 /.vs
+
+/src/Fatewake.Web/wwwroot/art/art/

@@ -31,6 +31,7 @@ builder.Services.AddScoped<IWorkStore,WorkStore>();
 builder.Services.AddScoped<IWorkArtifactStore,WorkArtifactStore>();
 builder.Services.AddScoped<IArtAssetStore,ArtAssetStore>();
 builder.Services.AddScoped<IArtGenerationStore,ArtGenerationStore>();
+builder.Services.AddScoped<Fatewake.Observability.IAiUsageRecorder,Fatewake.Infrastructure.Usage.AiUsageRecorder>();
 
 builder.Services.AddScoped<IWorkStepHandler,ArtResolveWorkStepHandler>();
 builder.Services.AddScoped<IWorkStepHandler,ArtGenerateMasterWorkStepHandler>();
@@ -60,7 +61,8 @@ switch(provider.Provider.ToLowerInvariant())
     case "comfyui":
         var comfy=builder.Configuration.GetSection(ComfyUiArtGenerationOptions.SectionName).Get<ComfyUiArtGenerationOptions>()??new ComfyUiArtGenerationOptions();
         if(!comfy.Enabled)throw new InvalidOperationException("Enable ArtGeneration:ComfyUI when Provider is ComfyUI.");
-        builder.Services.AddHttpClient<IArtMasterGenerator,ComfyUiArtMasterGenerator>(client=>client.BaseAddress=new Uri(comfy.BaseUrl));
+        builder.Services.AddHttpClient<IArtMasterGenerator,ComfyUiArtMasterGenerator>(client=>client.BaseAddress=new Uri(comfy.BaseUrl))
+            .ConfigurePrimaryHttpMessageHandler(()=>new SocketsHttpHandler{AllowAutoRedirect=false});
         break;
     default:
         throw new InvalidOperationException($"Unsupported artwork generation provider '{provider.Provider}'.");

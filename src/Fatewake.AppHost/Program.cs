@@ -1,20 +1,26 @@
 using Microsoft.Extensions.Hosting;
 
-var builder = DistributedApplication.CreateBuilder(args);
+IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(args);
 builder.Services.AddFatewakeObservability(builder.Configuration, "Fatewake.AppHost");
 
-var postgres = builder.AddPostgres("postgres")
-    .WithDataVolume();
-var fatewake = postgres.AddDatabase("fatewake");
+IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgres")
+    .WithDataVolume()
+    .WithLifetime(ContainerLifetime.Persistent);
+IResourceBuilder<PostgresDatabaseResource> fatewake = postgres.AddDatabase("fatewake");
 
-var rabbit = builder.AddRabbitMQ("rabbitmq")
+IResourceBuilder<ParameterResource> rabbitUserName = builder.AddParameter("rabbitmq-username", "admin");
+IResourceBuilder<ParameterResource> rabbitPassword = builder.AddParameter("rabbitmq-password", "admin", secret: true);
+
+IResourceBuilder<RabbitMQServerResource> rabbit = builder.AddRabbitMQ("rabbitmq", userName: rabbitUserName, password: rabbitPassword)
     .WithManagementPlugin()
-    .WithDataVolume();
+    .WithDataVolume()
+    .WithLifetime(ContainerLifetime.Persistent);
 
-var artStorageRoot = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "data", "art"));
-var emailsRoot = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "emails"));
+string artStorageRoot = Path.GetFullPath(builder.Configuration["ArtStorage:RootPath"] ??
+    Path.Combine("src", "Fatewake.Web", "wwwroot", "art"), Path.Combine(builder.AppHostDirectory, "..", ".."));
+string emailsRoot = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "emails"));
 
-var api = builder.AddProject<Projects.Fatewake_Api>("api")
+IResourceBuilder<ProjectResource> api = builder.AddProject<Projects.Fatewake_Api>("api")
     .WithReference(fatewake)
     .WithReference(rabbit)
     .WithEnvironment("RabbitMq__ConnectionString", rabbit.Resource.ConnectionStringExpression)
@@ -24,7 +30,7 @@ var api = builder.AddProject<Projects.Fatewake_Api>("api")
     .WaitFor(fatewake)
     .WaitFor(rabbit);
 
-builder.AddProject<Projects.Fatewake_Worker>("worker")
+IResourceBuilder<ProjectResource> worker = builder.AddProject<Projects.Fatewake_Worker>("worker")
     .WithReference(fatewake)
     .WithReference(rabbit)
     .WithEnvironment("RabbitMq__ConnectionString", rabbit.Resource.ConnectionStringExpression)
@@ -33,24 +39,29 @@ builder.AddProject<Projects.Fatewake_Worker>("worker")
     .WaitFor(rabbit)
     .WaitFor(api);
 
-var web = builder.AddProject<Projects.Fatewake_Web>("web")
+api.WithForwardedSection(builder, "ArtGeneration");
+
+worker.WithForwardedSection(builder, "ArtGeneration");
+
+IResourceBuilder<ProjectResource> web = builder.AddProject<Projects.Fatewake_Web>("web")
     .WithReference(api)
     .WaitFor(api);
 
 api.WithEnvironment("Email__PublicWebUrl", web.GetEndpoint("https"));
-foreach (var provider in new[] { "Google", "Microsoft" })
+foreach (string? provider in new[] { "Google", "Microsoft" })
 {
-    foreach (var setting in new[] { "Enabled", "ClientId", "ClientSecret", "TenantId" })
-    {
-        var key = $"Authentication:{provider}:{setting}";
-        if (builder.Configuration[key] is not {} value) continue;
-        api.WithEnvironment(key.Replace(":", "__"), value);
-        web.WithEnvironment(key.Replace(":", "__"), value);
-    }
+  foreach (string? setting in new[] { "Enabled", "ClientId", "ClientSecret", "TenantId" })
+  {
+    string key = $"Authentication:{provider}:{setting}";
+    if (builder.Configuration[key] is not { } value) continue;
+    api.WithEnvironment(key.Replace(":", "__"), value);
+    web.WithEnvironment(key.Replace(":", "__"), value);
+  }
 }
-foreach (var setting in new[] { "SmtpEnabled", "Host", "Port", "EnableSsl", "Username", "Password", "FromAddress", "PublicWebUrl", "Directory" })
+foreach (string? setting in new[] { "SmtpEnabled", "Host", "Port", "EnableSsl", "Username", "Password", "FromAddress", "PublicWebUrl", "Directory" })
 {
-    if (builder.Configuration[$"Email:{setting}"] is {} value)
-        api.WithEnvironment($"Email__{setting}", value);
+  if (builder.Configuration[$"Email:{setting}"] is { } value)
+    api.WithEnvironment($"Email__{setting}", value);
 }
 builder.Build().Run();
+

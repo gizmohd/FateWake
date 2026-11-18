@@ -10,8 +10,10 @@
         "ASPNETCORE_URLS": "http://localhost:18800",
         "ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL": "http://localhost:18801",
         "ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL": "http://localhost:18802",
-        "ASPIRE_ALLOW_UNSECURED_TRANSPORT": "true"
-      }
+        "ASPIRE_ALLOW_UNSECURED_TRANSPORT": "true",
+        "ComfyUI__ApiKey": "comfyui-1b5313f55835b9131c14e8258803b9f8ecd15d321ce178e76b12189adf023073"
+      },
+      "hotReloadEnabled": false
     },
     "Fatewake.AppHost.Podman": {
       "commandName": "Project",
@@ -23,8 +25,11 @@
         "ASPNETCORE_URLS": "http://localhost:18800",
         "ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL": "http://localhost:18801",
         "ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL": "http://localhost:18802",
-        "ASPIRE_ALLOW_UNSECURED_TRANSPORT": "true"
-      }
+        "ASPIRE_ALLOW_UNSECURED_TRANSPORT": "true",
+        "ComfyUI__ApiKey": "comfyui-1b5313f55835b9131c14e8258803b9f8ecd15d321ce178e76b12189adf023073"
+
+      },
+      "hotReloadEnabled": false
     }
   }
 }

@@ -4,6 +4,7 @@ using Fatewake.Api.Authentication;
 using Fatewake.GameEngine;
 using Fatewake.GameEngine.DayOne;
 using Fatewake.Infrastructure.Persistence;
+using Fatewake.Infrastructure.Story;
 using Fatewake.Infrastructure.Art;
 using Fatewake.Infrastructure.Work;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +20,7 @@ builder.AddServiceDefaults();
 builder.Services.AddAuthentication(BearerTokenDefaults.AuthenticationScheme).AddBearerToken(options =>
     options.BearerTokenExpiration = TimeSpan.FromHours(8)).AddExternalTokenValidation(builder.Configuration);
 builder.Services.AddAuthorization();
+builder.Services.AddArtReviewAuthorization(builder.Configuration);
 builder.Services.Configure<PasswordHasherOptions>(options => options.IterationCount = 210_000);
 builder.Services.AddScoped<IPasswordHasher<LocalCredentialRecord>, PasswordHasher<LocalCredentialRecord>>();
 builder.Services.AddScoped<LocalAccountService>();
@@ -42,7 +44,10 @@ builder.Services.AddDbContext<FatewakeDbContext>(o =>
     o.UseNpgsql(builder.Configuration.GetConnectionString("fatewake")));
 builder.Services.AddSingleton<IGameEngine, DayOneGameEngine>();
 builder.Services.AddScoped<IResolutionStore, ResolutionStore>();
+builder.Services.AddScoped<Fatewake.Observability.IAiUsageRecorder,Fatewake.Infrastructure.Usage.AiUsageRecorder>();
+builder.Services.AddScoped<Fatewake.Infrastructure.Usage.AdminDashboardService>();
 builder.Services.AddScoped<ISessionStore, SessionStore>();
+builder.Services.AddScoped<StoryJournalService>();
 builder.Services.AddScoped<IAccountStore, AccountStore>();
 var artStorageRoot=builder.Configuration["ArtStorage:RootPath"] ?? builder.Configuration["Art:StorageRoot"];
 if(string.IsNullOrWhiteSpace(artStorageRoot))
@@ -55,6 +60,7 @@ builder.Services.Configure<RabbitMqWorkOptions>(builder.Configuration.GetSection
 builder.Services.AddSingleton<IWorkSignalBus, RabbitMqWorkSignalBus>();
 builder.Services.AddScoped<IWorkJobBuilder, WorkJobBuilder>();
 builder.Services.AddScoped<IArtWorkJobFactory, ArtWorkJobFactory>();
+builder.Services.AddSingleton<SceneArtCatalog>();
 builder.Services.AddKeyedSingleton<IArtImageProcessor, SkiaSharpArtImageProcessor>("skia");
 builder.Services.AddKeyedSingleton<IArtImageProcessor, ImageSharpArtImageProcessor>("imagesharp");
 builder.Services.AddSingleton<IArtImageProcessor, SkiaSharpArtImageProcessor>();
@@ -80,6 +86,10 @@ app.Use(async (context, next) =>
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
+app.MapSceneArt();
+app.MapArtReviews();
+app.MapStory();
+app.MapAdminDashboard();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
@@ -92,25 +102,25 @@ app.MapGet("/health", async (FatewakeDbContext db, CancellationToken ct) =>
         ? Results.Ok(new { status = "ok" })
         : Results.StatusCode(StatusCodes.Status503ServiceUnavailable));
 
-app.MapPost("/api/auth/register", async (LocalLoginRequest request, LocalAccountService accounts, CancellationToken ct) =>
+app.MapPost("/api/auth/register", async (LocalLoginRequest request, LocalAccountService accounts, AccountRoleService roles, CancellationToken ct) =>
 {
     var result = await accounts.RegisterAsync(request.Email, request.Password, ct);
     return result.VerificationRequired ? Results.Accepted(value: new { verificationRequired = true })
-        : Results.BadRequest(new { error = result.Error });
+        : result.AccountId is not null ? await SignIn(result, roles, ct) : Results.BadRequest(new { error = result.Error });
 }).RequireRateLimiting("local-auth");
 
-app.MapPost("/api/auth/login", async (LocalLoginRequest request, LocalAccountService accounts, CancellationToken ct) =>
+app.MapPost("/api/auth/login", async (LocalLoginRequest request, LocalAccountService accounts, AccountRoleService roles, CancellationToken ct) =>
 {
     var result = await accounts.LoginAsync(request.Email, request.Password, ct);
     if (result.VerificationRequired) return Results.Json(new { verificationRequired = true, error = result.Error }, statusCode: 403);
-    return result.AccountId is null ? Results.Json(new { error = result.Error }, statusCode: 401) : SignIn(result);
+    return result.AccountId is null ? Results.Json(new { error = result.Error }, statusCode: 401) : await SignIn(result, roles, ct);
 }).RequireRateLimiting("local-auth");
 
 app.MapExternalAuthentication(SignIn);
-app.MapPost("/api/auth/verify-email", async (VerificationRequest request, VerifiedAccountService verification, CancellationToken ct) =>
+app.MapPost("/api/auth/verify-email", async (VerificationRequest request, VerifiedAccountService verification, AccountRoleService roles, CancellationToken ct) =>
 {
     var result = await verification.VerifyAsync(request.Token, ct, request.Password);
-    return result.AccountId is null ? Results.BadRequest(new { error = result.Error }) : SignIn(result);
+    return result.AccountId is null ? Results.BadRequest(new { error = result.Error }) : await SignIn(result, roles, ct);
 }).RequireRateLimiting("local-auth");
 app.MapPost("/api/auth/resend-verification", async (EmailRequest request, VerifiedAccountService verification, CancellationToken ct) =>
 {
@@ -128,6 +138,7 @@ app.MapGet("/api/auth/me", async (ClaimsPrincipal user, FatewakeDbContext db, Ca
     return Results.Ok(new
     {
         accountId,
+        role = user.FindFirstValue(ClaimTypes.Role),
         email = user.FindFirstValue(ClaimTypes.Email),
         hasPassword = await db.LocalCredentials.AnyAsync(x => x.AccountId == accountId, ct),
         emailVerified = await db.AccountEmails.AnyAsync(x => x.AccountId == accountId && x.Verified, ct)
@@ -137,6 +148,7 @@ app.MapGet("/api/auth/me", async (ClaimsPrincipal user, FatewakeDbContext db, Ca
 app.MapPost("/api/session/start", async (
     StartSessionRequest request,
     ISessionStore sessions,
+    StoryJournalService story,
     HttpContext context,
     ClaimsPrincipal user,
     FatewakeDbContext db,
@@ -146,13 +158,15 @@ app.MapPost("/api/session/start", async (
     var accountId = AccountId(user);
     if (request.SurvivorId is {} survivorId && !await CanAccess(db, survivorId, accountId, ct))
         return Results.NotFound();
-    return Results.Ok(await sessions.StartOrResumeAsync(
-        request.SurvivorId, request.BroadRegion ?? "unknown", ct, accountId));
+    var state = await sessions.StartOrResumeAsync(request.SurvivorId, request.BroadRegion ?? "unknown", ct, accountId);
+    await story.RecordProgressAsync(state, ct);
+    return Results.Ok(state);
 });
 
 app.MapPost("/api/session/progress", async (
     PresentationProgressRequest request,
     ISessionStore sessions,
+    StoryJournalService story,
     HttpContext context,
     ClaimsPrincipal user,
     FatewakeDbContext db,
@@ -161,13 +175,34 @@ app.MapPost("/api/session/progress", async (
     if (InvalidBearer(context)) return Results.Unauthorized();
     if (!await CanAccess(db, request.SurvivorId, AccountId(user), ct)) return Results.NotFound();
     var state = await sessions.SavePresentationProgressAsync(request.SurvivorId, request.EventInstanceId, request.SceneKey, request.BeatKey, ct);
+    if (state is not null) await story.RecordProgressAsync(state, ct);
     return state is null ? Results.NotFound() : Results.Ok(state);
 });
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapPost("/api/debug/session/reset-chapter", async (
+        ResetChapterRequest request,
+        ISessionStore sessions,
+        StoryJournalService story,
+        HttpContext context,
+        ClaimsPrincipal user,
+        FatewakeDbContext db,
+        CancellationToken ct) =>
+    {
+        if (InvalidBearer(context)) return Results.Unauthorized();
+        if (!await CanAccess(db, request.SurvivorId, AccountId(user), ct)) return Results.NotFound();
+        var state = await sessions.ResetChapterAsync(request.SurvivorId, request.EventInstanceId, ct);
+        if (state is not null) await story.RecordProgressAsync(state, ct);
+        return state is null ? Results.NotFound() : Results.Ok(state);
+    });
+}
 
 app.MapPost("/api/day1/resolve", async (
     DayOneResolveRequest request,
     IGameEngine engine,
     IResolutionStore store,
+    StoryJournalService story,
     IIntentInterpreter intents,
     HttpContext context,
     ClaimsPrincipal user,
@@ -194,7 +229,8 @@ app.MapPost("/api/day1/resolve", async (
     using (OperationTelemetry.Start("game.resolve"))
         resolution = engine.Resolve(state, action);
     if (resolution.Accepted)
-        await store.PersistAsync(
+    {
+        resolution = await store.PersistAsync(
             request.EventInstanceId,
             request.SurvivorId,
             request.TimelineId,
@@ -202,6 +238,8 @@ app.MapPost("/api/day1/resolve", async (
             action,
             resolution,
             ct);
+        await story.RecordOutcomeAsync(request.SurvivorId, request.EventInstanceId, resolution, ct);
+    }
 
     return Results.Ok(resolution);
 });
@@ -217,12 +255,15 @@ static bool InvalidBearer(HttpContext context) =>
 static Task<bool> CanAccess(FatewakeDbContext db, Guid survivorId, Guid? accountId, CancellationToken ct) =>
     db.Survivors.AnyAsync(x => x.Id == survivorId && x.AccountId == accountId, ct);
 
-static IResult SignIn(LocalAccountResult result)
+static async Task<IResult> SignIn(LocalAccountResult result, AccountRoleService roles, CancellationToken ct)
 {
+    var role = await roles.AssignOnSignInAsync(result.AccountId!.Value, ct);
     var identity = new ClaimsIdentity([
         new Claim(ClaimTypes.NameIdentifier, result.AccountId!.Value.ToString()),
         new Claim(ClaimTypes.Email, result.Email!),
-        new Claim(ClaimTypes.Name, result.Email!)
+        new Claim(ClaimTypes.Name, result.Email!),
+        new Claim(ClaimTypes.Role, role)
     ], BearerTokenDefaults.AuthenticationScheme);
     return Results.SignIn(new ClaimsPrincipal(identity), authenticationScheme: BearerTokenDefaults.AuthenticationScheme);
 }
+

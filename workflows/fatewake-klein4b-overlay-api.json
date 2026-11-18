@@ -1,0 +1,177 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "weight_dtype": "default",
+      "unet_name": "flux-2-klein-4b.safetensors"
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "flux2",
+      "device": "default"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "text": "__FATEWAKE_PROMPT__"
+    }
+  },
+  "5": {
+    "class_type": "ConditioningZeroOut",
+    "inputs": {
+      "conditioning": [
+        "4",
+        0
+      ]
+    }
+  },
+  "6": {
+    "class_type": "EmptyFlux2LatentImage",
+    "inputs": {
+      "width": 768,
+      "batch_size": 1,
+      "height": 1344
+    }
+  },
+  "7": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": __FATEWAKE_SEED__
+    }
+  },
+  "8": {
+    "class_type": "CFGGuider",
+    "inputs": {
+      "cfg": 1.0,
+      "negative": [
+        "5",
+        0
+      ],
+      "positive": [
+        "4",
+        0
+      ],
+      "model": [
+        "1",
+        0
+      ]
+    }
+  },
+  "9": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "euler"
+    }
+  },
+  "10": {
+    "class_type": "Flux2Scheduler",
+    "inputs": {
+      "width": 768,
+      "steps": 4,
+      "height": 1344
+    }
+  },
+  "11": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "sigmas": [
+        "10",
+        0
+      ],
+      "noise": [
+        "7",
+        0
+      ],
+      "guider": [
+        "8",
+        0
+      ],
+      "sampler": [
+        "9",
+        0
+      ],
+      "latent_image": [
+        "6",
+        0
+      ]
+    }
+  },
+  "12": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "vae": [
+        "3",
+        0
+      ],
+      "samples": [
+        "11",
+        0
+      ]
+    }
+  },
+  "13": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "17",
+        0
+      ],
+      "filename_prefix": "Fatewake-Klein4B"
+    }
+  },
+  "14": {
+    "class_type": "LoadBackgroundRemovalModel",
+    "inputs": {
+      "bg_removal_name": "birefnet.safetensors"
+    }
+  },
+  "15": {
+    "class_type": "RemoveBackground",
+    "inputs": {
+      "bg_removal_model": [
+        "14",
+        0
+      ],
+      "image": [
+        "12",
+        0
+      ]
+    }
+  },
+  "16": {
+    "class_type": "InvertMask",
+    "inputs": {
+      "mask": [
+        "15",
+        0
+      ]
+    }
+  },
+  "17": {
+    "class_type": "JoinImageWithAlpha",
+    "inputs": {
+      "image": [
+        "12",
+        0
+      ],
+      "alpha": [
+        "16",
+        0
+      ]
+    }
+  }
+}

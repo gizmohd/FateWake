@@ -113,4 +113,15 @@ The ComfyUI output directory is not Fatewake's canonical asset store. Fatewake d
 - missing custom node: install the workflow's required custom node and restart ComfyUI.
 
 ## Security
-Keep ComfyUI on a trusted/private network. Do not place secrets in workflow JSON. Fatewake does not require a ComfyUI API key by default; put authentication in a private reverse proxy if remote access is required.
+Keep ComfyUI on a trusted/private network. Do not place secrets in workflow JSON. A local ComfyUI needs no API key.
+
+## Cloud or remote ComfyUI
+`ArtGeneration:ComfyUI:ApiKey` is optional and sent with every ComfyUI request (`/prompt`, `/history`, `/view`, `/upload/image`) but never to redirect targets.
+
+- **Comfy Cloud:** create an API key at platform.comfy.org (requires a subscription), then set `BaseUrl` to `https://cloud.comfy.org/api/` and keep the default `ApiKeyHeader` `X-API-Key`. Models/custom nodes must be available on Comfy Cloud.
+- **Self-hosted GPU server (RunPod, Vast.ai, etc.):** never expose ComfyUI publicly unprotected. Put it behind a VPN or an authenticating reverse proxy; set `ApiKeyHeader` to the header the proxy expects, or `Authorization` for a bearer token.
+
+```powershell
+dotnet user-secrets set "ArtGeneration:ComfyUI:BaseUrl" "https://cloud.comfy.org/api/" --project src\Fatewake.AppHost
+dotnet user-secrets set "ArtGeneration:ComfyUI:ApiKey" "<api-key>" --project src\Fatewake.AppHost
+```

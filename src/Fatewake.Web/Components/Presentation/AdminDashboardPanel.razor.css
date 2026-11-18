@@ -1,0 +1,27 @@
+.admin-dashboard { max-width: 1500px; margin: auto; padding: 2rem; color: #e8eee8; }
+nav a, a { color: #d9c189; }
+header { padding: 2rem 0; }
+.eyebrow { letter-spacing: .16em; font-size: .75rem; color: #b3c1bc; }
+h1 { font: 2.5rem Georgia, serif; margin: .75rem 0; }
+h2 { font: 1.6rem Georgia, serif; margin-top: 2.5rem; }
+.filters { display: flex; flex-wrap: wrap; gap: .8rem; padding: 1rem; border: 1px solid #364342; background: #141b1c; align-items: end; }
+label { display: grid; gap: .35rem; font-size: .8rem; }
+input, select, button { color: #e8eee8; background: #253031; border: 1px solid #536666; border-radius: .2rem; padding: .5rem; }
+button { cursor: pointer; } button:disabled { opacity: .5; } button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #d9c189; outline-offset: 2px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(155px,1fr)); gap: .8rem; }
+.stats article { padding: 1.2rem; border: 1px solid #384846; background: #152020; }
+.stats span { display: block; color: #abbdb6; font-size: .8rem; }
+.stats strong { display: block; font-size: 1.1rem; margin-top: .65rem; overflow-wrap: normal; }
+.updated, .usage-summary p { color: #aebdb5; font-size: .85rem; line-height: 1.6; }
+.error { color: #f2c29c; padding: 1rem; background: #31281e; }
+dl { display: grid; grid-template-columns: 1fr 2fr; gap: .5rem; font-size: .9rem; }
+dd { margin: 0; }
+.table-scroll, .calendar-grid { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+caption { text-align: left; padding: .8rem 0; color: #b5c3bd; }
+th, td { text-align: left; padding: .7rem; border-bottom: 1px solid #344140; overflow-wrap: anywhere; }
+.thumbnail { width: 55px; height: 75px; object-fit: contain; display: block; margin-bottom: .5rem; }
+.pagination { display: flex; gap: 1rem; padding: 1rem 0; align-items: center; }
+.calendar-heading { display: grid; grid-template-columns: minmax(130px,1.4fr) .6fr .8fr 1fr .8fr 1.2fr; gap: .75rem; padding: .85rem; font-size: .8rem; background: #20302c; }
+.job-detail { padding: 1rem; background: #172522; border: 1px solid #586a5d; }
+@media(max-width:700px) { .admin-dashboard {padding:1rem;} .calendar-heading {min-width:650px;} dl {grid-template-columns:1fr;} }

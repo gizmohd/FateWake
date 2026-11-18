@@ -7,6 +7,7 @@
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Authentication
 @inject Microsoft.Extensions.Logging.ILogger<Home> Logger
 @inject IJSRuntime JS
+@inject Microsoft.Extensions.Hosting.IHostEnvironment Environment
 
 <PageTitle>Fatewake — The Silence</PageTitle>
 <main class="scene">
@@ -16,24 +17,27 @@
         <NotAuthorized><a href="/login">Sign in</a> | <a href="/register">Create an account</a></NotAuthorized>
     </Microsoft.AspNetCore.Components.Authorization.AuthorizeView>
 </nav>
+<Microsoft.AspNetCore.Components.Authorization.AuthorizeView Roles="Admin"><Authorized><nav><a href="/admin">Admin dashboard</a></nav></Authorized></Microsoft.AspNetCore.Components.Authorization.AuthorizeView>
+@if (_session is not null) { <nav aria-label="Story"><a href="/novel/@_session.SurvivorId">Read your story so far</a></nav> }
 <section class="episode">
 @if(_error is not null){<div class="interaction" role="alert">@_error <a href="/login">Sign in again</a> or <a href="/">reload</a>.</div>}
 else if(!_ready){<div class="interaction"><div class="wake">REMEMBERING…</div></div>}
 else
 {
-    <ArtCompositionView ArtworkKey="@Beat.ArtworkKey" Layers="@DayOneArt.For(Beat.ArtworkKey)">
+    <ArtCompositionView ArtworkKey="@Beat.ArtworkKey" Layers="@DayOneArt.For(Beat.ArtworkKey)" ArtworkDisplayed="RememberArtwork" SurvivorId="_session?.SurvivorId">
         <div class="panel-overlay">
             <div class="panel-label">THE SILENCE · SURVIVOR DAY 1</div>
             @if(Beat.Time is not null){<div class="beat-time">@Beat.Time</div>}
             @if(Beat.Status is not null){<div class="signal">@Beat.Status</div>}
             <div class="panel-spacer"></div>
-            @if(Beat.Narration is not null){<div class="caption">@Beat.Narration</div>}
+            @if(DisplayedNarration is not null){<div class="caption">@DisplayedNarration</div>}
             @if(Beat.Dialogue is not null){<div class="dialogue"><div class="speaker">@Beat.Dialogue.Speaker</div><div class="line">“@Beat.Dialogue.Text”</div></div>}
         </div>
     </ArtCompositionView>
     <div class="interaction">
         @if(Beat.Kind==BeatKind.Interaction)
         {
+            @if(_actionMessage is not null){<p role="alert">@_actionMessage</p>}
             <div class="choices">
             @foreach(var choice in Beat.Interactions.Where(x=>!x.AllowFreeform))
             { <button disabled="@_submitting" @onclick="()=>Act(choice.ActionType)">@choice.Label</button> }
@@ -43,21 +47,44 @@ else
         }
         else
         {
-            @if(Beat.Kind==BeatKind.Consequence && !string.IsNullOrWhiteSpace(_resolutionText)){<div class="result-inline">@_resolutionText</div>}
+
             <button class="continue" disabled="@_submitting" @onclick="NextBeat">Continue</button>
         }
         <div class="beat-progress">@(_beatIndex+1) / @Scene.Beats.Count</div>
     </div>
 }
 </section>
+@if(Environment.IsDevelopment() && _ready && _session is not null)
+{
+    <button class="debug-reset" title="Development only: discard this chapter's choices and restart it" disabled="@_submitting" @onclick="ResetChapter">⟲ Reset chapter</button>
+}
 </main>
+@if (_session is not null) { <StoryToasts @key="_session.SurvivorId" SurvivorId="_session.SurvivorId" /> }
 
 @code {
     private static SceneDefinition Scene=>DayOneScenes.Opening;
     private BeatDefinition Beat=>Scene.Beats[Math.Clamp(_beatIndex,0,Scene.Beats.Count-1)];
     private bool _ready,_showOther,_submitting; private int _beatIndex; private string _freeform="",_resolutionText="";
     private SessionDto? _session; private Guid? _inflightKey;
-    private string? _error;
+    private string? _error, _actionMessage;
+    private ArtworkSnapshot? _artwork;
+    private async Task RememberArtwork(ArtworkSnapshot artwork)
+    {
+        _artwork = artwork;
+        if (_session is null || artwork.ArtworkKey != Beat.ArtworkKey) return;
+        var versions = artwork.Versions.Where(x => x.Value is > 0).ToDictionary(x => x.Key, x => x.Value);
+        if (versions.Count == 0) return;
+        try
+        {
+            using var client = await ApiClient.CreateAsync();
+            using var response = await client.PostAsJsonAsync($"/api/story/{_session.SurvivorId}/artwork",
+                new { _session.EventInstanceId, BeatKey = Beat.Key, Versions = versions });
+            response.EnsureSuccessStatusCode();
+        }
+        catch (HttpRequestException ex) { Logger.LogWarning(ex, "Displayed artwork could not be journaled"); }
+    }
+
+    private string? DisplayedNarration => Beat.Kind == BeatKind.Consequence && !string.IsNullOrWhiteSpace(_resolutionText) ? _resolutionText : Beat.Narration;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -80,7 +107,7 @@ else
             if(user.Identity?.IsAuthenticated!=true)
                 await JS.InvokeVoidAsync("localStorage.setItem","fatewake.survivorId",_session.SurvivorId.ToString());
             _beatIndex=Scene.IndexOf(_session.BeatKey);
-            if(!string.IsNullOrWhiteSpace(_session.LastOutcome))_resolutionText=OutcomeText(_session.LastOutcome);
+            if(!string.IsNullOrWhiteSpace(_session.LastOutcome))_resolutionText=DayOneOutcomes.Text(_session.LastOutcome, _session.NarrativeFacts);
         }
         _ready=true;StateHasChanged();
         }
@@ -110,10 +137,27 @@ else
 
     private Task SubmitFreeform()=>Act("freeform",_freeform);
 
+    private async Task ResetChapter()
+    {
+        if(_submitting||_session is null||!Environment.IsDevelopment())return;
+        if(!await JS.InvokeAsync<bool>("confirm","Reset this chapter? Your choices in it will be discarded."))return;
+        _submitting=true;
+        try
+        {
+            using var client=await ApiClient.CreateAsync();
+            using var response=await client.PostAsJsonAsync("/api/debug/session/reset-chapter",new{_session.SurvivorId,_session.EventInstanceId});
+            response.EnsureSuccessStatusCode();
+            _session=await response.Content.ReadFromJsonAsync<SessionDto>()??_session;
+            _beatIndex=Scene.IndexOf(_session.BeatKey);_resolutionText="";_freeform="";_showOther=false;_inflightKey=null;_error=null;
+        }
+        catch(HttpRequestException ex){Logger.LogWarning(ex,"Development chapter reset failed");_error="Unable to reset the chapter.";}
+        finally{_submitting=false;}
+    }
+
     private async Task Act(string actionType,string? rawInput=null)
     {
         if(_submitting||_session is null)return;
-        _submitting=true;_inflightKey??=Guid.NewGuid();
+        _submitting=true;_actionMessage=null;_inflightKey??=Guid.NewGuid();
         try
         {
             using var client=await ApiClient.CreateAsync();
@@ -124,8 +168,13 @@ else
             var result=await response.Content.ReadFromJsonAsync<ResolutionDto>();
             if(result?.Accepted==true)
             {
-                _resolutionText=OutcomeText(result.OutcomeKey);_inflightKey=null;
+                _resolutionText=DayOneOutcomes.Text(result.OutcomeKey,result.NarrativeFacts);_inflightKey=null;
                 _beatIndex=Scene.IndexOf("choice-wake");await SaveProgressAsync();
+            }
+            else
+            {
+                _inflightKey=null;
+                _actionMessage="That action could not be resolved. Try describing how you help Michelle, call from the doorway, stay inside, or check the radio. Your choice has not been submitted.";
             }
         }
         catch(HttpRequestException ex){Logger.LogWarning(ex,"Player action could not be saved");_error="Unable to save your choice. Your session may have expired.";}
@@ -138,16 +187,10 @@ else
         using var client=await ApiClient.CreateAsync();
         using var response=await client.PostAsJsonAsync("/api/session/progress",new{_session.SurvivorId,_session.EventInstanceId,SceneKey=Scene.Key,BeatKey=Beat.Key});
         response.EnsureSuccessStatusCode();
+        if (_artwork is not null) await RememberArtwork(_artwork);
     }
 
-    private static string OutcomeText(string key)=>key switch{
-        "helped_maya"=>"You cross the threshold and take some of the stranger's weight. Maya notices that you moved before you had all the answers.",
-        "called_from_safety"=>"You keep the doorway between you and the street and call out. Michelle hears the caution in it.",
-        "stayed_inside"=>"You remain behind the glass and watch. Michelle eventually looks away.",
-        "investigated_radio"=>"You turn from the window toward the radio. Information feels safer than stepping outside.",
-        _=>"The world absorbs what you chose."
-    };
-
     private sealed record SessionDto(Guid SurvivorId,Guid TimelineId,Guid EventInstanceId,int SurvivorDay,string EventKey,string Status,string? LastOutcome,Dictionary<string,string> NarrativeFacts,string SceneKey,string BeatKey);
-    private sealed record ResolutionDto(bool Accepted,string OutcomeKey);
+    private sealed record ResolutionDto(bool Accepted,string OutcomeKey, Dictionary<string,string>? NarrativeFacts);
 }
+

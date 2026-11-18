@@ -1,4 +1,4 @@
-namespace Fatewake.Web.Presentation;
+namespace Fatewake.Story;
 
 /// <summary>Defines the content and behavior of one beat in a runtime scene.</summary>
 /// <param name="Key">Stable beat identifier within the scene.</param>

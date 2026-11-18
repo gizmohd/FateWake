@@ -5,15 +5,16 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Identity;
 using Fatewake.Observability;
+using Microsoft.Extensions.Hosting;
 
 namespace Fatewake.Infrastructure.Authentication;
 
 /// <summary>Coordinates mailbox proof, canonical email ownership, and safe external identity linking.</summary>
 /// <see href="../../../docs/code/src/Fatewake.Infrastructure/Authentication/VerifiedAccountService.md">Documentation</see>
 public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEmailSender sender, ILogger<VerifiedAccountService> log,
-    IPasswordHasher<LocalCredentialRecord> passwords)
+    IPasswordHasher<LocalCredentialRecord> passwords, IHostEnvironment? environment = null)
 {
-    /// <summary>Persists pending local registration and sends mailbox proof without creating an authenticated account.</summary>
+    /// <summary>Automatically verifies Development registrations; otherwise persists pending registration and sends mailbox proof.</summary>
     public async Task<LocalAccountResult> RegisterAsync(string email, string passwordHash, CancellationToken ct)
     {
         using var operation = OperationTelemetry.Start("auth.pending_registration", log);
@@ -23,6 +24,15 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
         await LockEmailAsync(normalized, ct);
         if (await db.AccountEmails.AnyAsync(x => x.NormalizedEmail == normalized, ct))
             return new(null, null, "Unable to register this email address. Try signing in instead.");
+        if (environment?.IsDevelopment() == true)
+        {
+            var account = NewAccount(email.Trim(), null);
+            db.AccountEmails.Add(new() { AccountId = account.Id, NormalizedEmail = normalized, Verified = true });
+            db.LocalCredentials.Add(new() { AccountId = account.Id, NormalizedEmail = normalized, PasswordHash = passwordHash });
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            return new(account.Id, account.PrimaryEmail, null);
+        }
         if (await RecentlySentAsync(normalized, null, null, ct)) return new(null, null, "A verification email was recently sent. Wait a minute before registering again.");
         var token = AddChallenge(email.Trim(), normalized, passwordHash, null);
         await db.SaveChangesAsync(ct);

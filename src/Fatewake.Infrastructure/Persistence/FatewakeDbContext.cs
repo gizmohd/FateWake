@@ -5,12 +5,47 @@ namespace Fatewake.Infrastructure.Persistence;
 
 public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> options) : DbContext(options)
 {
+    /// <summary>Server-translated calendar grouping in the selected reporting timezone.</summary>
+    public static string CalendarKey(DateTimeOffset value,string zone,string pattern)=>throw new NotSupportedException("SQL only.");
+    /// <summary>Server-translated extraction of safe job metadata from JSON.</summary>
+    public static string? JsonText(string value,string field)=>throw new NotSupportedException("SQL only.");
     public DbSet<AccountEmailRecord> AccountEmails => Set<AccountEmailRecord>();
     public DbSet<EmailVerificationRecord> EmailVerifications => Set<EmailVerificationRecord>();
     public DbSet<LocalCredentialRecord> LocalCredentials => Set<LocalCredentialRecord>();
     public DbSet<SurvivorVisualIdentityRecord> SurvivorVisualIdentities => Set<SurvivorVisualIdentityRecord>(); public DbSet<WorkJobRecord> WorkJobs => Set<WorkJobRecord>(); public DbSet<WorkArtifactRecord> WorkArtifacts => Set<WorkArtifactRecord>(); public DbSet<WorkStepRecord> WorkSteps => Set<WorkStepRecord>(); public DbSet<WorkStepDependencyRecord> WorkStepDependencies => Set<WorkStepDependencyRecord>(); public DbSet<AccountRecord> Accounts => Set<AccountRecord>(); public DbSet<ExternalIdentityRecord> ExternalIdentities => Set<ExternalIdentityRecord>(); public DbSet<ArtAssetRecord> ArtAssets => Set<ArtAssetRecord>(); public DbSet<ArtAssetDerivativeRecord> ArtAssetDerivatives => Set<ArtAssetDerivativeRecord>(); public DbSet<ArtGenerationRecord> ArtGenerations => Set<ArtGenerationRecord>(); public DbSet<RealmRecord> Realms => Set<RealmRecord>(); public DbSet<TimelineRecord> Timelines => Set<TimelineRecord>(); public DbSet<SurvivorRecord> Survivors => Set<SurvivorRecord>(); public DbSet<EventInstanceRecord> EventInstances => Set<EventInstanceRecord>(); public DbSet<ActionAttemptRecord> ActionAttempts => Set<ActionAttemptRecord>(); public DbSet<ActionResolutionRecord> ActionResolutions => Set<ActionResolutionRecord>(); public DbSet<GameEventRecord> GameEvents => Set<GameEventRecord>(); public DbSet<WakeRecord> Wakes => Set<WakeRecord>();
     protected override void OnModelCreating(ModelBuilder m)
     {
+        m.HasDbFunction(typeof(FatewakeDbContext).GetMethod(nameof(CalendarKey))!).HasName("ai_calendar_key");
+        m.HasDbFunction(typeof(FatewakeDbContext).GetMethod(nameof(JsonText))!).HasName("ai_json_text");
+        m.Entity<AiUsageRecord>(b => {
+            b.ToTable("ai_usage"); b.HasKey(x=>x.Id);
+            b.HasIndex(x=>new{x.Provider,x.AttemptKey}).IsUnique();
+            b.HasIndex(x=>new{x.Provider,x.AccountingKey}).IsUnique().HasFilter("\"AccountingKey\" IS NOT NULL");
+            b.HasIndex(x=>x.StartedAt); b.HasIndex(x=>new{x.Provider,x.Model,x.Operation,x.StartedAt}); b.HasIndex(x=>x.WorkJobId);
+        });
+        m.Entity<AiUsageTrackingRecord>(b=>{ b.ToTable("ai_usage_tracking"); b.HasKey(x=>x.Id); });
+        m.Entity<StoryPanelRecord>(b => {
+            b.ToTable("story_panel"); b.HasKey(x => x.Id); b.Property(x => x.EntryKey).HasMaxLength(200);
+            b.Property(x => x.Kind).HasMaxLength(30); b.Property(x => x.Layers).HasColumnType("jsonb");
+            b.HasIndex(x => new { x.SurvivorId, x.EntryKey }).IsUnique(); b.HasIndex(x => new { x.TimelineId, x.Sequence }).IsUnique();
+            b.HasOne<SurvivorRecord>().WithMany().HasForeignKey(x => x.SurvivorId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<TimelineRecord>().WithMany().HasForeignKey(x => x.TimelineId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<EventInstanceRecord>().WithMany().HasForeignKey(x => x.EventInstanceId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<GameEventRecord>().WithMany().HasForeignKey(x => x.SourceEventId).OnDelete(DeleteBehavior.NoAction);
+        });
+        m.Entity<AccountRoleRecord>(b => {
+            b.ToTable("account_role"); b.HasKey(x => x.AccountId); b.Property(x => x.Role).HasMaxLength(10);
+            b.HasIndex(x => x.Role).IsUnique().HasDatabaseName("IX_account_role_single_admin").HasFilter("\"Role\" = 'Admin'");
+            b.HasOne<AccountRecord>().WithOne().HasForeignKey<AccountRoleRecord>(x => x.AccountId).OnDelete(DeleteBehavior.NoAction);
+        });
+        m.Entity<ArtReviewRecord>(b => {
+            b.ToTable("art_review"); b.HasKey(x => x.Id);
+            b.HasIndex(x => new { x.SceneKey, x.CreatedAt }); b.HasIndex(x => new { x.AssetKey, x.CreatedAt });
+            b.Property(x => x.CompositionVersions).HasColumnType("jsonb");
+            b.Property(x => x.SceneKey).HasMaxLength(100); b.Property(x => x.AssetKey).HasMaxLength(100);
+            b.Property(x => x.Critique).HasMaxLength(4000); b.Property(x => x.Correction).HasMaxLength(4000);
+            b.HasOne<AccountRecord>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.NoAction);
+        });
         m.Entity<AccountEmailRecord>(b =>
         {
             b.ToTable("account_email"); b.HasKey(x => x.AccountId);
