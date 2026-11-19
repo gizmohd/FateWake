@@ -1,7 +1,20 @@
 @page "/admin"
 @rendermode InteractiveServer
 @using Fatewake.Web.Components.Presentation
-<AdminDashboardPanel JobId="JobId" />
+<nav class="admin-section-nav" aria-label="Administration sections">
+    <a class="@(_section=="usage" ? "active" : null)" href="/admin">Generation &amp; AI usage</a>
+    <a class="@(_section=="rag" ? "active" : null)" href="/admin?section=rag">RAG corpus</a>
+</nav>
+@if (_section == "rag")
+{
+    <RagAdminPanel />
+}
+else
+{
+    <AdminDashboardPanel JobId="JobId" />
+}
 @code {
     [SupplyParameterFromQuery(Name="job")] public Guid? JobId {get;set;}
+    [SupplyParameterFromQuery(Name="section")] public string? Section {get;set;}
+    private string _section => string.Equals(Section, "rag", StringComparison.OrdinalIgnoreCase) ? "rag" : "usage";
 }

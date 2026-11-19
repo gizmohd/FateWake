@@ -110,9 +110,21 @@ CREATE TABLE rag_ingest_run (
 );
 CREATE UNIQUE INDEX "IX_rag_ingest_run_RunKey" ON rag_ingest_run ("RunKey");
 CREATE INDEX "IX_rag_ingest_run_Status_StartedAt" ON rag_ingest_run ("Status", "StartedAt");
+CREATE TABLE rag_staging (
+    "Id" uuid PRIMARY KEY,
+    "ContentHash" text NOT NULL,
+    "FileName" varchar(1024) NOT NULL,
+    "ContentType" varchar(128) NOT NULL,
+    "Bytes" bytea NOT NULL,
+    "ByteSize" bigint NOT NULL,
+    "CreatedAt" timestamptz NOT NULL,
+    CONSTRAINT "CK_rag_staging_ByteSize" CHECK ("ByteSize" = octet_length("Bytes"))
+);
+CREATE UNIQUE INDEX "IX_rag_staging_ContentHash_FileName" ON rag_staging ("ContentHash", "FileName");
 """);
 
     protected override void Down(MigrationBuilder m) => m.Sql("""
+DROP TABLE rag_staging;
 DROP TABLE rag_ingest_run;
 DROP TABLE rag_claim;
 DROP TABLE rag_chunk;

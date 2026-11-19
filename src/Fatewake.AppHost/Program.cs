@@ -11,6 +11,11 @@ IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgre
     .WithLifetime(ContainerLifetime.Persistent);
 IResourceBuilder<PostgresDatabaseResource> fatewake = postgres.AddDatabase("fatewake");
 
+IResourceBuilder<RedisResource> redis = builder.AddRedis("redis")
+    .WithImage("redis", "8.10.3-trixie")
+    .WithDataVolume()
+    .WithLifetime(ContainerLifetime.Persistent);
+
 IResourceBuilder<ParameterResource> rabbitUserName = builder.AddParameter("rabbitmq-username", "admin");
 IResourceBuilder<ParameterResource> rabbitPassword = builder.AddParameter("rabbitmq-password", "admin", secret: true);
 
@@ -28,21 +33,25 @@ string emailsRoot = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, ".."
 IResourceBuilder<ProjectResource> api = builder.AddProject("api", Path.Combine(repoRoot, "src", "Fatewake.Api", "Fatewake.Api.csproj"))
     .WithReference(fatewake)
     .WithReference(rabbit)
+    .WithReference(redis)
     .WithEnvironment("RabbitMq__ConnectionString", rabbit.Resource.ConnectionStringExpression)
     .WithEnvironment("ArtStorage__RootPath", artStorageRoot)
     .WithEnvironment("Email__Directory", emailsRoot)
     .WithHttpHealthCheck("/health")
     .WaitFor(fatewake)
-    .WaitFor(rabbit);
+    .WaitFor(rabbit)
+    .WaitFor(redis);
 
 IResourceBuilder<ProjectResource> worker = builder.AddProject("worker", Path.Combine(repoRoot, "src", "Fatewake.Worker", "Fatewake.Worker.csproj"))
     .WithReference(fatewake)
     .WithReference(rabbit)
+    .WithReference(redis)
     .WithEnvironment("RabbitMq__ConnectionString", rabbit.Resource.ConnectionStringExpression)
     .WithEnvironment("ArtStorage__RootPath", artStorageRoot)
     .WaitFor(fatewake)
     .WaitFor(rabbit)
-    .WaitFor(api);
+    .WaitFor(api)
+    .WaitFor(redis);
 
 api.WithForwardedSection(builder, "ArtGeneration");
 api.WithForwardedSection(builder, "ArtStorage");
@@ -52,7 +61,9 @@ worker.WithForwardedSection(builder, "ArtStorage");
 
 IResourceBuilder<ProjectResource> web = builder.AddProject("web", Path.Combine(repoRoot, "src", "Fatewake.Web", "Fatewake.Web.csproj"))
     .WithReference(api)
-    .WaitFor(api);
+    .WithReference(redis)
+    .WaitFor(api)
+    .WaitFor(redis);
 
 api.WithEnvironment("Email__PublicWebUrl", web.GetEndpoint("https"));
 foreach (string? provider in new[] { "Google", "Microsoft" })

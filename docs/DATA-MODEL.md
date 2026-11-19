@@ -12,6 +12,18 @@ PostgreSQL is the authoritative source for all three.
 
 Implemented account, survivor and event-instance statuses and Wake lifecycle state use domain-specific C# enums stored as PostgreSQL integers. Their currently supported value is `Active = 1`; numeric values are persistence contracts and must not be renumbered or reused. The reversible status migration converts existing `active` rows without changing the API's lowercase string status responses. Unsupported legacy values cause migration failure rather than silent data replacement.
 
+## RAG Corpus
+
+The RAG model separates corpus provenance from generated claims and canonical truth:
+
+- `rag_source` identifies an authorized source, including its source type, origin, license/review status and visibility.
+- `rag_document` represents a versioned manuscript, document, repository story file or generated story-line artifact.
+- `rag_chunk` preserves retrievable passage text, offsets, heading context, chronology, spoiler scope and embedding provenance.
+- `rag_claim` stores extracted candidate facts with source chunk/document provenance and human-review status.
+- `rag_ingest_run` makes chunking and embedding reindex operations reproducible.
+
+PostgreSQL full-text search is always available. pgvector supplies semantic retrieval using 1024-dimensional embeddings when the configured embedding model produces that shape. Retrieval must apply review, visibility and spoiler filters before prompt assembly. Generated or candidate claims cannot directly mutate game state.
+
 ## Identity and Timeline
 
 ### survivor

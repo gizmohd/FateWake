@@ -110,6 +110,7 @@ public sealed class PostgresArtBinaryStorage(
         }
     }
 
+
     private static string ContentTypeFor(string key)
         => Path.GetExtension(key).ToLowerInvariant() switch
         {

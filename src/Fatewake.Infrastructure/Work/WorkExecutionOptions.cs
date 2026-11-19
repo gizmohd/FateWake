@@ -17,6 +17,7 @@ public sealed class WorkExecutionOptions
         ["art.encode"] = 2,
         ["art.validate"] = 2,
         ["art.finalize"] = 1,
+        ["rag.import"] = 1,
         ["narrative.render"] = 2,
         ["maintenance"] = 1
     };

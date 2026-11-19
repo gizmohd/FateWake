@@ -13,7 +13,7 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
     public DbSet<EmailVerificationRecord> EmailVerifications => Set<EmailVerificationRecord>();
     public DbSet<LocalCredentialRecord> LocalCredentials => Set<LocalCredentialRecord>();
     public DbSet<ArtBinaryRecord> ArtBinaries => Set<ArtBinaryRecord>();
-    public DbSet<SurvivorVisualIdentityRecord> SurvivorVisualIdentities => Set<SurvivorVisualIdentityRecord>(); public DbSet<WorkJobRecord> WorkJobs => Set<WorkJobRecord>(); public DbSet<WorkArtifactRecord> WorkArtifacts => Set<WorkArtifactRecord>(); public DbSet<WorkStepRecord> WorkSteps => Set<WorkStepRecord>(); public DbSet<WorkStepDependencyRecord> WorkStepDependencies => Set<WorkStepDependencyRecord>(); public DbSet<AccountRecord> Accounts => Set<AccountRecord>(); public DbSet<ExternalIdentityRecord> ExternalIdentities => Set<ExternalIdentityRecord>(); public DbSet<ArtAssetRecord> ArtAssets => Set<ArtAssetRecord>(); public DbSet<ArtAssetDerivativeRecord> ArtAssetDerivatives => Set<ArtAssetDerivativeRecord>(); public DbSet<ArtGenerationRecord> ArtGenerations => Set<ArtGenerationRecord>(); public DbSet<ArtRegenerationRecord> ArtRegenerationRequests => Set<ArtRegenerationRecord>(); public DbSet<RagSourceRecord> RagSources => Set<RagSourceRecord>(); public DbSet<RagDocumentRecord> RagDocuments => Set<RagDocumentRecord>(); public DbSet<RagChunkRecord> RagChunks => Set<RagChunkRecord>(); public DbSet<RagClaimRecord> RagClaims => Set<RagClaimRecord>(); public DbSet<RagIngestRunRecord> RagIngestRuns => Set<RagIngestRunRecord>(); public DbSet<RealmRecord> Realms => Set<RealmRecord>(); public DbSet<TimelineRecord> Timelines => Set<TimelineRecord>(); public DbSet<SurvivorRecord> Survivors => Set<SurvivorRecord>(); public DbSet<EventInstanceRecord> EventInstances => Set<EventInstanceRecord>(); public DbSet<ActionAttemptRecord> ActionAttempts => Set<ActionAttemptRecord>(); public DbSet<ActionResolutionRecord> ActionResolutions => Set<ActionResolutionRecord>(); public DbSet<GameEventRecord> GameEvents => Set<GameEventRecord>(); public DbSet<WakeRecord> Wakes => Set<WakeRecord>();
+    public DbSet<SurvivorVisualIdentityRecord> SurvivorVisualIdentities => Set<SurvivorVisualIdentityRecord>(); public DbSet<WorkJobRecord> WorkJobs => Set<WorkJobRecord>(); public DbSet<WorkArtifactRecord> WorkArtifacts => Set<WorkArtifactRecord>(); public DbSet<WorkStepRecord> WorkSteps => Set<WorkStepRecord>(); public DbSet<WorkStepDependencyRecord> WorkStepDependencies => Set<WorkStepDependencyRecord>(); public DbSet<AccountRecord> Accounts => Set<AccountRecord>(); public DbSet<ExternalIdentityRecord> ExternalIdentities => Set<ExternalIdentityRecord>(); public DbSet<ArtAssetRecord> ArtAssets => Set<ArtAssetRecord>(); public DbSet<ArtAssetDerivativeRecord> ArtAssetDerivatives => Set<ArtAssetDerivativeRecord>(); public DbSet<ArtGenerationRecord> ArtGenerations => Set<ArtGenerationRecord>(); public DbSet<ArtRegenerationRecord> ArtRegenerationRequests => Set<ArtRegenerationRecord>(); public DbSet<RagSourceRecord> RagSources => Set<RagSourceRecord>(); public DbSet<RagDocumentRecord> RagDocuments => Set<RagDocumentRecord>(); public DbSet<RagChunkRecord> RagChunks => Set<RagChunkRecord>(); public DbSet<RagClaimRecord> RagClaims => Set<RagClaimRecord>(); public DbSet<RagIngestRunRecord> RagIngestRuns => Set<RagIngestRunRecord>(); public DbSet<RagStagingRecord> RagStaging => Set<RagStagingRecord>(); public DbSet<RealmRecord> Realms => Set<RealmRecord>(); public DbSet<TimelineRecord> Timelines => Set<TimelineRecord>(); public DbSet<SurvivorRecord> Survivors => Set<SurvivorRecord>(); public DbSet<EventInstanceRecord> EventInstances => Set<EventInstanceRecord>(); public DbSet<ActionAttemptRecord> ActionAttempts => Set<ActionAttemptRecord>(); public DbSet<ActionResolutionRecord> ActionResolutions => Set<ActionResolutionRecord>(); public DbSet<GameEventRecord> GameEvents => Set<GameEventRecord>(); public DbSet<WakeRecord> Wakes => Set<WakeRecord>();
     protected override void OnModelCreating(ModelBuilder m)
     {
         m.HasDbFunction(typeof(FatewakeDbContext).GetMethod(nameof(CalendarKey))!).HasName("ai_calendar_key");
@@ -81,6 +81,53 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
         m.Entity<ArtBinaryRecord>(b => { b.ToTable("art_binary"); b.HasKey(x => x.StorageKey); b.HasIndex(x => x.ContentHash); b.Property(x => x.Bytes).HasColumnType("bytea"); b.Property(x => x.StorageKey).HasMaxLength(1024); b.Property(x => x.ContentType).HasMaxLength(128); b.Property(x => x.ContentHash).HasMaxLength(64); });
         m.Entity<ArtAssetDerivativeRecord>(b => { b.ToTable("art_asset_derivative"); b.HasKey(x => x.Id); b.HasIndex(x => new { x.ArtAssetId, x.Kind }).IsUnique(); b.Property(x => x.Kind).HasConversion<int>(); b.HasOne<ArtAssetRecord>().WithMany().HasForeignKey(x => x.ArtAssetId).OnDelete(DeleteBehavior.Cascade); });
         m.Entity<ArtGenerationRecord>(b => { b.ToTable("art_generation"); b.HasKey(x => x.Id); b.HasIndex(x => x.WorkJobId).IsUnique(); b.HasIndex(x => x.IdempotencyKey).IsUnique(); b.HasIndex(x => x.ArtAssetId); b.Property(x => x.ReferenceAssets).HasColumnType("jsonb"); b.Property(x => x.GenerationParameters).HasColumnType("jsonb"); b.Property(x => x.ContinuityVersions).HasColumnType("jsonb"); b.HasOne<WorkJobRecord>().WithMany().HasForeignKey(x => x.WorkJobId).OnDelete(DeleteBehavior.Cascade); b.HasOne<ArtAssetRecord>().WithMany().HasForeignKey(x => x.ArtAssetId).OnDelete(DeleteBehavior.NoAction); });
+        m.Entity<RagSourceRecord>(b =>
+        {
+            b.ToTable("rag_source"); b.HasKey(x => x.Id);
+            b.HasIndex(x => x.SourceKey).IsUnique();
+            b.HasIndex(x => new { x.SourceType, x.ReviewStatus });
+            b.Property(x => x.Metadata).HasColumnType("jsonb");
+        });
+        m.Entity<RagDocumentRecord>(b =>
+        {
+            b.ToTable("rag_document"); b.HasKey(x => x.Id);
+            b.HasIndex(x => new { x.SourceId, x.DocumentKey }).IsUnique();
+            b.HasIndex(x => new { x.DocumentType, x.Status });
+            b.Property(x => x.Metadata).HasColumnType("jsonb");
+            b.HasOne<RagSourceRecord>().WithMany().HasForeignKey(x => x.SourceId).OnDelete(DeleteBehavior.Cascade);
+        });
+        m.Entity<RagChunkRecord>(b =>
+        {
+            b.ToTable("rag_chunk"); b.HasKey(x => x.Id);
+            b.HasIndex(x => new { x.DocumentId, x.Ordinal }).IsUnique();
+            b.HasIndex(x => x.ChunkKey).IsUnique();
+            b.HasIndex(x => new { x.TimelineKey, x.SurvivorDayMin, x.SurvivorDayMax });
+            b.HasIndex(x => new { x.SpoilerSeriesMin, x.SpoilerSeriesMax });
+            b.HasOne<RagDocumentRecord>().WithMany().HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
+        m.Entity<RagClaimRecord>(b =>
+        {
+            b.ToTable("rag_claim"); b.HasKey(x => x.Id);
+            b.HasIndex(x => new { x.Subject, x.Status });
+            b.HasIndex(x => x.SourceChunkId); b.HasIndex(x => x.SourceDocumentId);
+            b.Property(x => x.Metadata).HasColumnType("jsonb");
+            b.HasOne<RagChunkRecord>().WithMany().HasForeignKey(x => x.SourceChunkId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<RagDocumentRecord>().WithMany().HasForeignKey(x => x.SourceDocumentId).OnDelete(DeleteBehavior.SetNull);
+        });
+        m.Entity<RagIngestRunRecord>(b =>
+        {
+            b.ToTable("rag_ingest_run"); b.HasKey(x => x.Id);
+            b.HasIndex(x => x.RunKey).IsUnique();
+            b.HasIndex(x => new { x.Status, x.StartedAt });
+        });
+        m.Entity<RagStagingRecord>(b =>
+        {
+            b.ToTable("rag_staging"); b.HasKey(x => x.Id);
+            b.HasIndex(x => new { x.ContentHash, x.FileName }).IsUnique();
+            b.Property(x => x.Bytes).HasColumnType("bytea");
+            b.Property(x => x.FileName).HasMaxLength(1024);
+            b.Property(x => x.ContentType).HasMaxLength(128);
+        });
         m.Entity<ArtRegenerationRecord>(b =>
         {
             b.ToTable("art_regeneration_request"); b.HasKey(x => x.Id);

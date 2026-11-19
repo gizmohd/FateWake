@@ -1,0 +1,293 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Net.Http.Headers
+@using Fatewake.Web.Presentation
+@implements IAsyncDisposable
+@inject Fatewake.Web.Authentication.AuthenticatedApiClient Api
+@inject ILogger<RagAdminPanel> Logger
+
+<main class="rag-admin">
+    <header>
+        <div class="eyebrow">FATEWAKE · ADMINISTRATION</div>
+        <h1>RAG corpus</h1>
+        <p>Upload approved source documents for scene and dialogue context retrieval.</p>
+    </header>
+
+    @if (_denied)
+    {
+        <p role="alert">This interface requires Admin access. <a href="/login">Sign in</a> with an Admin account.</p>
+    }
+    else
+    {
+        <section class="rag-upload" aria-labelledby="upload-heading">
+            <h2 id="upload-heading">Import document</h2>
+            <div class="upload-grid">
+                <label>Document
+                    <InputFile OnChange="SelectFile" accept=".txt,.md,.json,.csv,.xml,.yaml,.yml,.html,.htm,.pdf,.docx" />
+                </label>
+                <label>Source key
+                    <input @bind="_sourceKey" maxlength="200" placeholder="wayfinder-manuscript-v1" />
+                </label>
+                <label>Source type
+                    <select @bind="_sourceType">
+                        <option>Manuscript</option>
+                        <option>WorldBible</option>
+                        <option>StoryLine</option>
+                        <option>GeneratedStory</option>
+                        <option>DesignDocument</option>
+                        <option>Reference</option>
+                    </select>
+                </label>
+                <label>Title
+                    <input @bind="_title" maxlength="300" placeholder="The Wayfinder Legacy — Volume One" />
+                </label>
+                <label>License status
+                    <select @bind="_licenseStatus">
+                        <option>Authorized</option>
+                        <option>InternalReview</option>
+                        <option>Restricted</option>
+                    </select>
+                </label>
+                <label>Review status
+                    <select @bind="_reviewStatus">
+                        <option>PendingReview</option>
+                        <option>Approved</option>
+                        <option>Rejected</option>
+                    </select>
+                </label>
+                <label>Visibility
+                    <select @bind="_visibility">
+                        <option>Internal</option>
+                        <option>SharedApprovedCanon</option>
+                        <option>Private</option>
+                    </select>
+                </label>
+                <label>Timeline key
+                    <input @bind="_timelineKey" maxlength="100" placeholder="wayfinder-core" />
+                </label>
+                <label>Spoiler series
+                    <input type="number" min="1" max="20" @bind="_spoilerSeries" />
+                </label>
+            </div>
+            @if (_file is not null)
+            {
+                <p class="selected-file">Selected: @_file.Name (@FormatBytes(_file.Size))</p>
+            }
+            <button type="button" disabled="@(_uploading || _file is null)" @onclick="UploadAsync">
+                @(_uploading ? "Importing…" : "Upload and import")
+            </button>
+            @if (_message is not null)
+            {
+                <p role="status">@_message</p>
+            }
+            @if (_error is not null)
+            {
+                <p role="alert" class="error">@_error</p>
+            }
+        </section>
+
+        <section class="rag-status" aria-labelledby="status-heading">
+            <div class="status-heading">
+                <h2 id="status-heading">Database status</h2>
+                <button type="button" disabled="@_loading" @onclick="RefreshAsync">Refresh</button>
+            </div>
+            @if (_status is { } status)
+            {
+                <div class="rag-metrics">
+                    <article><span>Sources</span><strong>@status.SourceCount</strong></article>
+                    <article><span>Documents</span><strong>@status.DocumentCount</strong></article>
+                    <article><span>Chunks</span><strong>@status.ChunkCount</strong></article>
+                    <article><span>Embedded chunks</span><strong>@status.EmbeddedChunkCount</strong></article>
+                    <article><span>Extracted claims</span><strong>@status.ClaimCount</strong></article>
+                    <article><span>Approved claims</span><strong>@status.ApprovedClaimCount</strong></article>
+                </div>
+
+                <h3>Recent imports</h3>
+                @if (status.Runs.Length == 0)
+                {
+                    <p>No RAG ingestion runs recorded.</p>
+                }
+                else
+                {
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr><th>Status</th><th>Phase</th><th>Documents</th><th>Chunks</th><th>Started</th><th>Completed</th><th>Details</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var run in status.Runs)
+                                {
+                                    <tr>
+                                        <td>@run.Status</td>
+                                        <td>@run.Phase</td>
+                                        <td>@run.DocumentCount</td>
+                                        <td>@run.ChunkCount</td>
+                                        <td>@run.StartedAt.ToString("u")</td>
+                                        <td>@(run.CompletedAt?.ToString("u") ?? "Running")</td>
+                                        <td>@(run.ErrorDetail ?? run.EmbeddingModel ?? "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+            else if (_loading)
+            {
+                <p role="status">Loading RAG status…</p>
+            }
+        </section>
+    }
+</main>
+
+@code {
+    private readonly CancellationTokenSource _stop = new();
+    private Task? _poll;
+    private bool _denied;
+    private bool _loading;
+    private bool _uploading;
+    private string _sourceKey = "";
+    private string _sourceType = "Manuscript";
+    private string _title = "";
+    private string _licenseStatus = "Authorized";
+    private string _reviewStatus = "PendingReview";
+    private string _visibility = "Internal";
+    private string _timelineKey = "";
+    private int? _spoilerSeries;
+    private IBrowserFile? _file;
+    private string? _message;
+    private string? _error;
+    private RagStatusResultDto? _status;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _denied = !(await Api.GetCurrentUserAsync()).IsInRole("Admin");
+        if (!_denied)
+        {
+            await RefreshAsync();
+        }
+    }
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_denied)
+        {
+            _poll = PollAsync();
+        }
+        return Task.CompletedTask;
+    }
+
+    private void SelectFile(InputFileChangeEventArgs args)
+    {
+        _file = args.FileCount == 1 ? args.File : null;
+        _error = null;
+    }
+
+    private async Task UploadAsync()
+    {
+        if (_file is null)
+        {
+            return;
+        }
+        _uploading = true;
+        _message = null;
+        _error = null;
+        try
+        {
+            using var client = await Api.CreateAsync();
+            await using var stream = _file.OpenReadStream(20 * 1024 * 1024, _stop.Token);
+            using var content = new MultipartFormDataContent();
+            using var fileContent = new StreamContent(stream);
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue(_file.ContentType ?? "application/octet-stream");
+            content.Add(fileContent, "file", _file.Name);
+            content.Add(new StringContent(_sourceKey.Trim()), "sourceKey");
+            content.Add(new StringContent(_sourceType), "sourceType");
+            content.Add(new StringContent(_title.Trim()), "title");
+            content.Add(new StringContent(_licenseStatus), "licenseStatus");
+            content.Add(new StringContent(_reviewStatus), "reviewStatus");
+            content.Add(new StringContent(_visibility), "visibility");
+            content.Add(new StringContent(_timelineKey.Trim()), "timelineKey");
+            if (_spoilerSeries is { } series)
+            {
+                content.Add(new StringContent(series.ToString()), "spoilerSeries");
+            }
+            using var response = await client.PostAsync("/api/admin/rag/import", content, _stop.Token);
+            var body = await response.Content.ReadAsStringAsync(_stop.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = string.IsNullOrWhiteSpace(body) ? "The document could not be imported." : body;
+                return;
+            }
+            var result = await response.Content.ReadFromJsonAsync<RagImportResultDto>(_stop.Token);
+            _message = result is null
+                ? "Document queued for import."
+                : result.ReusedJob
+                    ? $"This document import is already queued. Job {result.WorkJobId}."
+                    : $"Document queued for Worker import. Job {result.WorkJobId}.";
+            await RefreshAsync();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        {
+            Logger.LogWarning(ex, "RAG document upload failed");
+            _error = "The document could not be uploaded.";
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (_loading || _denied)
+        {
+            return;
+        }
+        _loading = true;
+        try
+        {
+            using var client = await Api.CreateAsync();
+            _status = await client.GetFromJsonAsync<RagStatusResultDto>("/api/admin/rag/status", _stop.Token);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        {
+            Logger.LogWarning(ex, "RAG status refresh failed");
+            _error = "Could not refresh RAG status.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task PollAsync()
+    {
+        try
+        {
+            while (!_stop.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(15), _stop.Token);
+                await InvokeAsync(RefreshAsync);
+            }
+        }
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested)
+        {
+        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        return bytes < 1024 * 1024
+            ? $"{bytes / 1024d:N0} KB"
+            : $"{bytes / 1024d / 1024d:N1} MB";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _stop.CancelAsync();
+        if (_poll is not null)
+        {
+            await _poll;
+        }
+        _stop.Dispose();
+    }
+}

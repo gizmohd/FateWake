@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.AddServiceDefaults();
+builder.AddRedisDistributedCache("redis");
 
 builder.Services.AddDbContext<FatewakeDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("fatewake")));
@@ -38,6 +39,8 @@ builder.Services.AddScoped<IWorkStore, WorkStore>();
 builder.Services.AddScoped<IWorkArtifactStore, WorkArtifactStore>();
 builder.Services.AddScoped<IArtAssetStore, ArtAssetStore>();
 builder.Services.AddScoped<IArtGenerationStore, ArtGenerationStore>();
+builder.Services.AddScoped<IRagIngestionService, RagIngestionService>();
+builder.Services.AddScoped<IRagStagingStore, RagStagingStore>();
 builder.Services.AddScoped<IArtRegenerationStore, ArtRegenerationStore>();
 builder.Services.AddScoped<IWorkJobBuilder, WorkJobBuilder>();
 builder.Services.AddScoped<IArtWorkJobFactory, ArtWorkJobFactory>();
@@ -50,6 +53,7 @@ builder.Services.AddScoped<IWorkStepHandler, ArtOptimizePngWorkStepHandler>();
 builder.Services.AddScoped<IWorkStepHandler, ArtInspectMetadataWorkStepHandler>();
 builder.Services.AddScoped<IWorkStepHandler, ArtValidateWorkStepHandler>();
 builder.Services.AddScoped<IWorkStepHandler, ArtFinalizeWorkStepHandler>();
+builder.Services.AddScoped<IWorkStepHandler, RagImportWorkStepHandler>();
 
 var provider = builder.Configuration.GetSection(ArtGenerationProviderOptions.SectionName).Get<ArtGenerationProviderOptions>() ?? new ArtGenerationProviderOptions();
 switch (provider.Provider.ToLowerInvariant())

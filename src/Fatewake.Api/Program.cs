@@ -17,6 +17,7 @@ using Fatewake.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
+builder.AddRedisDistributedCache("redis");
 builder.Services.AddAuthentication(BearerTokenDefaults.AuthenticationScheme).AddBearerToken(options =>
     options.BearerTokenExpiration = TimeSpan.FromHours(8)).AddExternalTokenValidation(builder.Configuration);
 builder.Services.AddAuthorization();
@@ -48,6 +49,8 @@ builder.Services.AddScoped<Fatewake.Observability.IAiUsageRecorder, Fatewake.Inf
 builder.Services.AddScoped<Fatewake.Infrastructure.Usage.AdminDashboardService>();
 builder.Services.AddScoped<ISessionStore, SessionStore>();
 builder.Services.AddScoped<StoryJournalService>();
+builder.Services.AddScoped<IRagIngestionService, RagIngestionService>();
+builder.Services.AddScoped<IRagStagingStore, RagStagingStore>();
 builder.Services.AddScoped<IAccountStore, AccountStore>();
 builder.Services.Configure<ArtStorageOptions>(builder.Configuration.GetSection(ArtStorageOptions.SectionName));
 var artStorage = builder.Configuration.GetSection(ArtStorageOptions.SectionName).Get<ArtStorageOptions>() ?? new ArtStorageOptions();
@@ -102,6 +105,7 @@ app.MapSceneArt();
 app.MapArtReviews();
 app.MapStory();
 app.MapAdminDashboard();
+app.MapRagAdmin();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
