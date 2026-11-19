@@ -37,6 +37,7 @@ The [shared concept boards](https://chatgpt.com/share/6afe27f5-593c-83ea-8b70-9f
 - Keep motion restrained. Any CRT treatment, typewriter reveal or parallax must preserve text and clues, support reduced motion and offer an immediate way to read the full text.
 
 ## Camera language
+
 Use 640×360 as the logical target for widescreen scene presentations. Keep the existing Day 1 9:16 layered masters for the portrait composition. Plan safe crops or letterboxing for other viewports. Keep important clues, faces and contact poses within the central safe area, then inspect the actual crop on a phone and at desktop size. Preserve gradients and edges with high-quality resampling.
 
 Use establishing wides, intimate medium shots, selective close-ups, foreground framing and occasional asymmetric panels. Reserve centered portraits for deliberate reference or identity shots.
@@ -56,6 +57,6 @@ Tension through restraint. People look scared, exhausted, suspicious, relieved o
 
 Start each art prompt with its subject, framing, story state and approved continuity references. Specify high-color 32-bit-era 2D adventure illustration, naturalistic faces and materials, fine raster detail, controlled gradients, crisp silhouettes and cinematic directional light. Apply scene-specific lighting and composition after the style direction. Keep chrome, sprites and atmospheric overlays separate from the scene when they need to be reused.
 
-Exclude glossy 3D, photorealistic photography, anime or manga styling, plastic skin, chunky pixel grids, heavy dithering, RGB565 quantization, neon cyberpunk scenery, fashion posing, superhero costumes, fantasy armor, unexplained accessories or wardrobe changes, excessive gore, and creatures outside canon. Exclude captions, speech balloons, logos and watermarks. A physical in-world display may contain legible text only when the scene explicitly calls for it.
+Exclude glossy 3D, photorealistic photography,  plastic skin, chunky pixel grids, heavy dithering, RGB565 quantization, neon cyberpunk scenery, fashion posing, superhero costumes, fantasy armor, unexplained accessories or wardrobe changes, excessive gore, and creatures outside canon. Exclude captions, speech balloons, logos and watermarks. A physical in-world display may contain legible text only when the scene explicitly calls for it.
 
 Before approving an asset, review it in the game frame at desktop and mobile sizes. Check that the face, clue or action reads immediately, the layers agree on direction and scale, and character and location continuity match approved references. Use this direction for new assets and explicit versioned replacements. Preserve approved artwork and journal-pinned versions.
