@@ -9,134 +9,112 @@
 @inject Microsoft.Extensions.Hosting.IHostEnvironment Environment
 
 <PageTitle>Fatewake — The Silence</PageTitle>
-<main class="play-shell">
-    <header class="play-masthead play-frame">
-        <div class="play-brand">
-            <span class="play-star" aria-hidden="true">✦</span>
-            <div>
-                <h1>Fatewake</h1>
-                <p>A Wayfinder Universe experience</p>
-            </div>
-        </div>
+<SiteShell SurvivorId="_session?.SurvivorId">
+    <Chapter>
         <div class="play-chapter">
-            <strong>@Scene.Title</strong>
+            <h1>@Scene.Title</h1>
             <span>Survivor Day @(_session?.SurvivorDay ?? Scene.SurvivorDay)</span>
         </div>
-    </header>
+    </Chapter>
 
-    <nav class="play-navigation play-frame" aria-label="Game menu">
-        <span class="play-menu-title">Game menu</span>
-        <a class="play-menu-active" href="#play-controls"><span aria-hidden="true">▶</span> Scene</a>
-        @if (_session is not null)
-        {
-            <a href="/novel/@_session.SurvivorId"><span aria-hidden="true">▤</span> Journal</a>
-        }
-        <Microsoft.AspNetCore.Components.Authorization.AuthorizeView>
-            <Authorized><a href="/account"><span aria-hidden="true">◇</span> Account</a></Authorized>
-            <NotAuthorized>
-                <a href="/login"><span aria-hidden="true">◇</span> Sign in</a>
-                <a href="/register"><span aria-hidden="true">+</span> Create account</a>
-            </NotAuthorized>
-        </Microsoft.AspNetCore.Components.Authorization.AuthorizeView>
-        <Microsoft.AspNetCore.Components.Authorization.AuthorizeView Roles="Admin">
-            <Authorized><a href="/admin"><span aria-hidden="true">⚙</span> Admin dashboard</a></Authorized>
-        </Microsoft.AspNetCore.Components.Authorization.AuthorizeView>
-        <a class="play-exit" href="/"><span aria-hidden="true">↶</span> Main menu</a>
+    <MenuActions>
         @if (Environment.IsDevelopment() && _ready && _session is not null)
         {
             <button class="play-reset" type="button" title="Development only: discard this chapter's choices and restart it"
                     disabled="@_submitting" @onclick="ResetChapter">Reset chapter</button>
         }
-    </nav>
+    </MenuActions>
 
-    <section class="play-episode" aria-label="Current scene">
-        @if (_error is not null)
-        {
-            <div id="play-controls" class="play-frame play-message" role="alert" tabindex="-1">
-                <p>@_error <a href="/login">Sign in again</a> or <a href="/play">reload</a>.</p>
-            </div>
-        }
-        else if (!_ready)
-        {
-            <div id="play-controls" class="play-frame play-message" role="status" tabindex="-1">Remembering your session…</div>
-        }
-        else
-        {
-            <div class="play-viewport play-frame">
-                <ArtCompositionView ArtworkKey="@Beat.ArtworkKey" Layers="@DayOneArt.For(Beat.ArtworkKey)"
-                                    ArtworkDisplayed="RememberArtwork" SurvivorId="_session?.SurvivorId"
-                                    PrefetchKeys="UpcomingArtKeys" SelectedActionType="@_selectedActionType">
-                    <div class="play-scene-hud">
-                        @if (Beat.Time is not null) { <span>@Beat.Time</span> }
-                        @if (Beat.Status is not null) { <span class="play-signal">@Beat.Status</span> }
-                    </div>
-                </ArtCompositionView>
-            </div>
-
-            <section class="play-dialogue play-frame" aria-label="Scene text" aria-live="polite">
-                @if (Beat.Dialogue is { } dialogue)
-                {
-                    <div class="play-portrait" aria-hidden="true">
-                        <span>@(dialogue.Speaker == "RADIO" ? "RF" : "MS")</span>
-                        @if (SpeakerPortrait is { } portrait)
-                        {
-                            <img @key="portrait" src="@portrait" alt="" />
-                        }
-                    </div>
-                    <div class="play-dialogue-copy">
-                        <h2>@dialogue.Speaker</h2>
-                        @if (DisplayedNarration is { } narration) { <p class="play-narration">@narration</p> }
-                        <p>“@dialogue.Text”</p>
-                    </div>
-                }
-                else
-                {
-                    <div class="play-dialogue-copy">
-                        <h2>@(Beat.Kind == BeatKind.Interaction ? "Your move" : "Narration")</h2>
-                        <p>@(DisplayedNarration ?? "What will you do?")</p>
-                    </div>
-                }
-            </section>
-
-            <section id="play-controls" class="play-controls play-frame" aria-labelledby="play-control-title" tabindex="-1">
-                <div class="play-controls-header">
-                    <h2 id="play-control-title">@(Beat.Kind == BeatKind.Interaction ? "Choose an action" : AtChapterEnd ? "Chapter complete" : "Story controls")</h2>
-                    <span>Beat @(_beatIndex + 1) / @Scene.Beats.Count</span>
+    <ChildContent>
+        <main class="play-episode" aria-label="Current scene">
+            @if (_error is not null)
+            {
+                <div id="play-controls" class="play-frame play-message" role="alert" tabindex="-1">
+                    <p>@_error <a href="/login">Sign in again</a> or <a href="/play">reload</a>.</p>
                 </div>
-                @if (Beat.Kind == BeatKind.Interaction)
-                {
-                    @if (_actionMessage is not null) { <p class="play-action-alert" role="alert">@_actionMessage</p> }
-                    <ol class="play-choices">
-                        @foreach (var choice in Beat.Interactions.Where(x => !x.AllowFreeform))
-                        {
-                            <li><button type="button" disabled="@_submitting" @onclick="() => Act(choice.ActionType)">@choice.Label</button></li>
-                        }
-                    </ol>
-                    <button class="play-text-button" type="button" disabled="@_submitting" aria-expanded="@(_showOther ? "true" : "false")"
-                            @onclick="() => _showOther = !_showOther">Do something else…</button>
-                    @if (_showOther)
+            }
+            else if (!_ready)
+            {
+                <div id="play-controls" class="play-frame play-message" role="status" tabindex="-1">Remembering your session…</div>
+            }
+            else
+            {
+                <div class="play-viewport play-frame">
+                    <ArtCompositionView ArtworkKey="@Beat.ArtworkKey" Layers="@DayOneArt.For(Beat.ArtworkKey)"
+                                        ArtworkDisplayed="RememberArtwork" SurvivorId="_session?.SurvivorId"
+                                        PrefetchKeys="UpcomingArtKeys" SelectedActionType="@_selectedActionType">
+                        <div class="play-scene-hud">
+                            @if (Beat.Time is not null) { <span>@Beat.Time</span> }
+                            @if (Beat.Status is not null) { <span class="play-signal">@Beat.Status</span> }
+                        </div>
+                    </ArtCompositionView>
+                </div>
+
+                <section class="play-dialogue play-frame" aria-label="Scene text" aria-live="polite">
+                    @if (Beat.Dialogue is { } dialogue)
                     {
-                        <div class="play-composer">
-                            <label for="play-freeform">Describe your action</label>
-                            <textarea id="play-freeform" @bind="_freeform" @bind:event="oninput" placeholder="What do you do?"></textarea>
-                            <button class="play-primary" type="button" disabled="@(_submitting || string.IsNullOrWhiteSpace(_freeform))"
-                                    @onclick="SubmitFreeform">Do it</button>
+                        <div class="play-portrait" aria-hidden="true">
+                            <span>@(dialogue.Speaker == "RADIO" ? "RF" : "MS")</span>
+                            @if (SpeakerPortrait is { } portrait)
+                            {
+                                <img @key="portrait" src="@portrait" alt="" />
+                            }
+                        </div>
+                        <div class="play-dialogue-copy">
+                            <h2>@dialogue.Speaker</h2>
+                            @if (DisplayedNarration is { } narration) { <p class="play-narration">@narration</p> }
+                            <p>“@dialogue.Text”</p>
                         </div>
                     }
-                }
-                else if (AtChapterEnd)
-                {
-                    <p>You’ve reached the end of the available story.</p>
-                    @if (_session is not null) { <a class="play-primary" href="/novel/@_session.SurvivorId">Read your journal</a> }
-                }
-                else
-                {
-                    <button class="play-primary" type="button" disabled="@_submitting" @onclick="NextBeat"><span aria-hidden="true">▶</span> Continue</button>
-                }
-            </section>
-        }
-    </section>
-</main>
+                    else
+                    {
+                        <div class="play-dialogue-copy">
+                            <h2>@(Beat.Kind == BeatKind.Interaction ? "Your move" : "Narration")</h2>
+                            <p>@(DisplayedNarration ?? "What will you do?")</p>
+                        </div>
+                    }
+                </section>
+
+                <section id="play-controls" class="play-controls play-frame" aria-labelledby="play-control-title" tabindex="-1">
+                    <div class="play-controls-header">
+                        <h2 id="play-control-title">@(Beat.Kind == BeatKind.Interaction ? "Choose an action" : AtChapterEnd ? "Chapter complete" : "Story controls")</h2>
+                        <span>Beat @(_beatIndex + 1) / @Scene.Beats.Count</span>
+                    </div>
+                    @if (Beat.Kind == BeatKind.Interaction)
+                    {
+                        @if (_actionMessage is not null) { <p class="play-action-alert" role="alert">@_actionMessage</p> }
+                        <ol class="play-choices">
+                            @foreach (var choice in Beat.Interactions.Where(x => !x.AllowFreeform))
+                            {
+                                <li><button type="button" disabled="@_submitting" @onclick="() => Act(choice.ActionType)">@choice.Label</button></li>
+                            }
+                        </ol>
+                        <button class="play-text-button" type="button" disabled="@_submitting" aria-expanded="@(_showOther ? "true" : "false")"
+                                @onclick="() => _showOther = !_showOther">Do something else…</button>
+                        @if (_showOther)
+                        {
+                            <div class="play-composer">
+                                <label for="play-freeform">Describe your action</label>
+                                <textarea id="play-freeform" @bind="_freeform" @bind:event="oninput" placeholder="What do you do?"></textarea>
+                                <button class="play-primary" type="button" disabled="@(_submitting || string.IsNullOrWhiteSpace(_freeform))"
+                                        @onclick="SubmitFreeform">Do it</button>
+                            </div>
+                        }
+                    }
+                    else if (AtChapterEnd)
+                    {
+                        <p>You’ve reached the end of the available story.</p>
+                        @if (_session is not null) { <a class="play-primary" href="/novel/@_session.SurvivorId">Read your journal</a> }
+                    }
+                    else
+                    {
+                        <button class="play-primary" type="button" disabled="@_submitting" @onclick="NextBeat"><span aria-hidden="true">▶</span> Continue</button>
+                    }
+                </section>
+            }
+        </main>
+    </ChildContent>
+</SiteShell>
 @if (_session is not null) { <StoryToasts @key="_session.SurvivorId" SurvivorId="_session.SurvivorId" /> }
 
 @code {
