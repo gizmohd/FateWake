@@ -40,6 +40,22 @@ Restart AppHost to forward updated settings to API and Worker. Previously queued
 
 Production delivery still goes through `ArtWorkJobFactory`: preserve the master, generate both WebP and optimized PNG derivatives, and validate dimensions and required alpha before publication. Raw ComfyUI output is never a web-delivery asset. Creating these files does not enable Z-Image automatically or interrupt running generation.
 
+## SSD-1B for integrated Intel Arc
+
+Use the Windows Intel XPU build of ComfyUI. Check `/system_stats` for an `xpu:0` device and a PyTorch version ending in `+xpu`. Integrated Arc shares system RAM. When Z-Image Turbo exhausts XPU memory, the SSD-1B Arc workflows are a smaller option for local development.
+
+The Arc pair renders 768×432 at 12 DPM++ 2M/Karras steps with CFG 6 and batch size 1. It preserves the 16:9 scene framing and generates alpha for overlays with BiRefNet. Install `SSD-1B-A1111.safetensors` and `birefnet.safetensors` in the same model directories as the existing SSD-1B workflows. Keep one artwork generation slot per renderer.
+
+```powershell
+$backgroundWorkflow = (Resolve-Path .\workflows\fatewake-ssd1b-arc-api.json).Path
+$overlayWorkflow = (Resolve-Path .\workflows\fatewake-ssd1b-arc-overlay-api.json).Path
+dotnet user-secrets set "ArtGeneration:ComfyUI:WorkflowPath" $backgroundWorkflow --project src\Fatewake.AppHost
+dotnet user-secrets set "ArtGeneration:ComfyUI:OverlayWorkflowPath" $overlayWorkflow --project src\Fatewake.AppHost
+dotnet user-secrets set "ArtGeneration:ComfyUI:Model" "SSD-1B-A1111.safetensors" --project src\Fatewake.AppHost
+```
+
+Restart AppHost to forward the profile. Queue new artwork jobs to capture the new model name in their provenance. Review the output before approving it for reuse.
+
 ## Existing checkpoint workflows
 
 The default `fatewake-ssd1b-api.json` renders opaque 768x1344 backgrounds with Segmind SSD-1B, using 18 DPM++ 2M/Karras sampling steps and CFG 9. `fatewake-ssd1b-overlay-api.json` adds native BiRefNet background removal and an alpha join for reusable overlays. This smaller SDXL derivative runs on the tested Intel Core Ultra 7 155H / Intel Arc machine with 32 GB RAM. ComfyUI's Intel XPU installation selects FP16 and manages model offloading.

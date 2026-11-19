@@ -1,10 +1,10 @@
-using System.Globalization;
-using System.Linq.Expressions;
-using System.Text.Json;
 using Fatewake.Infrastructure.Art;
 using Fatewake.Infrastructure.Persistence;
 using Fatewake.Observability;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Linq.Expressions;
+using System.Text.Json;
 namespace Fatewake.Infrastructure.Usage;
 /// <summary>Server-side bounded, read-only operational and accounting projections.</summary>
 public sealed class AdminDashboardService(FatewakeDbContext db)
@@ -127,6 +127,7 @@ public sealed class AdminDashboardService(FatewakeDbContext db)
         var steps = await db.WorkSteps.AsNoTracking().Where(x => x.JobId == id).OrderBy(x => x.CreatedAt).ThenBy(x => x.StepType).ToArrayAsync(ct);
         return new(row, steps.Select(x => new AdminJobStep(x.StepType, x.Status.ToString(), x.AttemptCount, x.UpdatedAt, Failure(x))).ToArray());
     }
+
     /// <summary>Searches bounded account labels for filtering, including accounts with no recorded AI activity.</summary>
     public Task<AdminDashboardUser[]> UsersAsync(string? search, CancellationToken ct = default)
     {
@@ -135,6 +136,7 @@ public sealed class AdminDashboardService(FatewakeDbContext db)
             q = q.Where(x => (x.PrimaryEmail ?? "").Contains(search) || (x.DisplayName ?? "").Contains(search));
         return q.OrderBy(x => x.PrimaryEmail ?? x.DisplayName).Take(50).Select(x => new AdminDashboardUser(x.Id, x.PrimaryEmail ?? x.DisplayName ?? x.Id.ToString())).ToArrayAsync(ct);
     }
+
     private IQueryable<AiUsageRecord> Usage(AdminDashboardFilter f)
     {
         var q = db.Set<AiUsageRecord>().AsNoTracking();
