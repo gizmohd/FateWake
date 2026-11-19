@@ -76,7 +76,10 @@ public sealed class SceneArtworkTests
 
         var request = SceneArtRevision.Create(catalog, "bg-day1-bedroom-dark", revision);
 
-        Assert.StartsWith("Hand-pixelled high-color 32-bit-era console game illustration", request.ResolvedPrompt);
+        Assert.StartsWith("Draw a high-color 1990s 32-bit console graphic-novel panel or layer", request.ResolvedPrompt);
+        Assert.Contains("specified story location, time, action and subject", request.ResolvedPrompt);
+        Assert.Contains("match perspective, scale, pixel size, line weight and light direction", request.ResolvedPrompt);
+        Assert.Contains("speech balloons", request.NegativeInstructions);
         Assert.Contains("Subject details: An intact bedroom at dawn.", request.ResolvedPrompt);
         Assert.Equal(revision.Id, request.PromptRevisionId);
         Assert.NotNull(request.LegacyVisualFingerprint);

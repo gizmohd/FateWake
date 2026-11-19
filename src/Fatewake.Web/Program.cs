@@ -2,6 +2,7 @@ using Fatewake.Infrastructure.Authentication;
 using Fatewake.Infrastructure.Persistence;
 using Fatewake.Web.Authentication;
 using Fatewake.Web.Features;
+using Fatewake.Web.Presentation;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.RateLimiting;
@@ -26,6 +27,7 @@ builder.Services.AddAuthorization();
 builder.Services.Configure<CharacterCustomizationOptions>(builder.Configuration.GetSection(CharacterCustomizationOptions.SectionName));
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticatedApiClient>();
+builder.Services.AddScoped<SceneArtworkCache>();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -90,12 +92,12 @@ app.MapGet("/art/{key}/{version:int}/{format}", async (string key, int version, 
             response.Content.Headers.TryGetValues(header, out values))
             context.Response.Headers[header] = values.ToArray();
     }
+    if (context.Response.Headers.CacheControl.ToString().Contains("private", StringComparison.OrdinalIgnoreCase))
+        context.Response.Headers.Vary = "Cookie";
     if (!response.IsSuccessStatusCode)
         return Results.Empty;
     context.Response.ContentType = response.Content.Headers.ContentType?.ToString() ??
         (format == "sprite-png" ? "image/png" : "image/" + format);
-    if (context.Response.Headers.CacheControl.ToString().Contains("private", StringComparison.OrdinalIgnoreCase))
-        context.Response.Headers.Vary = "Cookie";
     await response.Content.CopyToAsync(context.Response.Body, ct);
     return Results.Empty;
 });

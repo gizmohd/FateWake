@@ -112,6 +112,16 @@ public sealed class PostgresArtBinaryStorage(
         }
     }
 
+    /// <inheritdoc />
+    public async Task<bool> AllExistAsync(string[] storageKeys, CancellationToken ct = default)
+    {
+        var found = await db.ArtBinaries.AsNoTracking().Where(binary => storageKeys.Contains(binary.StorageKey))
+            .Select(binary => binary.StorageKey).ToArrayAsync(ct);
+        foreach (var key in storageKeys.Except(found, StringComparer.Ordinal))
+            if (legacyStorage is null || !await legacyStorage.ExistsAsync(key, ct))
+                return false;
+        return true;
+    }
 
     private static string ContentTypeFor(string key)
         => Path.GetExtension(key).ToLowerInvariant() switch

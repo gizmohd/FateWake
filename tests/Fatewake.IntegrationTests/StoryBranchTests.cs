@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Fatewake.GameEngine;
 using Fatewake.GameEngine.DayOne;
@@ -6,7 +7,9 @@ using Fatewake.Infrastructure.Persistence;
 using Fatewake.Infrastructure.Rag;
 using Fatewake.Infrastructure.Story;
 using Fatewake.Infrastructure.Work;
+using Fatewake.Story;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Fatewake.IntegrationTests;
@@ -14,6 +17,80 @@ namespace Fatewake.IntegrationTests;
 /// <summary>Verifies that scene continuations reuse safe cues without sharing another player's input.</summary>
 public sealed class StoryBranchTests
 {
+    /// <summary>New games use approved canon and reach a playable opening at their assigned arrival.</summary>
+    [Fact]
+    public async Task Generated_opening_uses_approved_canon_and_preserves_legacy_games()
+    {
+        var connection = Environment.GetEnvironmentVariable("FATEWAKE_REGISTRATION_TEST_CONNECTION");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(connection), "An isolated PostgreSQL database is required.");
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = new FatewakeDbContext(new DbContextOptionsBuilder<FatewakeDbContext>().UseNpgsql(connection).Options);
+        await DatabaseInitializer.InitializeAsync(db, ct);
+
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["SceneAuthoring:Enabled"] = "true"
+        }).Build();
+        var legacy = await new SessionStore(db).StartOrResumeAsync(null, "unknown", ct);
+        var sessions = new SessionStore(db, configuration: config);
+        var resumed = await sessions.StartOrResumeAsync(legacy.SurvivorId, "unknown", ct);
+        Assert.Equal(legacy.EventKey, resumed.EventKey);
+        Assert.Equal(legacy.BeatKey, resumed.BeatKey);
+
+        var session = await sessions.StartOrResumeAsync(null, "unknown", ct);
+        Assert.Equal(DayOneScenes.GeneratedOpeningKey, session.EventKey);
+        var arrival = Assert.IsType<DayOneArrival>(session.Arrival);
+        var map = await new WorldMapStore(db).ReadAsync(session.SurvivorId, ct);
+        var firstVisit = Assert.Single(map.Visits);
+        Assert.Equal(arrival.StartCellId, (await db.Set<WorldVisitRecord>()
+            .SingleAsync(row => row.SurvivorId == session.SurvivorId, ct)).CellId);
+        Assert.Equal(arrival.Minute, firstVisit.Position.Tick);
+        var journal = new StoryJournalService(db);
+        Assert.Empty(await journal.ReadAsync(session.SurvivorId, ct));
+
+        const string approved = "The Silence began with failed telephone calls in a quiet neighborhood.";
+        const string pending = "The Silence began with a secret signal at the north tower.";
+        await ImportAsync(approved, "Approved");
+        await ImportAsync(pending, "Pending");
+
+        var jobs = new WorkJobBuilder(db, new NullWorkSignalBus(), NullLogger<WorkJobBuilder>.Instance);
+        var scenes = new StoryPlayService(db, new SceneScheduler(db, jobs, NullLogger<SceneScheduler>.Instance),
+            NullLogger<StoryPlayService>.Instance);
+        Assert.Equal(GeneratedSceneStatus.Pending, (await scenes.GetCurrentAsync(session.SurvivorId, false, ct)).Status);
+        Assert.Equal(1, (await scenes.GetCurrentAsync(session.SurvivorId, false, ct)).Sequence);
+        var job = await db.WorkJobs.SingleAsync(row => row.JobType == SceneWork.JobType &&
+            row.IdempotencyKey == $"{session.TimelineId:N}:1:0", ct);
+        var step = await db.WorkSteps.SingleAsync(row => row.JobId == job.Id, ct);
+        var author = new RecordingAuthor();
+        var retriever = new RagRetriever(db, null!, new EmbeddingOptions(), NullLogger<RagRetriever>.Instance);
+        var worker = new SceneWorkStepHandler(db, retriever, author,
+            new SceneAuthoringOptions { Enabled = true, ApiKey = "test-key" }, NullLogger<SceneWorkStepHandler>.Instance);
+        await worker.ExecuteAsync(new WorkStepExecutionContext(job.Id, step.Id, step.Input!, 1), ct);
+
+        var context = Assert.Single(author.Contexts);
+        Assert.Equal(arrival, context.Arrival);
+        Assert.True(context.IsGeneratedOpening);
+        Assert.True(context.RequiresDecision);
+        Assert.Null(context.PlayerChoice);
+        Assert.Contains(approved, context.CanonPassages);
+        Assert.DoesNotContain(pending, context.CanonPassages);
+        var opening = await scenes.GetCurrentAsync(session.SurvivorId, false, ct);
+        Assert.Equal(GeneratedSceneStatus.Ready, opening.Status);
+        Assert.Equal(arrival.TimeLabel, opening.Scene!.TimeLabel);
+        Assert.Contains(opening.Scene.Choices, choice => choice.AllowFreeform);
+        Assert.Equal("The street grows quiet.", Assert.Single(await journal.ReadAsync(session.SurvivorId, ct)).Narration);
+
+        var next = await scenes.ChooseAsync(session.SurvivorId, 1, "freeform", "Check the houses.", ct);
+        Assert.Equal(2, next?.Sequence);
+        var continued = await sessions.StartOrResumeAsync(session.SurvivorId, "unknown", ct);
+        Assert.Equal(session.Version + 1, continued.Version);
+        Assert.Equal(arrival.Minute + 1, (await new WorldMapStore(db).ReadAsync(session.SurvivorId, ct)).Current!.Position.Tick);
+
+        Task<RagImportResult> ImportAsync(string text, string status) => new RagIngestionService(db).ImportAsync(
+            new RagImportRequest("opening-test.txt", "text/plain", Encoding.UTF8.GetBytes(text), $"opening-{Guid.NewGuid():N}",
+                "StoryLine", "Opening test", "Authorized", status, "SharedApprovedCanon", null, null), ct);
+    }
+
     /// <summary>Similar Day One actions reuse a compatible cue and keep the two player inputs separate.</summary>
     [Fact]
     public async Task Similar_actions_reuse_only_the_approved_branch_cue()

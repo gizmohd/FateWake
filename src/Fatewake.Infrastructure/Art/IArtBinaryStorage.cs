@@ -6,4 +6,11 @@ public interface IArtBinaryStorage
     Task PutAsync(string storageKey, Stream content, string contentType, CancellationToken ct = default);
     Task<Stream> OpenReadAsync(string storageKey, CancellationToken ct = default);
     Task<bool> ExistsAsync(string storageKey, CancellationToken ct = default);
+    async Task<bool> AllExistAsync(string[] storageKeys, CancellationToken ct = default)
+    {
+        foreach (var key in storageKeys)
+            if (!await ExistsAsync(key, ct))
+                return false;
+        return true;
+    }
 }

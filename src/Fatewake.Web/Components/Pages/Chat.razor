@@ -1,0 +1,228 @@
+@page "/chat/{SurvivorId:guid}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@inject AuthenticatedApiClient Api
+@implements IDisposable
+
+<PageTitle>Chat - @BrandIdentity.GameName</PageTitle>
+
+<SiteShell SurvivorId="SurvivorId">
+    <main class="player-chat play-frame">
+        <h1>Chat</h1>
+        @if ((_error ?? _connectionError) is { } error)
+        {
+            <p role="alert">@error</p>
+        }
+        @if (_lobby is null)
+        {
+            <p role="status">Loading chat…</p>
+        }
+        else if (!_lobby.Enabled)
+        {
+            <p>Turn on chat to meet players in the same place and moment. Friends can reach you when you share a working communication network.</p>
+            <button type="button" disabled="@_busy" @onclick="() => SetEnabledAsync(true)">Enable chat</button>
+        }
+        else
+        {
+            <button type="button" disabled="@_busy" @onclick="() => SetEnabledAsync(false)">Disable chat</button>
+            <div class="chat-columns">
+                <section aria-label="Players">
+                    <h2>Players</h2>
+                    @if (_lobby.Contacts.Count == 0)
+                    {
+                        <p>No nearby players or friends.</p>
+                    }
+                    @foreach (var contact in _lobby.Contacts)
+                    {
+                        <div class="chat-contact" @key="contact.PlayerId">
+                            <button type="button" disabled="@_busy" aria-pressed="@(_peer == contact.PlayerId)"
+                                    @onclick="() => SelectAsync(contact.PlayerId)">@contact.Name</button>
+                            <span>@Availability(contact)</span>
+                        </div>
+                    }
+                </section>
+                @if (_lobby.Contacts.FirstOrDefault(contact => contact.PlayerId == _peer) is { } selected)
+                {
+                    <section aria-label="Conversation">
+                        <h2>@selected.Name</h2>
+                        <div class="chat-actions">
+                            @if (selected.Friendship == "received")
+                            {
+                                <button type="button" disabled="@_busy" @onclick='() => FriendAsync(selected.PlayerId, "accept")'>Accept friend request</button>
+                                <button type="button" disabled="@_busy" @onclick='() => FriendAsync(selected.PlayerId, "remove")'>Decline</button>
+                            }
+                            else if (selected.Friendship is "friend" or "sent")
+                            {
+                                <button type="button" disabled="@_busy" @onclick='() => FriendAsync(selected.PlayerId, "remove")'>
+                                    @(selected.Friendship == "friend" ? "Remove friend" : "Cancel friend request")
+                                </button>
+                            }
+                            else if (selected.Nearby)
+                            {
+                                <button type="button" disabled="@_busy" @onclick='() => FriendAsync(selected.PlayerId, "request")'>Add friend</button>
+                            }
+                        </div>
+                        @if (_conversation?.Channel is { } channel)
+                        {
+                            <p class="chat-channel">@(channel == "Nearby" ? "Nearby conversation" : "Remote connection")</p>
+                            <ol class="chat-transcript" aria-label="Recent messages" aria-live="polite">
+                                @foreach (var line in _conversation.Messages)
+                                {
+                                    <li @key="line.Id"><strong>@(line.FromYou ? "You" : selected.Name)</strong> @line.Text</li>
+                                }
+                            </ol>
+                            <form @onsubmit="SendAsync" @onsubmit:preventDefault>
+                                <label for="player-message">Message</label>
+                                <textarea id="player-message" @bind="_draft" @bind:event="oninput" readonly="@_busy"
+                                          maxlength="400" rows="2"></textarea>
+                                <button type="submit" disabled="@(_busy || string.IsNullOrWhiteSpace(_draft))">Send</button>
+                            </form>
+                        }
+                        else
+                        {
+                            <p role="status">No connection at this location and moment.</p>
+                        }
+                    </section>
+                }
+            </div>
+        }
+    </main>
+</SiteShell>
+
+@code {
+    [Parameter] public Guid SurvivorId { get; set; }
+    private readonly CancellationTokenSource _lifetime = new();
+    private ChatLobby? _lobby;
+    private ChatConversation? _conversation;
+    private Guid? _peer;
+    private string _draft = "";
+    private string? _error;
+    private string? _connectionError;
+    private bool _busy;
+    private long _refreshVersion;
+    private string Endpoint => $"/api/survivors/{SurvivorId}/chat";
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            _ = PollAsync(_lifetime.Token);
+        return Task.CompletedTask;
+    }
+
+    private async Task PollAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        try
+        {
+            do
+            {
+                if (!_busy)
+                {
+                    await RefreshAsync(ct);
+                    await InvokeAsync(StateHasChanged);
+                }
+            } while (await timer.WaitForNextTickAsync(ct));
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+    }
+
+    private async Task RefreshAsync(CancellationToken ct)
+    {
+        var endpoint = Endpoint;
+        var version = ++_refreshVersion;
+        try
+        {
+            using var client = await Api.CreateAsync();
+            var lobby = await client.GetFromJsonAsync<ChatLobby>(endpoint, ct);
+            var peer = _peer;
+            var conversation = lobby?.Contacts.Any(contact => contact.PlayerId == peer) == true
+                ? await client.GetFromJsonAsync<ChatConversation>($"{endpoint}/{peer}", ct)
+                : null;
+            if (endpoint != Endpoint || version != _refreshVersion)
+                return;
+            _lobby = lobby;
+            _connectionError = null;
+            if (_peer == peer)
+                _conversation = conversation;
+        }
+        catch (HttpRequestException) when (!ct.IsCancellationRequested)
+        {
+            if (endpoint != Endpoint || version != _refreshVersion)
+                return;
+            _conversation = null;
+            _connectionError = "Chat is temporarily unavailable.";
+        }
+    }
+
+    private async Task SelectAsync(Guid peer)
+    {
+        _peer = peer;
+        _conversation = null;
+        _draft = "";
+        _error = null;
+        await RefreshAsync(_lifetime.Token);
+    }
+
+    private Task SetEnabledAsync(bool enabled) => ChangeAsync(client =>
+        client.PutAsJsonAsync($"{Endpoint}/preferences", new { enabled }, _lifetime.Token));
+
+    private Task FriendAsync(Guid peer, string action) => ChangeAsync(client =>
+        client.PostAsJsonAsync($"{Endpoint}/{peer}/friendship", new { action }, _lifetime.Token));
+
+    private async Task SendAsync()
+    {
+        if (_peer is { } peer && await ChangeAsync(client =>
+                client.PostAsJsonAsync($"{Endpoint}/{peer}/messages", new { text = _draft }, _lifetime.Token)))
+            _draft = "";
+    }
+
+    private async Task<bool> ChangeAsync(Func<HttpClient, Task<HttpResponseMessage>> action)
+    {
+        if (_busy)
+            return false;
+        _busy = true;
+        _error = null;
+        try
+        {
+            using var client = await Api.CreateAsync();
+            using var response = await action(client);
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = response.StatusCode switch
+                {
+                    System.Net.HttpStatusCode.BadRequest => (await response.Content.ReadFromJsonAsync<ChatError>(_lifetime.Token))?.Error,
+                    System.Net.HttpStatusCode.TooManyRequests => "Too many chat actions. Wait a moment and try again.",
+                    _ => "Chat is temporarily unavailable."
+                };
+            }
+            await RefreshAsync(_lifetime.Token);
+            return response.IsSuccessStatusCode;
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Chat is temporarily unavailable.";
+            return false;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string Availability(ChatContact contact) => contact switch
+    {
+        { Friendship: "received" } => "Friend request",
+        { Friendship: "sent" } => "Request sent",
+        { Nearby: true } => "Nearby",
+        { Remote: true } => "Remote connection",
+        _ => "Out of reach"
+    };
+
+    public void Dispose()
+    {
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+    }
+
+    private sealed record ChatError(string Error);
+}

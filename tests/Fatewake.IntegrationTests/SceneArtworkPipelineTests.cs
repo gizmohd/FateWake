@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using Fatewake.Api;
 using Fatewake.Infrastructure.Art;
@@ -45,7 +46,8 @@ public sealed class SceneArtworkPipelineTests
         builder.Services.AddScoped<ArtPromptSeedImporter>();
         builder.Services.AddScoped<IWorkStore, WorkStore>();
         builder.Services.AddSingleton<IWorkSignalBus, NullWorkSignalBus>();
-        builder.Services.AddSingleton<IArtBinaryStorage>(new FileSystemArtBinaryStorage(root));
+        builder.Services.Configure<ArtStorageOptions>(options => options.RootPath = root);
+        builder.Services.AddScoped<IArtBinaryStorage, PostgresArtBinaryStorage>();
         builder.Services.AddScoped<IWorkArtifactStore, WorkArtifactStore>();
         builder.Services.AddScoped<IArtGenerationStore, ArtGenerationStore>();
         builder.Services.AddSingleton<IArtImageProcessor, SkiaSharpArtImageProcessor>();
@@ -129,12 +131,22 @@ public sealed class SceneArtworkPipelineTests
             Assert.Equal("ready", asset.Status);
             foreach (var format in new[] { "png", "webp" })
             {
-                using var response = await client.GetAsync($"/api/art/{asset.Key}/{asset.Version}/{format}", ct);
+                var url = $"/api/art/{asset.Key}/{asset.Version}/{format}";
+                using var response = await client.GetAsync(url, ct);
                 response.EnsureSuccessStatusCode();
+                var etag = Assert.IsType<System.Net.Http.Headers.EntityTagHeaderValue>(response.Headers.ETag);
+                Assert.True(response.Headers.CacheControl?.Public);
                 using var image = SKBitmap.Decode(await response.Content.ReadAsByteArrayAsync(ct));
                 Assert.NotNull(image);
                 Assert.Equal(32, image.Width);
                 Assert.Equal(48, image.Height);
+
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.IfNoneMatch.Add(etag);
+                using var cached = await client.SendAsync(request, ct);
+                Assert.Equal(HttpStatusCode.NotModified, cached.StatusCode);
+                Assert.Equal(etag, cached.Headers.ETag);
+                Assert.Empty(await cached.Content.ReadAsByteArrayAsync(ct));
             }
 
             using (var scope = app.Services.CreateScope())

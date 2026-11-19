@@ -17,6 +17,52 @@ namespace Fatewake.Web.Tests;
 /// <see href="../../../docs/code/tests/Fatewake.Web.Tests/ArtworkRetryTests.md">ArtworkRetryTests documentation</see>
 public sealed class ArtworkRetryTests
 {
+    /// <summary>Prefetched art renders even when the next scene's fresh request is still waiting.</summary>
+    [Fact]
+    public async Task Next_scene_uses_prefetched_version_until_current_resolution_returns()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        const string nextKey = "bg-day1-house-hallway";
+        var service = new PrefetchResponses(nextKey);
+        var services = new ServiceCollection().AddLogging();
+        services.AddSingleton<AuthenticationStateProvider, Guest>();
+        services.AddSingleton<IHttpClientFactory>(service);
+        services.AddScoped<AuthenticatedApiClient>();
+        services.AddScoped<SceneArtworkCache>();
+        await using var provider = services.BuildServiceProvider();
+        await using var renderer = new InteractiveRenderer(provider);
+        var updates = Channel.CreateUnbounded<ArtworkSnapshot>();
+        var episodeId = Guid.NewGuid();
+
+        ParameterView Scene(string key, Guid episode, params string[] upcoming) =>
+            ParameterView.FromDictionary(new Dictionary<string, object?>
+            {
+                [nameof(ArtCompositionView.ArtworkKey)] = key,
+                [nameof(ArtCompositionView.Layers)] = DayOneArt.For(key),
+                [nameof(ArtCompositionView.EventInstanceId)] = episode,
+                [nameof(ArtCompositionView.PrefetchKeys)] = upcoming,
+                [nameof(ArtCompositionView.ArtworkDisplayed)] = EventCallback.Factory.Create<ArtworkSnapshot>(
+                    this, snapshot => updates.Writer.TryWrite(snapshot))
+            });
+
+        var id = await renderer.Dispatcher.InvokeAsync(() => renderer.MountAsync(Scene("day1-phone-0617", episodeId, nextKey)));
+        await updates.Reader.ReadAsync(timeout.Token);
+        Assert.True(await renderer.Dispatcher.InvokeAsync(() => renderer.HasImage(id, $"/art/{nextKey}/1/png")));
+        await renderer.Dispatcher.InvokeAsync(() => renderer.UpdateAsync(id, Scene("day1-house-flicker", episodeId)));
+        await service.Revalidating.Task.WaitAsync(timeout.Token);
+        Assert.Equal($"/art/{nextKey}/1/png", (await renderer.Dispatcher.InvokeAsync(() => renderer.ImageFrame(id))).Url);
+        Assert.False(updates.Reader.TryRead(out _));
+
+        service.Replacement.TrySetResult(2);
+        var update = await updates.Reader.ReadAsync(timeout.Token);
+        Assert.Equal(2, update.Versions[nextKey]);
+        Assert.True(await renderer.Dispatcher.InvokeAsync(() => renderer.HasImage(id, $"/art/{nextKey}/2/png")));
+        await renderer.Dispatcher.InvokeAsync(() => renderer.UpdateAsync(id, Scene("day1-house-flicker", Guid.NewGuid())));
+        Assert.Equal("/images/art-generating.svg", (await renderer.Dispatcher.InvokeAsync(() => renderer.ImageFrame(id))).Url);
+    }
+
     /// <summary>Pending work and failed image downloads both retry after five seconds, without a page refresh.</summary>
     [Fact]
     public async Task Pending_art_and_failed_image_downloads_retry_automatically()
@@ -28,6 +74,7 @@ public sealed class ArtworkRetryTests
         services.AddSingleton<AuthenticationStateProvider, Guest>();
         services.AddSingleton<IHttpClientFactory, ArtResponses>();
         services.AddScoped<AuthenticatedApiClient>();
+        services.AddScoped<SceneArtworkCache>();
         await using var provider = services.BuildServiceProvider();
         await using var renderer = new InteractiveRenderer(provider);
         var updates = Channel.CreateUnbounded<long>();
@@ -106,6 +153,40 @@ public sealed class ArtworkRetryTests
         }
     }
 
+    private sealed class PrefetchResponses(string nextKey) : HttpMessageHandler, IHttpClientFactory
+    {
+        private int nextRequests;
+        public TaskCompletionSource Revalidating { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<int> Replacement { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public HttpClient CreateClient(string name) => new(this, disposeHandler: false) { BaseAddress = new("http://test") };
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            if (request.RequestUri?.AbsolutePath != "/api/art/scene/resolve")
+                return new(HttpStatusCode.Forbidden);
+            var payload = (await request.Content!.ReadFromJsonAsync<ResolveKeys>(ct))!;
+            var version = 1;
+            if (payload.Keys.Contains(nextKey) && Interlocked.Increment(ref nextRequests) > 1)
+            {
+                Revalidating.TrySetResult();
+                version = nextRequests == 2 ? await Replacement.Task.WaitAsync(ct) : await WaitForCancellation(ct);
+            }
+            return new(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(payload.Keys.Select(key => new { key, status = "ready", version }))
+            };
+        }
+
+        private static async Task<int> WaitForCancellation(CancellationToken ct)
+        {
+            await Task.Delay(Timeout.Infinite, ct);
+            return 0;
+        }
+
+        private sealed record ResolveKeys(string[] Keys);
+    }
+
 #pragma warning disable BL0006 // Inspect interactive render frames to exercise the browser image error callback.
     private sealed class InteractiveRenderer(IServiceProvider services)
         : Renderer(services, services.GetRequiredService<ILoggerFactory>())
@@ -120,6 +201,8 @@ public sealed class ArtworkRetryTests
         }
 
         public Task ReportErrorAsync(ulong handler) => DispatchEventAsync(handler, null, EventArgs.Empty);
+
+        public Task UpdateAsync(int id, ParameterView parameters) => RenderRootComponentAsync(id, parameters);
 
         public (string? Url, ulong ErrorHandler) ImageFrame(int id)
         {

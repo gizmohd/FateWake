@@ -2,12 +2,13 @@
 @implements IDisposable
 @inject Fatewake.Web.Authentication.AuthenticatedApiClient ApiClient
 @inject Microsoft.Extensions.Logging.ILogger<ArtCompositionView> Logger
+@inject SceneArtworkCache ArtworkCache
 <div class="art-composition" data-artwork="@ArtworkKey">
     @foreach (var layer in Layers.OrderBy(x => x.Z))
     {
         if (DisplayableAsset(layer.AssetKey) is not { } asset) continue;
         <picture @key="(layer, asset.Version)" class="art-layer-picture" style="@LayerStyle(layer)">
-            @{ var character = layer.AssetKey.StartsWith("char-", StringComparison.Ordinal); }
+            @{ var character = IsCharacter(layer.AssetKey); }
             @if (!character)
             {
                 <source srcset="@ArtUrl(asset, "webp")" type="image/webp" />
@@ -26,6 +27,19 @@
     @ChildContent
 </div>
 <AdminArtReview SceneKey="@ArtworkKey" Versions="@ReviewVersions" ReplacementRequested="ReloadArtwork" />
+<div hidden aria-hidden="true">
+    @foreach (var asset in UpcomingAssets)
+    {
+        var character = IsCharacter(asset.Key);
+        <picture @key="(asset.Key, asset.Version)">
+            @if (!character)
+            {
+                <source srcset="@ArtUrl(asset, "webp")" type="image/webp" />
+            }
+            <img src="@ArtUrl(asset, character ? "sprite-png" : "png")" alt="" fetchpriority="low" />
+        </picture>
+    }
+</div>
 @code {
     private Dictionary<string, int?> ReviewVersions => Layers.Select(x => x.AssetKey).Distinct()
         .ToDictionary(key => key, key => ResolvedAssets.GetValueOrDefault(key)?.Version);
@@ -41,6 +55,8 @@
     [Parameter] public RenderFragment? ChildContent {get;set;}
     [Parameter] public EventCallback<ArtworkSnapshot> ArtworkDisplayed { get; set; }
     [Parameter] public Guid? SurvivorId { get; set; }
+    [Parameter] public Guid? EventInstanceId { get; set; }
+    [Parameter] public string? ReachedOutcome { get; set; }
     [Parameter] public string[] PrefetchKeys { get; set; } = [];
     [Parameter] public string? SelectedActionType { get; set; }
     private Dictionary<string, SceneAsset> ResolvedAssets = new(StringComparer.Ordinal);
@@ -48,7 +64,12 @@
     private static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan ReadyPollInterval = TimeSpan.FromSeconds(15);
     private CancellationTokenSource? Loading;
-    private (string Keys, Guid? Survivor, string? Action)? Signature;
+    private (string Artwork, string Keys, string Upcoming, SceneArtworkScope Scope)? Signature;
+    private SceneArtworkScope Scope => new(SurvivorId, EventInstanceId, SelectedActionType, ReachedOutcome);
+    private string[] UpcomingKeys => PrefetchKeys.Distinct(StringComparer.Ordinal)
+        .Except(Layers.Select(layer => layer.AssetKey), StringComparer.Ordinal).Take(24).ToArray();
+    private IEnumerable<SceneAsset> UpcomingAssets => UpcomingKeys.Select(key => ArtworkCache.Find(Scope, key))
+        .OfType<SceneAsset>().Take(6);
     private bool StartLoading;
     private bool Polling;
     private bool Unavailable;
@@ -71,19 +92,22 @@
     private void RetryImage(SceneAsset asset)
     {
         if (ResolvedAssets.GetValueOrDefault(asset.Key) != asset || !FailedImages.Add((asset.Key, asset.Version))) return;
+        ArtworkCache.Invalidate(Scope, asset);
         if (!Polling) StartLoading = true;
     }
 
     protected override void OnParametersSet()
     {
-        var signature = (string.Join("|", Layers.Select(x => x.AssetKey).Distinct().Order()) + "#" +
-            string.Join("|", PrefetchKeys.Distinct(StringComparer.Ordinal).Order()), SurvivorId, SelectedActionType);
+        var signature = (ArtworkKey, string.Join("|", Layers.Select(x => x.AssetKey).Distinct().Order()),
+            string.Join("|", UpcomingKeys), Scope);
         if (signature == Signature) return;
         Signature = signature;
         Loading?.Cancel();
         Loading?.Dispose();
         Loading = new();
-        ResolvedAssets = new(StringComparer.Ordinal);
+        ResolvedAssets = Layers.Select(layer => layer.AssetKey).Distinct(StringComparer.Ordinal)
+            .Select(key => ArtworkCache.Find(Scope, key)).OfType<SceneAsset>()
+            .ToDictionary(asset => asset.Key, StringComparer.Ordinal);
         FailedImages.Clear();
         Polling = false;
         Unavailable = false;
@@ -98,18 +122,17 @@
             Polling = true;
             var retryingImage = FailedImages.Count > 0;
             _ = LoadAsync(Layers.Select(x => x.AssetKey).Distinct().ToArray(),
-                retryingImage ? [] : PrefetchKeys.Distinct(StringComparer.Ordinal)
-                    .Except(Layers.Select(x => x.AssetKey), StringComparer.Ordinal).Take(24).ToArray(),
-                retryingImage, Loading!.Token);
+                retryingImage ? [] : UpcomingKeys, Scope, ArtworkKey, retryingImage, Loading!.Token);
         }
         return Task.CompletedTask;
     }
 
-    private async Task LoadAsync(string[] keys, string[] prefetchKeys, bool waitBeforeRequest, CancellationToken ct)
+    private async Task LoadAsync(string[] keys, string[] prefetchKeys, SceneArtworkScope scope, string artworkKey,
+        bool waitBeforeRequest, CancellationToken ct)
     {
         try
         {
-            if (prefetchKeys.Length > 0) _ = PrefetchAsync(prefetchKeys, ct);
+            var confirmed = false;
             var nextReadyPoll = DateTimeOffset.MinValue;
             while (!ct.IsCancellationRequested)
             {
@@ -122,17 +145,23 @@
                 try
                 {
                     using var client = await ApiClient.CreateAsync();
-                    using var response = await client.PostAsJsonAsync("/api/art/scene/resolve", new { keys, SurvivorId, SelectedActionType }, ct);
+                    using var response = await client.PostAsJsonAsync("/api/art/scene/resolve",
+                        new { keys, SurvivorId = scope.Survivor, SelectedActionType = scope.Action }, ct);
                     response.EnsureSuccessStatusCode();
                     var assets = await response.Content.ReadFromJsonAsync<SceneAsset[]>(ct) ?? [];
                     ct.ThrowIfCancellationRequested();
                     var resolved = assets.ToDictionary(x => x.Key, StringComparer.Ordinal);
-                    changed = Unavailable || retrying.Length > 0 || resolved.Count != ResolvedAssets.Count ||
+                    changed = !confirmed || Unavailable || retrying.Length > 0 || resolved.Count != ResolvedAssets.Count ||
                         resolved.Any(pair => pair.Value != ResolvedAssets.GetValueOrDefault(pair.Key));
+                    foreach (var asset in assets)
+                        ArtworkCache.Update(scope, asset);
                     ResolvedAssets = resolved;
                     FailedImages.ExceptWith(retrying);
                     Unavailable = false;
                     nextReadyPoll = DateTimeOffset.UtcNow.Add(ReadyPollInterval);
+                    if (!confirmed && prefetchKeys.Length > 0)
+                        _ = PrefetchAsync(prefetchKeys, scope, ct);
+                    confirmed = true;
                 }
                 catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException && !ct.IsCancellationRequested)
                 {
@@ -143,8 +172,8 @@
                 if (changed)
                 {
                     await InvokeAsync(StateHasChanged);
-                    if (!Unavailable)
-                        await InvokeAsync(() => ArtworkDisplayed.InvokeAsync(new ArtworkSnapshot(ArtworkKey, ReviewVersions)));
+                    if (!Unavailable && !ct.IsCancellationRequested)
+                        await InvokeAsync(() => ArtworkDisplayed.InvokeAsync(new ArtworkSnapshot(artworkKey, ReviewVersions)));
                 }
             }
         }
@@ -155,24 +184,30 @@
         }
     }
 
-    private async Task PrefetchAsync(string[] keys, CancellationToken ct)
+    private async Task PrefetchAsync(string[] keys, SceneArtworkScope scope, CancellationToken ct)
     {
         try
         {
             using var client = await ApiClient.CreateAsync();
             using var response = await client.PostAsJsonAsync("/api/art/scene/resolve",
-                new { keys, SurvivorId, SelectedActionType }, ct);
+                new { keys, SurvivorId = scope.Survivor, SelectedActionType = scope.Action }, ct);
             response.EnsureSuccessStatusCode();
+            var assets = await response.Content.ReadFromJsonAsync<SceneAsset[]>(ct) ?? [];
+            ct.ThrowIfCancellationRequested();
+            foreach (var asset in assets)
+                ArtworkCache.Update(scope, asset);
+            if (assets.Any(asset => asset.IsReady))
+                await InvokeAsync(StateHasChanged);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException)
         {
             Logger.LogWarning(ex, "Predictive artwork prefetch failed; visible artwork will continue normally");
         }
     }
 
     public void Dispose() { Loading?.Cancel(); Loading?.Dispose(); }
+    private static bool IsCharacter(string key) => key.StartsWith("char-", StringComparison.Ordinal);
     private static string ArtUrl(SceneAsset asset, string format) => $"/art/{asset.Key}/{asset.Version}/{format}";
-    private sealed record SceneAsset(string Key, string Status, int? Version, bool ReplacementPending = false);
     private static string LayerStyle(ArtLayer x)=>$"z-index:{x.Z};left:{x.X*100:F2}%;top:{x.Y*100:F2}%;width:{x.Width*100:F2}%;height:{x.Height*100:F2}%;opacity:{x.Opacity:F2};transform:translate(-50%,-50%) scale({x.Scale:F3}) rotate({x.Rotation:F2}deg);";
 }

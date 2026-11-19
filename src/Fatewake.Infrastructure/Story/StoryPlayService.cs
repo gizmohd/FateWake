@@ -92,9 +92,11 @@ public sealed class StoryPlayService(FatewakeDbContext db, ISceneScheduler sched
                 .SetProperty(x => x.ChosenActionType, action).SetProperty(x => x.ChosenText, text), ct);
         if (updated != 1)
             throw new InvalidOperationException("This scene has already been completed.");
-        await db.EventInstances.Where(episode => episode.SurvivorId == scene.SurvivorId &&
+        var openingVersion = await db.EventInstances.Where(episode => episode.SurvivorId == scene.SurvivorId &&
                 episode.TimelineId == scene.TimelineId && episode.EventKey == DayOneScenes.GeneratedOpeningKey)
             .ExecuteUpdateAsync(update => update.SetProperty(episode => episode.Version, episode => episode.Version + 1), ct);
+        if (openingVersion > 0)
+            await new WorldMapStore(db).AdvanceGeneratedAsync(scene.SurvivorId, scene.TimelineId, ct);
         await transaction.CommitAsync(ct);
     }
 

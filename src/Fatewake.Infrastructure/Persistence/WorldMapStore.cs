@@ -51,11 +51,14 @@ public sealed class WorldMapStore(FatewakeDbContext db)
     }
 
     /// <summary>Records an engine-authorized hop to a registered cell. The caller supplies the expected Thread and visit sequence.</summary>
-    public async Task RecordHopAsync(Guid survivorId, WorldPosition destination, long expectedSequence, CancellationToken ct)
+    public async Task RecordHopAsync(Guid survivorId, WorldPosition destination, long expectedSequence, CancellationToken ct,
+        string? communicationNetwork = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(destination.Tick);
         if (string.IsNullOrWhiteSpace(destination.ClockKey) || destination.ClockKey.Length > 80)
             throw new ArgumentException("A world clock key is required.", nameof(destination));
+        if (communicationNetwork is { } network && (string.IsNullOrWhiteSpace(network) || network.Length > 80))
+            throw new ArgumentException("Use a valid story communication network.", nameof(communicationNetwork));
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         await new TimelineStateStore(db).LockAsync(survivorId, destination.TimelineId, ct);
         var last = await LatestAsync(survivorId, destination.TimelineId, ct);
@@ -65,7 +68,7 @@ public sealed class WorldMapStore(FatewakeDbContext db)
             cell.Q == destination.Cell.Q && cell.R == destination.Cell.R).Select(cell => (Guid?)cell.Id).SingleOrDefaultAsync(ct)
             ?? throw new ArgumentException("The destination cell is not registered.", nameof(destination));
         await AppendAsync(new() { SurvivorId = survivorId, TimelineId = destination.TimelineId, CellId = cellId,
-            ClockKey = destination.ClockKey, Tick = destination.Tick }, last, ct);
+            ClockKey = destination.ClockKey, Tick = destination.Tick, CommunicationNetwork = communicationNetwork }, last, ct);
         await tx.CommitAsync(ct);
     }
 
@@ -80,13 +83,25 @@ public sealed class WorldMapStore(FatewakeDbContext db)
         await AppendAsync(visit, last, ct);
     }
 
+    // A generated scene consumes one story minute. Move the clock without inventing a new location or network.
+    internal async Task AdvanceGeneratedAsync(Guid survivorId, Guid timelineId, CancellationToken ct)
+    {
+        var last = await LatestAsync(survivorId, timelineId, ct);
+        if (last is null)
+            return;
+        await AppendAsync(new() { SurvivorId = survivorId, TimelineId = timelineId, CellId = last.CellId,
+            ClockKey = last.ClockKey, Tick = checked(last.Tick + 1), Authored = last.Authored,
+            CommunicationNetwork = last.CommunicationNetwork }, last, ct);
+    }
+
     private Task<WorldVisitRecord?> LatestAsync(Guid survivorId, Guid timelineId, CancellationToken ct) =>
         db.Set<WorldVisitRecord>().AsNoTracking().Where(row => row.SurvivorId == survivorId && row.TimelineId == timelineId)
             .OrderByDescending(row => row.Sequence).FirstOrDefaultAsync(ct);
 
     private async Task AppendAsync(WorldVisitRecord visit, WorldVisitRecord? last, CancellationToken ct)
     {
-        if (last?.CellId == visit.CellId && last.ClockKey == visit.ClockKey && last.Tick == visit.Tick)
+        if (last?.CellId == visit.CellId && last.ClockKey == visit.ClockKey && last.Tick == visit.Tick &&
+            last.CommunicationNetwork == visit.CommunicationNetwork)
             return;
         visit.Sequence = checked((last?.Sequence ?? 0) + 1);
         db.Add(visit);

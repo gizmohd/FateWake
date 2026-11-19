@@ -180,46 +180,57 @@ public static class SceneArtEndpoints
             if (version < 1 || format is not ("png" or "webp" or "sprite-png") ||
                 (sprite && !key.StartsWith("char-", StringComparison.Ordinal)))
                 return Results.NotFound();
-            var asset = await db.ArtAssets.AsNoTracking()
-                .Where(x => x.Key == key && x.Version == version && x.Status == ArtAssetStatus.Approved)
-                .Select(x => new { x.Id, x.OwnerAccountId })
-                .FirstOrDefaultAsync(ct);
-            if (asset is null)
-                return Results.NotFound();
-            if (asset.OwnerAccountId is Guid owner &&
-                (!Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var caller) || caller != owner))
-                return Results.NotFound();
-
+            Guid? caller = Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var owner) ? owner : null;
             var derivativeKind = format == "webp" ? ArtDerivativeKind.WebP : ArtDerivativeKind.OptimizedPng;
-            var derivative = await db.ArtAssetDerivatives.AsNoTracking()
-                .Where(x => x.ArtAssetId == asset.Id && x.Kind == derivativeKind)
-                .Select(x => new { x.StorageKey, x.ContentType, x.ContentHash, x.ByteSize, x.CreatedAt })
-                .FirstOrDefaultAsync(ct);
-            if (derivative is null || !await storage.ExistsAsync(derivative.StorageKey, ct))
+            var derivative = await (from asset in db.ArtAssets.AsNoTracking()
+                                    join file in db.ArtAssetDerivatives.AsNoTracking() on asset.Id equals file.ArtAssetId
+                                    where asset.Key == key && asset.Version == version && asset.Status == ArtAssetStatus.Approved &&
+                                        (asset.OwnerAccountId == null || asset.OwnerAccountId == caller) && file.Kind == derivativeKind
+                                    select new { file.StorageKey, file.ContentType, file.ContentHash, file.ByteSize, file.CreatedAt,
+                                        asset.OwnerAccountId }).FirstOrDefaultAsync(ct);
+            if (derivative is null)
                 return Results.NotFound();
 
             var etag = sprite ? $"\"{derivative.ContentHash}-sprite-v1\"" : $"\"{derivative.ContentHash}\"";
+            var notModified = MatchesIfNoneMatch(context.Request.Headers["If-None-Match"], etag);
+            Stream? source = null;
+            if (notModified)
+            {
+                if (!await storage.ExistsAsync(derivative.StorageKey, ct))
+                    return Results.NotFound();
+            }
+            else
+            {
+                try
+                {
+                    source = await storage.OpenReadAsync(derivative.StorageKey, ct);
+                }
+                catch (IOException ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+                {
+                    return Results.NotFound();
+                }
+            }
             context.Response.Headers.ETag = etag;
-            context.Response.Headers.CacheControl = asset.OwnerAccountId is null
+            context.Response.Headers.CacheControl = derivative.OwnerAccountId is null
                 ? "public,max-age=31536000,immutable"
                 : "private,max-age=3600,immutable";
-            if (asset.OwnerAccountId is not null)
+            if (derivative.OwnerAccountId is not null)
                 context.Response.Headers.Vary = "Authorization";
             context.Response.Headers.LastModified = derivative.CreatedAt.ToUniversalTime().ToString("R");
-            if (MatchesIfNoneMatch(context.Request.Headers["If-None-Match"], etag))
+            if (notModified)
                 return Results.StatusCode(StatusCodes.Status304NotModified);
 
             if (sprite)
             {
-                await using var source = await storage.OpenReadAsync(derivative.StorageKey, ct);
+                await using var spriteSource = source!;
                 using var buffer = new MemoryStream();
-                await source.CopyToAsync(buffer, ct);
+                await spriteSource.CopyToAsync(buffer, ct);
                 var png = buffer.ToArray();
                 return Results.File(CharacterSprite.CropPng(png) ?? png, "image/png");
             }
 
             context.Response.ContentLength = derivative.ByteSize;
-            return Results.Stream(await storage.OpenReadAsync(derivative.StorageKey, ct), derivative.ContentType);
+            return Results.Stream(source!, derivative.ContentType);
         });
     }
 
@@ -278,9 +289,7 @@ public static class SceneArtEndpoints
     private static async Task<bool> HasCompleteBinariesAsync(ArtAssetMatch asset, IArtBinaryStorage storage, CancellationToken ct)
         => asset.WebPStorageKey is { Length: > 0 } webpKey &&
            asset.OptimizedPngStorageKey is { Length: > 0 } pngKey &&
-           await storage.ExistsAsync(asset.MasterPngStorageKey, ct) &&
-           await storage.ExistsAsync(webpKey, ct) &&
-           await storage.ExistsAsync(pngKey, ct);
+           await storage.AllExistAsync([asset.MasterPngStorageKey, webpKey, pngKey], ct);
 
     private static ArtWorkRequest CreateRecoveryRequest(ArtWorkRequest request, Guid missingAssetId)
     {

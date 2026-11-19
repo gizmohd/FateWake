@@ -10,6 +10,7 @@ using Fatewake.Infrastructure.Rag;
 using Fatewake.Infrastructure.Story;
 using Fatewake.Infrastructure.Work;
 using Fatewake.Observability;
+using Fatewake.Story;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -101,6 +102,9 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("timeline-mutation", context => RateLimitPartition.GetFixedWindowLimiter(
         context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 6, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    options.AddPolicy("player-chat-write", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     options.AddPolicy("local-auth", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
@@ -115,6 +119,7 @@ builder.Services.AddScoped<Fatewake.Infrastructure.Usage.AdminDashboardService>(
 builder.Services.AddScoped<ISessionStore, SessionStore>();
 builder.Services.AddScoped<TimelineStateStore>();
 builder.Services.AddScoped<TimelineBranchService>();
+builder.Services.AddScoped<PlayerChatService>();
 builder.Services.AddScoped<StoryJournalService>();
 builder.Services.AddScoped<IRagIngestionService, RagIngestionService>();
 builder.Services.AddScoped<RagClaimService>();
@@ -202,6 +207,7 @@ app.MapSceneArt();
 app.MapArtReviews();
 app.MapStory();
 app.MapTimelines();
+app.MapPlayerChat();
 app.MapAdminDashboard();
 #if DEBUG
 DebugArtworkReset.Map(app);

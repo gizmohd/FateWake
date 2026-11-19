@@ -1,0 +1,75 @@
+.player-chat {
+    padding: clamp(1rem, 3vw, 2rem);
+}
+
+.player-chat button, .player-chat textarea {
+    min-height: 2.75rem;
+    padding: .5rem .75rem;
+    border: 1px solid var(--line, #6b5abb);
+    border-radius: .25rem;
+    background: #18153a;
+    color: inherit;
+    font: inherit;
+}
+
+.player-chat button:not(:disabled) {
+    cursor: pointer;
+}
+
+.player-chat button[aria-pressed="true"] {
+    border-color: var(--cyan, #8bf0ff);
+}
+
+.player-chat button:focus-visible, .player-chat textarea:focus-visible {
+    outline: 2px solid var(--cyan, #8bf0ff);
+    outline-offset: 2px;
+}
+
+.player-chat button:disabled {
+    opacity: .6;
+}
+
+.chat-columns {
+    display: grid;
+    gap: 1rem 2rem;
+    grid-template-columns: minmax(12rem, 1fr) minmax(0, 3fr);
+    margin-top: 1rem;
+}
+
+.chat-contact, .chat-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    margin-bottom: .5rem;
+}
+
+.chat-transcript {
+    list-style: none;
+    padding: 0;
+    overflow-wrap: anywhere;
+}
+
+.chat-transcript li {
+    padding: .5rem;
+    white-space: pre-wrap;
+}
+
+.chat-transcript li:nth-child(odd) {
+    background: rgb(255 255 255 / .06);
+}
+
+.player-chat form {
+    display: grid;
+    gap: .5rem;
+}
+
+.player-chat form button {
+    justify-self: start;
+}
+
+@media (max-width: 42rem) {
+    .chat-columns {
+        grid-template-columns: 1fr;
+    }
+}

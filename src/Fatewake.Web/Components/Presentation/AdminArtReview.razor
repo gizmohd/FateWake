@@ -11,7 +11,7 @@
             @foreach (var layer in Versions.Where(x => x.Value is not null))
             {
                 <button type="button" class="review-layer" @onclick="() => SelectLayerAsync(layer.Key)">
-                    <img src="@($"/art/{layer.Key}/{layer.Value}/webp")" alt="@layer.Key" />
+                    <img src="@($"/art/{layer.Key}/{layer.Value}/webp")" alt="@layer.Key" loading="lazy" />
                     <span>@layer.Key · v@layer.Value</span>
                 </button>
             }
@@ -142,7 +142,8 @@
         RejectSource = false;
         SignInRequired = false;
         Message = null;
-        await LoadHistoryAsync();
+        if ((await ApiClients.GetCurrentUserAsync()).Identity?.IsAuthenticated == true)
+            await LoadHistoryAsync();
     }
     private async Task SelectLayerAsync(string key) { Target = key; await LoadPromptAsync(); }
     private async Task TargetChangedAsync() { await LoadPromptAsync(); }

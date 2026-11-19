@@ -200,6 +200,7 @@ public sealed class ActionResolutionRecord
 
 public sealed class AccountRecord
 {
+    public bool PlayerChatEnabled { get; set; }
     public Guid Id
     {
         get; set;

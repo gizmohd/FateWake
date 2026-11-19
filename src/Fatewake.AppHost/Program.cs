@@ -68,7 +68,7 @@ worker.WithForwardedSection(builder, "ArtPromptAuthoring");
 worker.WithForwardedSection(builder, "Embedding");
 worker.WithForwardedSection(builder, "ClaimExtraction");
 worker.WithForwardedSection(builder, "SceneAuthoring");
-api.WithEnvironment("SceneAuthoring__Enabled", builder.Configuration.GetValue<bool>("SceneAuthoring:Enabled").ToString());
+api.WithEnvironment("SceneAuthoring__Enabled", builder.Configuration["SceneAuthoring:Enabled"] ?? "false");
 worker.WithForwardedSection(builder, "Work");
 if (comfyUi is not null)
 {

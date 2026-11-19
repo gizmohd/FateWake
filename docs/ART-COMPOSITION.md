@@ -5,7 +5,7 @@ Build graphic-novel panels from reusable approved assets instead of generating a
 
 ## Shared visual direction
 
-All newly generated layers follow [the Style Bible](../art/STYLE-BIBLE.md) (v4): chunky 16-bit-style pixel art in the neon-twilight palette of the game-screen mockup, with crisp square pixels, selective dark outlines and dithered gradients. The Bible's shared runtime style sections supply generation instructions; layer prompts supply subjects, scene state and continuity rather than a competing global palette. Pixel art is only scaled by integer factors with nearest-neighbor sampling.
+New layers follow the [Style Bible](../art/STYLE-BIBLE.md) direction for a high-color 1990s 32-bit console graphic novel. Use fine pixel detail, clear silhouettes, selective outlines and a shared neon-twilight palette. Layer prompts specify the reached beat, action and continuity within that direction. Plan interacting poses on one layout and judge the result in the complete panel. Trim empty sprite margins and use normal image interpolation at game size. Letter speech bubbles and captions in the application from the scene script.
 
 Match layers to the same scene-specific light and color treatment. Preserve approved skin tones, wardrobe and time of day; an intentionally dark object or dawn scene is not a request for muddy desaturation. Atmosphere/lighting layers remain object-free treatments where their asset contract requires it. This direction does not alter composition dimensions, provider workflows, delivery derivatives or approved historical versions. Technical image validation is not a substitute for visual-style review.
 

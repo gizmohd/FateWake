@@ -107,6 +107,7 @@
                 <div class="play-viewport play-frame">
                     <ArtCompositionView ArtworkKey="@Beat.ArtworkKey" Layers="@DayOneArt.For(Beat.ArtworkKey)"
                                         ArtworkDisplayed="RememberArtwork" SurvivorId="_session?.SurvivorId"
+                                        EventInstanceId="_session?.EventInstanceId" ReachedOutcome="@_session?.LastOutcome"
                                         PrefetchKeys="UpcomingArtKeys" SelectedActionType="@_selectedActionType">
                         <div class="play-scene-hud">
                             @if (Beat.Time is not null) { <span>@Beat.Time</span> }
