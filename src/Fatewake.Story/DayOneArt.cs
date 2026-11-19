@@ -11,9 +11,17 @@ public static class DayOneArt
     /// <returns>The ordered composition layers, or an empty list for an unknown key.</returns>
     public static IReadOnlyList<ArtLayer> For(string artworkKey) => artworkKey switch
     {
-        "day1-phone-0617" => [Full("bg-day1-bedroom-dark"), new("prop-phone-0617-noservice", 1, 20, .5, .43, .48, .35)],
+        "day1-phone-0617" => [Full("bg-day1-bedroom-dark")],
         "day1-house-flicker" => [Full("bg-day1-house-hallway"), Full("light-day1-power-flicker", 90, .7)],
-        "day1-michelle-street" => [Full("bg-day1-neighborhood-player-threshold"), new("char-eli-day1-observing", 1, 20, .67, .52, .18, .31), new("char-injured-stranger-day1-supported", 1, 30, .58, .57, .34, .48), new("char-michelle-day1-supporting", 1, 40, .68, .56, .32, .49), Full("fg-player-threshold-shadow", 80), Full("light-day1-early-morning", 90, .65)],
+        "day1-michelle-street" =>
+        [
+            Full("bg-day1-neighborhood-player-threshold"),
+            Full("fg-player-threshold-shadow", 5, .16),
+            Full("light-day1-early-morning", 10, .30),
+            new("char-eli-day1-observing", 1, 20, .36, .61, .16, .42),
+            new("char-injured-stranger-day1-supported", 1, 30, .52, .59, .26, .66),
+            new("char-michelle-day1-supporting", 1, 40, .70, .58, .26, .68)
+        ],
         "day1-choice-wake" => [Full("bg-day1-neighborhood-after-choice"), Full("light-day1-early-morning", 90, .65)],
         "day1-radio-fragment" => [Full("bg-day1-radio-room"), new("prop-radio-day1", 1, 30, .52, .54, .55, .35), Full("effect-radio-static", 80, .5)],
         "day1-radio-timestamp" => [Full("bg-day1-radio-room"), new("prop-radio-timestamp-tomorrow-0617", 1, 40, .52, .50, .62, .42)],

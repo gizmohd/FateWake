@@ -15,7 +15,7 @@ public static class ArtPromptWorkRequestBuilder
     {
         var roleConstraints = context.AssetType switch
         {
-            "CharacterPose" => "single character only; preserve canonical age, face, body proportions and clothing; no extra people",
+            "CharacterPose" => "single character in one complete pose, centered and filling the frame with a small margin; preserve canonical age, readable facial features, body proportions and clothing",
             "Background" => "environment only; no people, characters, faces or bodies",
             "Prop" => "one isolated reusable object only; no scenery or extra objects",
             "Foreground" => "transparent reusable foreground only; no full-scene background",
@@ -48,7 +48,7 @@ public static class ArtPromptWorkRequestBuilder
 
     private static string RoleExclusions(string role) => role switch
     {
-        "CharacterPose" => "multiple characters, extra people, duplicated limbs, incorrect age, changed identity",
+        "CharacterPose" => "sprite sheets, multiple panels, inset portraits, alternate poses, extra people, duplicated limbs, incorrect age, changed identity",
         "Background" => "person, people, man, woman, child, human, face, body, hands, character portrait",
         "Prop" => "room, furniture, scenery, multiple objects, text, letters, numbers",
         _ => "full scene background, people, text, letters, numbers"

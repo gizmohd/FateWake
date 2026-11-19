@@ -15,6 +15,12 @@ public sealed class SceneRuntimeTests
         Assert.Equal(9, scene.Beats.Count);
         Assert.Equal("phone-0617", scene.Beats[0].Key);
         Assert.Equal("silence", scene.Beats[^1].Key);
+
+        var street = DayOneArt.For("day1-michelle-street");
+        var characters = street.Where(layer => layer.AssetKey.StartsWith("char-", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(3, characters.Length);
+        var sceneryDepth = street.Except(characters).Max(layer => layer.Z);
+        Assert.All(characters, character => Assert.True(character.Z > sceneryDepth));
     }
 
     /// <summary>Only the first-choice beat offers player interactions.</summary>

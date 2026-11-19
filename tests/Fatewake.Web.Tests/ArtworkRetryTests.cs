@@ -34,8 +34,8 @@ public sealed class ArtworkRetryTests
         var id = await renderer.Dispatcher.InvokeAsync(() => renderer.MountAsync(ParameterView.FromDictionary(
             new Dictionary<string, object?>
             {
-                [nameof(ArtCompositionView.ArtworkKey)] = "day1-phone-0617",
-                [nameof(ArtCompositionView.Layers)] = DayOneArt.For("day1-phone-0617").Take(1).ToArray(),
+                [nameof(ArtCompositionView.ArtworkKey)] = "day1-house-flicker",
+                [nameof(ArtCompositionView.Layers)] = DayOneArt.For("day1-house-flicker"),
                 [nameof(ArtCompositionView.ArtworkDisplayed)] = EventCallback.Factory.Create<ArtworkSnapshot>(
                     this, _ => { Assert.True(updates.Writer.TryWrite(Stopwatch.GetTimestamp())); })
             })));
@@ -43,11 +43,14 @@ public sealed class ArtworkRetryTests
         var pending = await updates.Reader.ReadAsync(timeout.Token);
         Assert.Equal(("/images/art-generating.svg", 0UL), await renderer.Dispatcher.InvokeAsync(() => renderer.ImageFrame(id)));
 
+        Assert.True(await renderer.Dispatcher.InvokeAsync(() => renderer.HasText(id, "Preparing artwork…")));
+
         var completed = await updates.Reader.ReadAsync(timeout.Token);
         var ready = await renderer.Dispatcher.InvokeAsync(() => renderer.ImageFrame(id));
         Assert.True(Stopwatch.GetElapsedTime(pending, completed) >= TimeSpan.FromSeconds(4.9));
-        Assert.Equal("/art/bg-day1-bedroom-dark/1/png", ready.Url);
+        Assert.Equal("/art/bg-day1-house-hallway/1/png", ready.Url);
         Assert.NotEqual(0UL, ready.ErrorHandler);
+        Assert.False(await renderer.Dispatcher.InvokeAsync(() => renderer.HasText(id, "Preparing artwork…")));
 
         var failed = Stopwatch.GetTimestamp();
         await renderer.Dispatcher.InvokeAsync(() => renderer.ReportErrorAsync(ready.ErrorHandler));
@@ -61,6 +64,7 @@ public sealed class ArtworkRetryTests
         Assert.Equal(ready.Url, retried.Url);
         Assert.NotEqual(0UL, retried.ErrorHandler);
         Assert.NotEqual(ready.ErrorHandler, retried.ErrorHandler);
+        Assert.True(await renderer.Dispatcher.InvokeAsync(() => renderer.HasImage(id, "/art/light-day1-power-flicker/1/png")));
     }
 
     private sealed class Guest : AuthenticationStateProvider
@@ -84,12 +88,18 @@ public sealed class ArtworkRetryTests
             if (request.RequestUri?.AbsolutePath != "/api/art/scene/resolve")
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
 
-            var ready = Interlocked.Increment(ref requests) > 1;
+            var attempt = Interlocked.Increment(ref requests);
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = JsonContent.Create(new[] { new { key = "bg-day1-bedroom-dark", status = ready ? "ready" : "pending",
-                    version = ready ? 1 : (int?)null } })
+                Content = JsonContent.Create(new[]
+                {
+                    Asset("bg-day1-house-hallway", attempt >= 2),
+                    Asset("light-day1-power-flicker", attempt >= 3)
+                })
             });
+
+            static object Asset(string key, bool ready) =>
+                new { key, status = ready ? "ready" : "pending", version = ready ? 1 : (int?)null };
         }
     }
 
@@ -131,6 +141,19 @@ public sealed class ArtworkRetryTests
                 return (url, handler);
             }
             return default;
+        }
+
+        public bool HasText(int id, string text) => HasFrame(id, frame =>
+            frame.FrameType == RenderTreeFrameType.Text && frame.TextContent == text);
+
+        public bool HasImage(int id, string url) => HasFrame(id, frame =>
+            frame.FrameType == RenderTreeFrameType.Attribute && frame.AttributeName == "src" &&
+            Equals(frame.AttributeValue, url));
+
+        private bool HasFrame(int id, Func<RenderTreeFrame, bool> predicate)
+        {
+            var frames = GetCurrentRenderTreeFrames(id);
+            return frames.Array.Take(frames.Count).Any(predicate);
         }
 
         protected override void HandleException(Exception exception) => throw new InvalidOperationException("Interactive render failed.", exception);

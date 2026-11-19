@@ -43,7 +43,7 @@ public sealed class ArtPromptAuthoringTests
         }, recorder, NullLogger<OpenAiArtPromptAuthor>.Instance);
         var context = new ArtPromptAuthoringRequest("identity", "bg-day1-bedroom-dark", "Background",
             "context", "3", "Known visual context only.", "Opaque portrait background.", "Shared style.",
-            "No people.", Guid.NewGuid(), Guid.NewGuid());
+            "No people.", Guid.NewGuid(), Guid.NewGuid(), VisualPreferences: ["Keep silhouettes crisp."]);
         var ownerId = context.OwnerAccountId ?? throw new InvalidOperationException("The test context requires an owner.");
         var survivorId = context.SurvivorId ?? throw new InvalidOperationException("The test context requires a survivor.");
 
@@ -67,6 +67,8 @@ public sealed class ArtPromptAuthoringTests
         Assert.DoesNotContain(ownerId.ToString(), handler.RequestBody);
         Assert.DoesNotContain(survivorId.ToString(), handler.RequestBody);
         Assert.Contains("Known visual context only.", handler.RequestBody);
+        Assert.Contains("visual_preferences", handler.RequestBody);
+        Assert.Contains("Keep silhouettes crisp.", handler.RequestBody);
         Assert.DoesNotContain("test-key", handler.RequestBody);
         Assert.DoesNotContain(activityTags, tag =>
             tag.Contains(ownerId.ToString(), StringComparison.Ordinal) ||

@@ -136,6 +136,21 @@ public sealed class SceneArtworkPipelineTests
                 Assert.Equal(32, image.Width);
                 Assert.Equal(48, image.Height);
             }
+
+            using (var scope = app.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<FatewakeDbContext>();
+                var prompt = await db.Set<ArtPromptRecord>().SingleAsync(row => row.AssetKey == asset.Key, ct);
+                prompt.StyleBibleVersion = "test-prior-style";
+                prompt.CurrentRevisionId = promptBinding.CurrentRevisionId;
+                prompt.CurrentRevisionNumber = promptBinding.CurrentRevisionNumber;
+                await db.SaveChangesAsync(ct);
+            }
+            using var priorResponse = await client.PostAsJsonAsync("/api/art/scene/resolve", new { keys = new[] { asset.Key } }, ct);
+            var prior = Assert.Single((await priorResponse.Content.ReadFromJsonAsync<SceneArtResult[]>(ct))!);
+            Assert.Equal("ready", prior.Status);
+            Assert.Equal(asset.Version, prior.Version);
+            Assert.Null(prior.JobId);
         }
         finally
         {
@@ -148,6 +163,7 @@ public sealed class SceneArtworkPipelineTests
                 prompt.CurrentRevisionNumber = promptBinding.CurrentRevisionNumber;
                 prompt.LatestRevisionId = promptBinding.LatestRevisionId;
                 prompt.LatestRevisionNumber = promptBinding.LatestRevisionNumber;
+                prompt.StyleBibleVersion = promptBinding.StyleBibleVersion;
                 prompt.UpdatedAt = DateTimeOffset.UtcNow;
                 await db.SaveChangesAsync(ct);
             }
@@ -163,7 +179,7 @@ public sealed class SceneArtworkPipelineTests
         var parent = await db.Set<ArtPromptRevisionRecord>().SingleAsync(row =>
             row.Id == prompt.LatestRevisionId, ct);
         var binding = new PromptRevisionBinding(prompt.CurrentRevisionId, prompt.CurrentRevisionNumber,
-            prompt.LatestRevisionId, prompt.LatestRevisionNumber);
+            prompt.LatestRevisionId, prompt.LatestRevisionNumber, prompt.StyleBibleVersion);
         var revisionNumber = 1_000_000 + Random.Shared.Next(1_000_000);
         while (await db.Set<ArtPromptRevisionRecord>().AnyAsync(row =>
                    row.ArtPromptId == prompt.Id && row.RevisionNumber == revisionNumber, ct))
@@ -234,5 +250,5 @@ public sealed class SceneArtworkPipelineTests
     }
 
     private sealed record PromptRevisionBinding(Guid? CurrentRevisionId, int? CurrentRevisionNumber,
-        Guid? LatestRevisionId, int? LatestRevisionNumber);
+        Guid? LatestRevisionId, int? LatestRevisionNumber, string StyleBibleVersion);
 }

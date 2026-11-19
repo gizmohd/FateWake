@@ -44,7 +44,7 @@ Production delivery still goes through `ArtWorkJobFactory`: preserve the master,
 
 Use the Windows Intel XPU build of ComfyUI. Check `/system_stats` for an `xpu:0` device and a PyTorch version ending in `+xpu`. Integrated Arc shares system RAM. When Z-Image Turbo exhausts XPU memory, the SSD-1B Arc workflows are a smaller option for local development.
 
-The Arc pair renders 768×432 at 12 DPM++ 2M/Karras steps with CFG 6 and batch size 1. It preserves the 16:9 scene framing and generates alpha for overlays with BiRefNet. Install `SSD-1B-A1111.safetensors` and `birefnet.safetensors` in the same model directories as the existing SSD-1B workflows. Keep one artwork generation slot per renderer.
+The Arc pair renders 1280×720 at 12 DPM++ 2M/Karras steps with CFG 6 and batch size 1. It preserves the 16:9 scene framing and generates alpha for overlays with BiRefNet. Install `SSD-1B-A1111.safetensors` and `birefnet.safetensors` in the same model directories as the existing SSD-1B workflows. Keep one artwork generation slot per renderer.
 
 ```powershell
 $backgroundWorkflow = (Resolve-Path .\workflows\fatewake-ssd1b-arc-api.json).Path

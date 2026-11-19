@@ -19,7 +19,11 @@ public sealed class WorkJobBuilder(FatewakeDbContext db, IWorkSignalBus signals,
         using var operation = OperationTelemetry.Start("work.create_job", log);
         Validate(definition);
         ArgumentNullException.ThrowIfNull(transactionWork);
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        // A caller may group several jobs and their related state in one transaction.
+        // In that case workers discover the committed jobs through normal durable polling.
+        await using var tx = db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(ct)
+            : null;
         // Serialize creators of the same job across API instances, before checking for reuse.
         await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({definition.JobType + ":" + definition.IdempotencyKey}, 0))", ct);
         var existing = await db.WorkJobs.AsNoTracking().SingleOrDefaultAsync(x => x.JobType == definition.JobType && x.IdempotencyKey == definition.IdempotencyKey, ct);
@@ -39,7 +43,8 @@ public sealed class WorkJobBuilder(FatewakeDbContext db, IWorkSignalBus signals,
             await transactionWork(existing.Id, ct);
             await db.SaveChangesAsync(ct);
             var existingSteps = await db.WorkSteps.AsNoTracking().Where(x => x.JobId == existing.Id).ToDictionaryAsync(x => x.StepType + "|" + x.Queue + "|" + x.Id, x => x.Id, ct);
-            await tx.CommitAsync(ct);
+            if (tx is not null)
+                await tx.CommitAsync(ct);
             return new(existing.Id, true, existingSteps);
         }
 
@@ -82,6 +87,9 @@ public sealed class WorkJobBuilder(FatewakeDbContext db, IWorkSignalBus signals,
         }
         await transactionWork(jobId, ct);
         await db.SaveChangesAsync(ct);
+        if (tx is null)
+            return new(jobId, false, ids);
+
         await tx.CommitAsync(ct);
 
         foreach (var s in definition.Steps.Where(x => x.DependsOn is null || x.DependsOn.Count == 0))

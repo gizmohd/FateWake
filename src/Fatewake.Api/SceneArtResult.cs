@@ -5,5 +5,7 @@ namespace Fatewake.Api;
 /// <param name="Status">Availability state reported by the API.</param>
 /// <param name="Version">Approved immutable version when ready.</param>
 /// <param name="JobId">Durable work-job identifier when generation is pending or terminal.</param>
+/// <param name="ReplacementPending">Whether the displayed version has a replacement in progress.</param>
 /// <see href="../../../docs/code/src/Fatewake.Api/SceneArtResult.md">SceneArtResult documentation</see>
-public sealed record SceneArtResult(string Key, string Status, int? Version = null, Guid? JobId = null);
+public sealed record SceneArtResult(string Key, string Status, int? Version = null, Guid? JobId = null,
+    bool ReplacementPending = false);

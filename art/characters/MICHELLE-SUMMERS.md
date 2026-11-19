@@ -17,6 +17,6 @@ Day 1 clothing is rugged, ordinary layered clothing suitable for an abruptly dis
 Visual personality: competent even when frightened; instinctively protective of Eli; body language tends toward action rather than helplessness. She should look tired or stressed when appropriate without becoming glamourized or action-hero stylized.
 
 ## Continuity anchors
-Approved v1 face; brown eyes; strong eyebrows; dark messy practical updo; capable build; dark layered Day 1 silhouette; grounded realistic proportions rendered as chunky pixel art.
+Approved v1 face; brown eyes; strong eyebrows; dark messy practical updo; capable build; dark layered Day 1 silhouette; grounded realistic proportions in finely detailed console illustration.
 
 The approved visual reference supersedes conflicting pre-approval prose descriptions.

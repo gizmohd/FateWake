@@ -39,6 +39,8 @@ public sealed class AdminArtReviewTests
             Assert.Contains("/art/bg-day1-bedroom-dark/2/webp", html);
             Assert.Contains("Complete composition", html);
             Assert.Contains("Save critique", html);
+            Assert.Contains("Regenerate scene artwork", html);
+            Assert.Contains("Use this critique to guide future artwork", html);
         }
         else
             Assert.DoesNotContain("Review artwork", html);

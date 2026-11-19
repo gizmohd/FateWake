@@ -35,6 +35,7 @@ public sealed class ArtReviewRecord
     {
         get; set;
     }
+    public bool UseForFutureArtwork { get; set; }
     public bool Regenerate
     {
         get; set;

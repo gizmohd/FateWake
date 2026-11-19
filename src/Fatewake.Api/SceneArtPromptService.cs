@@ -20,8 +20,15 @@ public sealed class SceneArtPromptService(FatewakeDbContext db, SceneArtCatalog 
             !SceneArtContextPolicy.IsCanonicalVisualContext(reachedVisualContext))
             throw new ArgumentException("A supported reached outcome is required for this scene layer.", nameof(reachedVisualContext));
         var metadata = catalog.Describe(key, reachedVisualContext);
-        var existing = await db.Set<ArtPromptRecord>().AsNoTracking()
-            .SingleOrDefaultAsync(row => row.IdentityKey == metadata.IdentityKey, ct);
+        var stateWithReplacement = await db.Set<ArtPromptRecord>().AsNoTracking()
+            .Where(row => row.IdentityKey == metadata.IdentityKey)
+            .Select(row => new
+            {
+                Prompt = row,
+                ReplacementPending = row.RequestedWorkJobId != null && db.WorkJobs.Any(job =>
+                    job.Id == row.RequestedWorkJobId && (job.Status == WorkJobStatus.Pending || job.Status == WorkJobStatus.Running))
+            }).SingleOrDefaultAsync(ct);
+        var existing = stateWithReplacement?.Prompt;
         if (existing is { Status: "ready", CurrentRevisionId: { } revisionId })
         {
             var revision = await db.Set<ArtPromptRevisionRecord>().AsNoTracking()
@@ -29,7 +36,8 @@ public sealed class SceneArtPromptService(FatewakeDbContext db, SceneArtCatalog 
             if (revision is null)
                 throw new InvalidDataException("The current SQL artwork prompt revision is missing.");
             return new("ready", catalog.CreateWorkRequest(metadata, revision,
-                existing.IsPrivate ? accountId : null, existing.IsPrivate ? survivorId : null, priority));
+                existing.IsPrivate ? accountId : null, existing.IsPrivate ? survivorId : null, priority),
+                ReplacementPending: stateWithReplacement!.ReplacementPending);
         }
         var authoringEnabled = configuration.GetValue<bool>(ArtPromptAuthoringOptions.SectionName + ":Enabled") &&
             !string.IsNullOrWhiteSpace(configuration[ArtPromptAuthoringOptions.SectionName + ":ApiKey"]);
@@ -43,7 +51,10 @@ public sealed class SceneArtPromptService(FatewakeDbContext db, SceneArtCatalog 
             return new("disabled");
         }
 
-        var snapshot = catalog.CreateAuthoringRequest(metadata, accountId, survivorId);
+        var snapshot = catalog.CreateAuthoringRequest(metadata, accountId, survivorId) with
+        {
+            VisualPreferences = await ArtReviewPreferences.LoadAsync(db, key, ct)
+        };
         var job = await jobs.CreateAsync(snapshot, async (jobId, token) =>
         {
             var prompt = await db.Set<ArtPromptRecord>().SingleOrDefaultAsync(

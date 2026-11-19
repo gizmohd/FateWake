@@ -67,7 +67,7 @@ app.MapLocalAuthentication();
 app.MapGet("/art/{key}/{version:int}/{format}", async (string key, int version, string format,
     AuthenticatedApiClient clients, HttpContext context, CancellationToken ct) =>
 {
-    if (version < 1 || format is not ("png" or "webp"))
+    if (version < 1 || format is not ("png" or "webp" or "sprite-png"))
         return Results.NotFound();
     using var request = new HttpRequestMessage(HttpMethod.Get,
         $"/api/art/{Uri.EscapeDataString(key)}/{version}/{format}");
@@ -92,7 +92,8 @@ app.MapGet("/art/{key}/{version:int}/{format}", async (string key, int version, 
     }
     if (!response.IsSuccessStatusCode)
         return Results.Empty;
-    context.Response.ContentType = response.Content.Headers.ContentType?.ToString() ?? "image/" + format;
+    context.Response.ContentType = response.Content.Headers.ContentType?.ToString() ??
+        (format == "sprite-png" ? "image/png" : "image/" + format);
     if (context.Response.Headers.CacheControl.ToString().Contains("private", StringComparison.OrdinalIgnoreCase))
         context.Response.Headers.Vary = "Cookie";
     await response.Content.CopyToAsync(context.Response.Body, ct);

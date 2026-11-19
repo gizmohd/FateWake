@@ -5,12 +5,15 @@
 <div class="art-composition" data-artwork="@ArtworkKey">
     @foreach (var layer in Layers.OrderBy(x => x.Z))
     {
-        if (ResolvedAssets.GetValueOrDefault(layer.AssetKey) is not { Status: "ready", Version: > 0 } asset ||
-            FailedImages.Contains((layer.AssetKey, asset.Version))) continue;
+        if (DisplayableAsset(layer.AssetKey) is not { } asset) continue;
         <picture @key="(layer, asset.Version)" class="art-layer-picture" style="@LayerStyle(layer)">
-            <source srcset="@ArtUrl(asset, "webp")" type="image/webp" />
+            @{ var character = layer.AssetKey.StartsWith("char-", StringComparison.Ordinal); }
+            @if (!character)
+            {
+                <source srcset="@ArtUrl(asset, "webp")" type="image/webp" />
+            }
             <img class="art-layer @(layer.AssetKey.StartsWith("bg-", StringComparison.Ordinal) ? "art-background" : "art-overlay")"
-                 src="@ArtUrl(asset, "png")" alt="" aria-hidden="true" @onerror="() => RetryImage(asset)" />
+                 src="@ArtUrl(asset, character ? "sprite-png" : "png")" alt="" aria-hidden="true" @onerror="() => RetryImage(asset)" />
         </picture>
     }
     <div class="art-placeholder" aria-hidden="true">
@@ -51,9 +54,15 @@
     private string? StatusMessage => Layers.Count == 0 ? null : Unavailable ? "Artwork is temporarily unavailable. Retrying…"
         : ResolvedAssets.Values.Any(x => x.Status is "failed" or "cancelled") ? "Some artwork could not be generated."
         : ResolvedAssets.Values.Any(x => x.Status == "disabled") ? "Artwork generation is not configured."
-        : NeedsRetry ? "Preparing artwork…" : null;
+        : NeedsRetry && !Layers.Any(layer => layer.AssetKey.StartsWith("bg-", StringComparison.Ordinal) &&
+            DisplayableAsset(layer.AssetKey) is not null) ? "Preparing artwork…" : null;
 
-    private bool NeedsRetry => FailedImages.Count > 0 || Layers.Any(layer =>
+    private SceneAsset? DisplayableAsset(string key) =>
+        ResolvedAssets.GetValueOrDefault(key) is { Status: "ready", Version: > 0 } asset &&
+        !FailedImages.Contains((key, asset.Version)) ? asset : null;
+
+    private bool NeedsRetry => FailedImages.Count > 0 || ResolvedAssets.Values.Any(asset => asset.ReplacementPending) ||
+        Layers.Any(layer =>
         ResolvedAssets.GetValueOrDefault(layer.AssetKey) is not
             ({ Status: "ready", Version: > 0 } or { Status: "failed" or "cancelled" or "disabled" }));
 
@@ -101,9 +110,9 @@
             if (prefetchKeys.Length > 0) _ = PrefetchAsync(prefetchKeys, ct);
             while (!ct.IsCancellationRequested)
             {
-                var retrying = FailedImages.ToArray();
                 if (waitBeforeRequest) await Task.Delay(RetryInterval, ct);
                 waitBeforeRequest = true;
+                var retrying = FailedImages.ToArray();
                 try
                 {
                     using var client = await ApiClient.CreateAsync();
@@ -151,6 +160,6 @@
 
     public void Dispose() { Loading?.Cancel(); Loading?.Dispose(); }
     private static string ArtUrl(SceneAsset asset, string format) => $"/art/{asset.Key}/{asset.Version}/{format}";
-    private sealed record SceneAsset(string Key, string Status, int? Version);
+    private sealed record SceneAsset(string Key, string Status, int? Version, bool ReplacementPending = false);
     private static string LayerStyle(ArtLayer x)=>$"z-index:{x.Z};left:{x.X*100:F2}%;top:{x.Y*100:F2}%;width:{x.Width*100:F2}%;height:{x.Height*100:F2}%;opacity:{x.Opacity:F2};transform:translate(-50%,-50%) scale({x.Scale:F3}) rotate({x.Rotation:F2}deg);";
 }

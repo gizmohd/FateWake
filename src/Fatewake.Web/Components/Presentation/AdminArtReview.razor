@@ -1,3 +1,4 @@
+@using System.Net
 @using Fatewake.Web.Authentication
 @using Fatewake.Web.Presentation
 @inject AuthenticatedApiClient ApiClients
@@ -5,7 +6,7 @@
 {
     <details class="art-review-panel">
         <summary>Review artwork · Pathweaver art review · Admin</summary>
-        <p>Review the exact immutable image version. Prompt revisions are versioned; only an explicit replacement request changes serving bindings.</p>
+        <p>Review the displayed artwork or queue a replacement.</p>
         <div class="review-layer-grid">
             @foreach (var layer in Versions.Where(x => x.Value is not null))
             {
@@ -78,10 +79,22 @@
             <p>Loading exact prompt provenance…</p>
         }
         <label>Critique
-            <textarea @bind="Critique" maxlength="4000" rows="3" placeholder="For example: Michelle is a cropped portrait, but she should be supporting the injured man." />
+            <textarea @bind="Critique" @bind:event="oninput" maxlength="4000" rows="3" placeholder="For example: Michelle is a cropped portrait, but she should be supporting the injured man." />
         </label>
-        <button type="button" disabled="@(Busy || string.IsNullOrWhiteSpace(Critique))" @onclick="SaveAsync">@(Busy ? "Saving…" : "Save critique only")</button>
+        <label class="review-checkbox">
+            <input type="checkbox" @bind="UseForFutureArtwork" /> Use this critique to guide future artwork
+        </label>
+        <button type="button" disabled="@(Busy || !HasRenderedTarget || string.IsNullOrWhiteSpace(Critique))"
+                @onclick="() => SaveAsync(false)">Save critique only</button>
+        <button type="button" disabled="@(Busy || !HasRenderedTarget)" @onclick="() => SaveAsync(true)">
+            @(string.IsNullOrEmpty(Target) ? "Regenerate scene artwork" : "Regenerate selected layer")
+        </button>
+        @if (string.IsNullOrEmpty(Target))
+        {
+            <p>Regenerates each rendered layer using the critique. Layer positions follow the scene’s authored layout.</p>
+        }
         @if (Message is not null) { <p role="status">@Message</p> }
+        @if (SignInRequired) { <a href="/login">Sign in again</a> }
         @if (History.Length > 0)
         {
             <h3>Review history</h3>
@@ -90,7 +103,7 @@
                 <article>
                     <strong>@(item.AssetKey ?? "Complete composition") @(item.Version is {} version ? $"· v{version}" : "")</strong>
                     <p>@item.Critique</p>
-                    <small>@item.CreatedAt.ToString("u") · @(item.Regenerate ? "Replacement requested" : "Critique saved")</small>
+                    <small>@item.CreatedAt.ToString("u") · @(item.Regenerate ? "Replacement requested" : "Critique saved") @(item.UseForFutureArtwork ? "· Used to guide future artwork" : "")</small>
                 </article>
             }
         }
@@ -100,7 +113,11 @@
     [Parameter] public string SceneKey { get; set; } = "";
     [Parameter] public Dictionary<string, int?> Versions { get; set; } = [];
     [Parameter] public EventCallback ReplacementRequested { get; set; }
-    private bool Allowed, Busy;
+    private bool Allowed, Busy, SignInRequired;
+    private bool UseForFutureArtwork = true;
+    private bool HasRenderedTarget => string.IsNullOrEmpty(Target)
+        ? Versions.Values.Any(version => version is > 0)
+        : Versions.GetValueOrDefault(Target) is > 0;
     private string? LoadedScene, Message;
     private string Target = "", Critique = "", PromptPositive = "", PromptNegative = "";
     private ArtPromptReviewSaveResult? Preview;
@@ -114,6 +131,8 @@
         Preview = null;
         Prompt = null;
         Allowed = false;
+        UseForFutureArtwork = true;
+        SignInRequired = false;
         Message = null;
         await LoadHistoryAsync();
     }
@@ -130,9 +149,11 @@
         }
         catch (HttpRequestException) { Allowed = false; }
     }
-    private async Task SaveAsync()
+    private async Task SaveAsync(bool regenerate)
     {
-        Busy = true; Message = null;
+        if (Busy || !HasRenderedTarget)
+            return;
+        Busy = true; Message = null; SignInRequired = false;
         var snapshot = new Dictionary<string, int?>(Versions);
         var asset = string.IsNullOrEmpty(Target) ? null : Target;
         try
@@ -140,18 +161,20 @@
             using var client = await ApiClients.CreateAsync();
             using var response = await client.PostAsJsonAsync("/api/art/reviews", new { SceneKey, AssetKey = asset,
                 Version = asset is null ? (int?)null : snapshot.GetValueOrDefault(asset), Versions = snapshot, Critique,
-                Correction = (string?)null, Regenerate = false });
+                Correction = (string?)null, Regenerate = regenerate, UseForFutureArtwork });
             if (!response.IsSuccessStatusCode)
             {
-                Message = response.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.Unauthorized
-                    ? "Administrator access is required." : "The critique could not be saved. Refresh the scene and try again.";
+                await SetReviewErrorAsync(response, "The critique could not be saved. Refresh the scene and try again.");
                 return;
             }
-            Message = "Critique saved.";
+            var result = await response.Content.ReadFromJsonAsync<ReviewSaveResult>();
+            Message = regenerate ? $"Queued {result?.JobIds?.Length ?? 0} artwork replacements."
+                : result?.UseForFutureArtwork == true ? "Critique saved as an artwork preference." : "Critique saved.";
             await LoadHistoryAsync();
             Critique = "";
+            if (regenerate) await ReplacementRequested.InvokeAsync();
         }
-        catch (HttpRequestException) { Message = "The review service is unavailable. Try again."; }
+        catch (HttpRequestException ex) { SetReviewError(ex.StatusCode, "The review service is unavailable. Try again."); }
         finally { Busy = false; }
     }
     private async Task LoadPromptAsync()
@@ -190,7 +213,7 @@
     private async Task SavePromptAsync(bool regenerate)
     {
         if (Prompt?.LatestRevisionId is not { } expected || Versions.GetValueOrDefault(Target) is not { } version) return;
-        Busy = true; Message = null;
+        Busy = true; Message = null; SignInRequired = false;
         try
         {
             using var client = await ApiClients.CreateAsync();
@@ -198,10 +221,7 @@
                 new ArtPromptReviewRequest(SceneKey, Target, version, expected, PromptPositive, PromptNegative, regenerate));
             if (!response.IsSuccessStatusCode)
             {
-                Message = response.StatusCode == System.Net.HttpStatusCode.Conflict
-                    ? "The prompt changed or generation is disabled. Reload the selected layer and try again."
-                    : response.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.Unauthorized
-                        ? "Administrator access is required." : "The prompt revision could not be saved.";
+                await SetReviewErrorAsync(response, "The prompt revision could not be saved. Reload the selected layer.");
                 return;
             }
             var saved = await response.Content.ReadFromJsonAsync<ArtPromptReviewSaveResult>();
@@ -211,8 +231,37 @@
             await LoadHistoryAsync();
             if (regenerate) await ReplacementRequested.InvokeAsync();
         }
-        catch (HttpRequestException) { Message = "The review service is unavailable. Try again."; }
+        catch (HttpRequestException ex) { SetReviewError(ex.StatusCode, "The review service is unavailable. Try again."); }
         finally { Busy = false; }
     }
-    private sealed record Review(string? AssetKey, int? Version, string Critique, string? Correction, bool Regenerate, DateTimeOffset CreatedAt);
+
+    private async Task SetReviewErrorAsync(HttpResponseMessage response, string fallback)
+    {
+        if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Conflict)
+        {
+            try
+            {
+                var error = await response.Content.ReadFromJsonAsync<ReviewError>();
+                fallback = error?.Error ?? fallback;
+            }
+            catch (Exception ex) when (ex is System.Text.Json.JsonException or NotSupportedException) { }
+        }
+        SetReviewError(response.StatusCode, fallback);
+    }
+
+    private void SetReviewError(HttpStatusCode? status, string fallback)
+    {
+        SignInRequired = status == HttpStatusCode.Unauthorized;
+        Message = status switch
+        {
+            HttpStatusCode.Unauthorized => "Your API session expired. Sign in again to submit this review.",
+            HttpStatusCode.Forbidden => "This account does not have artwork review permission.",
+            _ => fallback
+        };
+    }
+
+    private sealed record ReviewError(string Error);
+    private sealed record ReviewSaveResult(Guid[]? JobIds, bool UseForFutureArtwork);
+    private sealed record Review(string? AssetKey, int? Version, string Critique, bool Regenerate,
+        DateTimeOffset CreatedAt, bool UseForFutureArtwork);
 }

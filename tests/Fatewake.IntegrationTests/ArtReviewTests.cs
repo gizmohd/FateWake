@@ -153,6 +153,59 @@ public sealed class ArtReviewTests
         Assert.Equal(queued.WorkJobId, status.ReplacementWorkJobId);
     }
 
+    /// <summary>Complete-scene review queues each rendered layer with reusable visual guidance.</summary>
+    [Fact]
+    public async Task Scene_review_saves_preferences_and_atomically_queues_rendered_layers()
+    {
+        var connection = Environment.GetEnvironmentVariable("FATEWAKE_ART_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection))
+            Assert.Skip("A disposable PostgreSQL artwork test database is required.");
+        var ct = TestContext.Current.CancellationToken;
+        await using var app = await CreateAsync(connection);
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Role", "Admin");
+        var fixture = app.Services.GetRequiredService<Fixture>();
+        var background = await fixture.CreateAssetAsync(key: "bg-day1-house-hallway");
+        var lighting = await fixture.CreateAssetAsync(key: "light-day1-power-flicker");
+        var versions = new Dictionary<string, int?> { [background.Key] = background.Version, [lighting.Key] = lighting.Version };
+        var preference = new ArtReviewRequest("day1-house-flicker", null, null, versions,
+            "Keep silhouettes crisp and the palette restrained.", null, false, true);
+        using var saved = await client.PostAsJsonAsync("/api/art/reviews", preference, ct);
+        saved.EnsureSuccessStatusCode();
+
+        using var queued = await client.PostAsJsonAsync("/api/art/reviews", preference with
+        {
+            Critique = "Use consistent dawn light across the composition.",
+            Regenerate = true,
+            UseForFutureArtwork = false
+        }, ct);
+        queued.EnsureSuccessStatusCode();
+        var response = await queued.Content.ReadFromJsonAsync<JsonElement>(ct);
+        var ids = response.GetProperty("jobIds").EnumerateArray().Select(value => value.GetGuid()).ToArray();
+        Assert.Equal(2, ids.Length);
+        using var duplicate = await client.PostAsJsonAsync("/api/art/reviews", preference with { Regenerate = true }, ct);
+        Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
+
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FatewakeDbContext>();
+        var reviews = await db.Set<ArtReviewRecord>().Where(row => row.SceneKey == preference.SceneKey)
+            .ToArrayAsync(ct);
+        Assert.Equal(2, reviews.Length);
+        Assert.Single(reviews, review => review.UseForFutureArtwork);
+        var work = await db.WorkJobs.Where(job => ids.Contains(job.Id)).ToArrayAsync(ct);
+        var requests = work.Select(job => JsonSerializer.Deserialize<ArtWorkRequest>(job.Payload)!).ToArray();
+        Assert.Equal(versions.Keys.Order().ToArray(), requests.Select(request => request.AssetKey).Order().ToArray());
+        Assert.All(requests, request =>
+        {
+            Assert.True(request.ForceProviderRegeneration);
+            Assert.Contains("Keep silhouettes crisp", request.ResolvedPrompt);
+            Assert.Contains("Use consistent dawn light", request.ResolvedPrompt);
+        });
+        var prompts = await db.Set<ArtPromptRecord>().Where(prompt => ids.Contains(prompt.RequestedWorkJobId!.Value)).ToArrayAsync(ct);
+        Assert.Equal(2, prompts.Length);
+        Assert.All(prompts, prompt => Assert.NotEqual(prompt.CurrentRevisionId, prompt.RequestedRevisionId));
+    }
+
     /// <summary>Guests and non-admin accounts cannot read version-pinned prompt provenance.</summary>
     [Fact]
     public async Task Non_admin_cannot_read_prompt_provenance()
@@ -235,11 +288,11 @@ public sealed class ArtReviewTests
             get; set;
         }
 
-        public async Task<(Guid AssetId, string Key, int Version)> CreateAssetAsync(bool withProvenance = true)
+        public async Task<(Guid AssetId, string Key, int Version)> CreateAssetAsync(bool withProvenance = true,
+            string key = "bg-day1-bedroom-dark")
         {
             using var scope = scopes.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<FatewakeDbContext>();
-            const string key = "bg-day1-bedroom-dark";
             var version = (await db.ArtAssets.Where(row => row.Key == key).MaxAsync(row => (int?)row.Version,
                 TestContext.Current.CancellationToken) ?? 0) + 1;
             var id = Guid.NewGuid();

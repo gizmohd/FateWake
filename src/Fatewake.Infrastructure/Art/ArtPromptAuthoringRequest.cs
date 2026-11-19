@@ -13,6 +13,7 @@ namespace Fatewake.Infrastructure.Art;
 /// <param name="RuntimeExclusions">Shared negative style constraints.</param>
 /// <param name="OwnerAccountId">Owner for safe usage accounting or private context.</param>
 /// <param name="SurvivorId">Stable survivor identity for usage accounting; not sent to the provider.</param>
+/// <param name="VisualPreferences">Bounded, administrator-approved feedback for the artwork author.</param>
 /// <param name="LegacyVisualFingerprint">Exact legacy cache candidate for a proven seed equivalence.</param>
 public sealed record ArtPromptAuthoringRequest(
     string IdentityKey,
@@ -26,4 +27,5 @@ public sealed record ArtPromptAuthoringRequest(
     string RuntimeExclusions,
     Guid? OwnerAccountId = null,
     Guid? SurvivorId = null,
-    string? LegacyVisualFingerprint = null);
+    string? LegacyVisualFingerprint = null,
+    IReadOnlyList<string>? VisualPreferences = null);

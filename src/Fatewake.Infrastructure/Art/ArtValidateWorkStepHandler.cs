@@ -24,6 +24,16 @@ public sealed class ArtValidateWorkStepHandler(IWorkArtifactStore artifacts, IAr
             error = "Delivery dimensions do not match master.";
         else if (!await storage.ExistsAsync(master.StorageKey, ct) || !await storage.ExistsAsync(webp.StorageKey, ct) || !await storage.ExistsAsync(png.StorageKey, ct))
             error = "One or more required binaries are missing.";
+        else if (!master.Reused)
+        {
+            var request = JsonSerializer.Deserialize<ArtWorkRequest>(context.Input);
+            if (request?.AssetType is "CharacterPose" or "CharacterExpression")
+            {
+                var bytes = await ArtWorkStepUtilities.ReadAllAsync(storage, master.StorageKey, ct);
+                if (!CharacterSprite.HasUsableAlpha(bytes))
+                    error = "Character artwork must contain a visible silhouette on a transparent background.";
+            }
+        }
         var result = new ArtValidationArtifact(error is null, error);
         var json = JsonSerializer.Serialize(result);
         await artifacts.PutAsync(context.JobId, "art.validation", json, ct);

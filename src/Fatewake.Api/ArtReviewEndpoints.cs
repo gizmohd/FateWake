@@ -5,6 +5,7 @@ using System.Text.Json;
 using Fatewake.Infrastructure.Art;
 using Fatewake.Infrastructure.Authentication;
 using Fatewake.Infrastructure.Persistence;
+using Fatewake.Story;
 using Microsoft.EntityFrameworkCore;
 
 namespace Fatewake.Api;
@@ -17,8 +18,12 @@ public static class ArtReviewEndpoints
     {
         services.AddTransient<Microsoft.AspNetCore.Authentication.IClaimsTransformation, AdminRoleClaimsTransformation>();
         services.AddScoped<AccountRoleService>();
-        services.AddAuthorization(options => options.AddPolicy("ArtAdministrator", policy => policy.RequireAuthenticatedUser()
-            .RequireRole("Admin")));
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy("ArtAdministrator", policy => policy.RequireAuthenticatedUser().RequireRole("Admin"));
+            options.AddPolicy("ArtworkReviewer", policy => policy.RequireAuthenticatedUser().RequireRole("Admin")
+                .RequireAssertion(context => Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out _)));
+        });
     }
 
     /// <summary>Maps authenticated review, exact-provenance, preview, revision-save, and replacement routes.</summary>
@@ -27,55 +32,9 @@ public static class ArtReviewEndpoints
         app.MapGet("/api/art/reviews", async (string sceneKey, FatewakeDbContext db, CancellationToken ct) =>
             Results.Ok(await db.Set<ArtReviewRecord>().AsNoTracking().Where(x => x.SceneKey == sceneKey)
                 .OrderByDescending(x => x.CreatedAt).Take(50).ToArrayAsync(ct)))
-            .RequireAuthorization("ArtAdministrator");
+            .RequireAuthorization("ArtworkReviewer");
 
-        app.MapPost("/api/art/reviews", async (ArtReviewRequest request, ClaimsPrincipal user,
-            SceneArtCatalog catalog, FatewakeDbContext db, CancellationToken ct) =>
-        {
-            if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var account))
-                return Results.Forbid();
-            var keys = request.Versions?.Keys.ToArray() ?? [];
-            if (request.Regenerate)
-                return Results.BadRequest(new
-                {
-                    error = "Prompt edits and replacement requests must use the versioned prompt-review endpoint."
-                });
-            if (string.IsNullOrWhiteSpace(request.SceneKey) || request.SceneKey.Length > 100 || keys.Length is < 1 or > 24 ||
-                keys.Any(key => !catalog.Contains(key)) || request.Versions!.Values.Any(v => v is <= 0) ||
-                string.IsNullOrWhiteSpace(request.Critique) || request.Critique.Length > 4000 ||
-                request.Correction?.Length > 4000 ||
-                request.AssetKey is { } key && (!keys.Contains(key) || request.Version is null || request.Version != request.Versions[key]))
-                return Results.BadRequest(new
-                {
-                    error = "Select a rendered layer and provide a critique."
-                });
-            foreach (var (reviewedKey, version) in request.Versions)
-                if (version is { } v && !await db.ArtAssets.AnyAsync(x => x.Key == reviewedKey && x.Version == v &&
-                    x.Status == ArtAssetStatus.Approved, ct))
-                    return Results.BadRequest(new
-                    {
-                        error = "A reviewed asset version does not exist."
-                    });
-            var review = new ArtReviewRecord
-            {
-                Id = Guid.NewGuid(),
-                AccountId = account,
-                SceneKey = request.SceneKey,
-                AssetKey = request.AssetKey,
-                Version = request.Version,
-                CompositionVersions = JsonSerializer.Serialize(request.Versions),
-                Critique = request.Critique.Trim(),
-                Correction = request.Correction?.Trim(),
-                CreatedAt = DateTimeOffset.UtcNow
-            };
-            db.Add(review);
-            await db.SaveChangesAsync(ct);
-            return Results.Ok(new
-            {
-                review.Id,
-                queued = false
-            });
-        }).RequireAuthorization("ArtAdministrator");
+        app.MapPost("/api/art/reviews", SaveReviewAsync).RequireAuthorization("ArtworkReviewer");
 
         app.MapGet("/api/art/reviews/prompt", async (string assetKey, int version, ClaimsPrincipal user,
             SceneArtCatalog catalog, FatewakeDbContext db, CancellationToken ct) =>
@@ -126,11 +85,11 @@ public static class ArtReviewEndpoints
                 currentWork is null ? string.Empty : catalog.RuntimeExclusions,
                 currentWork is null ? string.Empty : catalog.Describe(assetKey).Framing,
                 replacementStatus, replacementJobId, replacementVersion));
-        }).RequireAuthorization("ArtAdministrator");
+        }).RequireAuthorization("ArtworkReviewer");
 
         app.MapPost("/api/art/reviews/prompt/preview", (ArtPromptReviewRequest request,
             SceneArtCatalog catalog, FatewakeDbContext db, CancellationToken ct) =>
-            PreviewAsync(request, catalog, db, ct)).RequireAuthorization("ArtAdministrator");
+            PreviewAsync(request, catalog, db, ct)).RequireAuthorization("ArtworkReviewer");
 
         app.MapPost("/api/art/reviews/prompt", async (ArtPromptReviewRequest request, ClaimsPrincipal user,
             SceneArtCatalog catalog, FatewakeDbContext db, IArtWorkJobFactory jobs, CancellationToken ct) =>
@@ -222,26 +181,8 @@ public static class ArtReviewEndpoints
                     db.Add(revision);
                     current.LatestRevisionId = revision.Id;
                     current.LatestRevisionNumber = revision.RevisionNumber;
-                    current.RequestedRevisionId = revision.Id;
-                    current.RequestedRevisionNumber = revision.RevisionNumber;
-                    current.RequestedAssetId = asset.Id;
-                    current.RequestedWorkJobId = jobId;
-                    current.UpdatedAt = revision.CreatedAt;
+                    BindReplacement(db, current, revision, asset.Id, work, jobId, "admin-prompt-revision");
                     db.Add(CreateReview(account, request, asset.Id, revision.Id, jobId));
-                    db.Add(new ArtRegenerationRecord
-                    {
-                        Id = Guid.NewGuid(),
-                        ArtAssetId = asset.Id,
-                        VisualFingerprint = work.VisualFingerprint,
-                        RequestJson = JsonSerializer.Serialize(work),
-                        TargetProvider = work.Provider,
-                        TargetModel = work.Model,
-                        Status = "Processing",
-                        Reason = "admin-prompt-revision",
-                        RegenerationWorkJobId = jobId,
-                        CreatedAt = revision.CreatedAt,
-                        UpdatedAt = revision.CreatedAt
-                    });
                 }, ct);
                 return Results.Ok(new ArtPromptReviewSaveResult(revision.Id, revision.RevisionNumber,
                     work.ResolvedPrompt, work.NegativeInstructions ?? string.Empty, true, true, created.JobId));
@@ -253,7 +194,155 @@ public static class ArtReviewEndpoints
                     error = "The prompt changed. Reload the selected layer before saving."
                 });
             }
-        }).RequireAuthorization("ArtAdministrator");
+        }).RequireAuthorization("ArtworkReviewer");
+    }
+
+    private static async Task<IResult> SaveReviewAsync(ArtReviewRequest request, ClaimsPrincipal user,
+        SceneArtCatalog catalog, FatewakeDbContext db, IArtWorkJobFactory jobs, CancellationToken ct)
+    {
+        var account = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var versions = request.Versions;
+        if (string.IsNullOrWhiteSpace(request.SceneKey) || request.SceneKey.Length > 100 ||
+            versions is null || versions.Count is < 1 or > 24 ||
+            versions.Any(layer => !catalog.Contains(layer.Key) || layer.Value is <= 0) ||
+            request.Critique?.Length > 4000 || request.Correction?.Length > 4000 ||
+            (!request.Regenerate && string.IsNullOrWhiteSpace(request.Critique)) ||
+            (request.AssetKey is { } selectedKey && (request.Version is null || versions.GetValueOrDefault(selectedKey) != request.Version)))
+            return Results.BadRequest(new { error = "Select a rendered layer or composition and provide a critique to save." });
+
+        var rendered = new List<ArtAssetRecord>();
+        foreach (var (key, version) in versions)
+        {
+            if (version is null)
+                continue;
+            var asset = await db.ArtAssets.AsNoTracking().SingleOrDefaultAsync(row => row.Key == key &&
+                row.Version == version && row.Status == ArtAssetStatus.Approved &&
+                (row.OwnerAccountId == null || row.OwnerAccountId == account), ct);
+            if (asset is null)
+                return Results.BadRequest(new { error = "A reviewed version is unavailable. Reload the scene and try again." });
+            rendered.Add(asset);
+        }
+        if (rendered.Count == 0)
+            return Results.BadRequest(new { error = "Wait for the scene artwork before reviewing it." });
+        var critique = request.Critique?.Trim();
+        var visualNote = ArtReviewPreferences.VisualNote(request.Correction ?? critique);
+        var review = new ArtReviewRecord
+        {
+            Id = Guid.NewGuid(),
+            AccountId = account,
+            SceneKey = request.SceneKey,
+            AssetKey = request.AssetKey,
+            Version = request.Version,
+            CompositionVersions = JsonSerializer.Serialize(versions),
+            Critique = string.IsNullOrWhiteSpace(critique) ? "Artwork replacement requested." : critique,
+            Correction = request.Correction?.Trim(),
+            UseForFutureArtwork = request.UseForFutureArtwork && visualNote is not null &&
+                rendered.All(asset => asset.OwnerAccountId is null),
+            Regenerate = request.Regenerate,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        if (!request.Regenerate)
+        {
+            db.Add(review);
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new { review.Id, queued = false, review.UseForFutureArtwork });
+        }
+        if (!catalog.GenerationEnabled)
+            return Results.Conflict(new { error = "Artwork image generation is not configured." });
+        var sceneLayers = DayOneArt.For(request.SceneKey).Select(layer => layer.AssetKey).ToHashSet(StringComparer.Ordinal);
+        if (rendered.Any(asset => !sceneLayers.Contains(asset.Key)))
+            return Results.BadRequest(new { error = "The selected versions no longer match this scene. Reload it and try again." });
+
+        var targets = new List<(ArtAssetRecord Asset, Guid PromptId)>();
+        foreach (var asset in rendered.Where(asset => request.AssetKey is null || asset.Key == request.AssetKey))
+        {
+            var prompt = await FindPromptForAssetAsync(db, catalog, asset.Key, asset.Id, ct);
+            if (prompt is null)
+                return Results.Conflict(new { error = $"No editable prompt is available for {asset.Key}." });
+            targets.Add((asset, prompt.Id));
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        db.Add(review);
+        var jobIds = new List<Guid>();
+        foreach (var (asset, promptId) in targets.OrderBy(target => target.PromptId))
+        {
+            await LockPromptAsync(db, promptId, ct);
+            var prompt = await db.Set<ArtPromptRecord>().SingleAsync(row => row.Id == promptId, ct);
+            if (prompt.Status != "ready" || prompt.CurrentRevisionId is not { } currentRevisionId)
+                return Results.Conflict(new { error = $"A ready prompt is required for {asset.Key}." });
+            if (prompt.RequestedWorkJobId is { } activeJob && await db.WorkJobs.AnyAsync(job => job.Id == activeJob &&
+                (job.Status == WorkJobStatus.Pending || job.Status == WorkJobStatus.Running), ct))
+                return Results.Conflict(new { error = $"A replacement is already in progress for {asset.Key}." });
+
+            var current = await db.Set<ArtPromptRevisionRecord>().AsNoTracking().SingleAsync(row => row.Id == currentRevisionId, ct);
+            var guidance = await ArtReviewPreferences.LoadAsync(db, asset.Key, ct);
+            var notes = guidance.Prepend(visualNote).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).Take(4);
+            var noteText = string.Join(" ", notes);
+            var subject = current.PositivePrompt;
+            if (noteText.Length > 0)
+            {
+                const string label = " Visual preferences, where compatible with the layer role and canon: ";
+                var limit = Math.Min(subject.Length, 8000 - label.Length - noteText.Length);
+                if (limit > 0 && char.IsHighSurrogate(subject[limit - 1]))
+                    limit--;
+                subject = subject[..limit].TrimEnd() + label + noteText;
+            }
+
+            var revision = new ArtPromptRevisionRecord
+            {
+                Id = Guid.NewGuid(),
+                ArtPromptId = prompt.Id,
+                RevisionNumber = (prompt.LatestRevisionNumber ?? 0) + 1,
+                ParentRevisionId = prompt.LatestRevisionId,
+                PositivePrompt = subject,
+                NegativePrompt = current.NegativePrompt,
+                Source = "admin",
+                CreatorAccountId = account,
+                RequestContextFingerprint = current.RequestContextFingerprint,
+                CreatedAt = review.CreatedAt
+            };
+            var work = SceneArtRevision.Create(catalog, asset.Key, revision, asset.OwnerAccountId, priority: 100,
+                reachedVisualContext: prompt.ReachedVisualContext) with
+            {
+                ForceProviderRegeneration = true,
+                IsPrivate = asset.OwnerAccountId is not null
+            };
+            db.Add(revision);
+            prompt.LatestRevisionId = revision.Id;
+            prompt.LatestRevisionNumber = revision.RevisionNumber;
+            var created = await jobs.CreateAsync(work, (jobId, _) =>
+            {
+                BindReplacement(db, prompt, revision, asset.Id, work, jobId, "admin-scene-regeneration");
+                if (request.AssetKey is not null)
+                {
+                    review.SourceArtAssetId = asset.Id;
+                    review.PromptRevisionId = revision.Id;
+                    review.RegenerationWorkJobId = jobId;
+                }
+                return Task.CompletedTask;
+            }, ct);
+            jobIds.Add(created.JobId);
+        }
+        await transaction.CommitAsync(ct);
+        return Results.Ok(new { review.Id, queued = true, jobIds, review.UseForFutureArtwork });
+    }
+
+    private static void BindReplacement(FatewakeDbContext db, ArtPromptRecord prompt, ArtPromptRevisionRecord revision,
+        Guid sourceAssetId, ArtWorkRequest work, Guid jobId, string reason)
+    {
+        prompt.RequestedRevisionId = revision.Id;
+        prompt.RequestedRevisionNumber = revision.RevisionNumber;
+        prompt.RequestedAssetId = sourceAssetId;
+        prompt.RequestedWorkJobId = jobId;
+        prompt.UpdatedAt = revision.CreatedAt;
+        db.Add(new ArtRegenerationRecord
+        {
+            Id = Guid.NewGuid(), ArtAssetId = sourceAssetId, VisualFingerprint = work.VisualFingerprint,
+            RequestJson = JsonSerializer.Serialize(work), TargetProvider = work.Provider, TargetModel = work.Model,
+            Status = "Processing", Reason = reason, RegenerationWorkJobId = jobId,
+            CreatedAt = revision.CreatedAt, UpdatedAt = revision.CreatedAt
+        });
     }
 
     private static async Task<IResult> PreviewAsync(ArtPromptReviewRequest request, SceneArtCatalog catalog,

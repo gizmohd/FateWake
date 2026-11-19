@@ -90,7 +90,11 @@ public static class SceneArtEndpoints
                         request.SelectedActionType is null ? 0 : 100, ct, reachedVisualContext);
                     if (prompt.Status != "ready" || prompt.WorkRequest is null)
                     {
-                        results.Add(new(key, prompt.Status, JobId: prompt.JobId));
+                        var prior = await FindPriorStyleAsync(db, assets, storage,
+                            catalog.Describe(key, reachedVisualContext), ct);
+                        results.Add(prior is not null
+                            ? new(key, "ready", prior.Version, ReplacementPending: prompt.Status == "pending")
+                            : new(key, prompt.Status, JobId: prompt.JobId));
                         continue;
                     }
                     var work = prompt.WorkRequest;
@@ -105,8 +109,19 @@ public static class SceneArtEndpoints
                     }
                     if (resolution is { } readyAsset)
                     {
-                        results.Add(new(key, "ready", readyAsset.Version));
+                        results.Add(new(key, "ready", readyAsset.Version, ReplacementPending: prompt.ReplacementPending));
                         continue;
+                    }
+
+                    if (!work.IsPrivate)
+                    {
+                        var prior = await FindPriorStyleAsync(db, assets, storage,
+                            catalog.Describe(key, reachedVisualContext), ct);
+                        if (prior is not null)
+                        {
+                            results.Add(new(key, "ready", prior.Version, ReplacementPending: prompt.ReplacementPending));
+                            continue;
+                        }
                     }
 
                     if (!catalog.GenerationEnabled)
@@ -123,7 +138,7 @@ public static class SceneArtEndpoints
                         var completed = await assets.FindApprovedByFingerprintAsync(work.VisualFingerprint, ct, work.IsPrivate ? accountId : null);
                         if (completed is { } ready && await HasCompleteBinariesAsync(ready, storage, ct))
                         {
-                            results.Add(new(key, "ready", ready.Version));
+                            results.Add(new(key, "ready", ready.Version, ReplacementPending: prompt.ReplacementPending));
                             continue;
                         }
                     }
@@ -155,7 +170,9 @@ public static class SceneArtEndpoints
         app.MapGet("/api/art/{key}/{version:int}/{format}", async (string key, int version, string format,
             FatewakeDbContext db, IArtBinaryStorage storage, HttpContext context, CancellationToken ct) =>
         {
-            if (version < 1 || format is not ("png" or "webp"))
+            var sprite = format == "sprite-png";
+            if (version < 1 || format is not ("png" or "webp" or "sprite-png") ||
+                (sprite && !key.StartsWith("char-", StringComparison.Ordinal)))
                 return Results.NotFound();
             var asset = await db.ArtAssets.AsNoTracking()
                 .Where(x => x.Key == key && x.Version == version && x.Status == ArtAssetStatus.Approved)
@@ -175,8 +192,7 @@ public static class SceneArtEndpoints
             if (derivative is null || !await storage.ExistsAsync(derivative.StorageKey, ct))
                 return Results.NotFound();
 
-            var etag = $"\"{derivative.ContentHash}\"";
-            context.Response.ContentLength = derivative.ByteSize;
+            var etag = sprite ? $"\"{derivative.ContentHash}-sprite-v1\"" : $"\"{derivative.ContentHash}\"";
             context.Response.Headers.ETag = etag;
             context.Response.Headers.CacheControl = asset.OwnerAccountId is null
                 ? "public,max-age=31536000,immutable"
@@ -187,6 +203,16 @@ public static class SceneArtEndpoints
             if (MatchesIfNoneMatch(context.Request.Headers["If-None-Match"], etag))
                 return Results.StatusCode(StatusCodes.Status304NotModified);
 
+            if (sprite)
+            {
+                await using var source = await storage.OpenReadAsync(derivative.StorageKey, ct);
+                using var buffer = new MemoryStream();
+                await source.CopyToAsync(buffer, ct);
+                var png = buffer.ToArray();
+                return Results.File(CharacterSprite.CropPng(png) ?? png, "image/png");
+            }
+
+            context.Response.ContentLength = derivative.ByteSize;
             return Results.Stream(await storage.OpenReadAsync(derivative.StorageKey, ct), derivative.ContentType);
         });
     }
@@ -219,6 +245,28 @@ public static class SceneArtEndpoints
         return sceneKey == DayOneScenes.Opening.Key
             ? (true, beatKey, outcome)
             : (true, null, null);
+    }
+
+    private static async Task<ArtAssetMatch?> FindPriorStyleAsync(FatewakeDbContext db, IArtAssetStore assets,
+        IArtBinaryStorage storage, SceneArtPromptMetadata metadata, CancellationToken ct)
+    {
+        var fingerprints = await (
+            from asset in db.ArtAssets.AsNoTracking()
+            join generation in db.ArtGenerations.AsNoTracking() on asset.Id equals generation.ArtAssetId
+            join revision in db.Set<ArtPromptRevisionRecord>().AsNoTracking() on generation.PromptRevisionId equals revision.Id
+            join prompt in db.Set<ArtPromptRecord>().AsNoTracking() on revision.ArtPromptId equals prompt.Id
+            where asset.Key == metadata.AssetKey && asset.Status == ArtAssetStatus.Approved &&
+                asset.OwnerAccountId == null && !prompt.IsPrivate &&
+                prompt.ContextFingerprint == metadata.ContextFingerprint && prompt.StyleBibleVersion != metadata.StyleBibleVersion
+            orderby asset.Version descending
+            select asset.VisualFingerprint).ToArrayAsync(ct);
+        foreach (var fingerprint in fingerprints)
+        {
+            var candidate = await assets.FindApprovedByFingerprintAsync(fingerprint, ct);
+            if (candidate is not null && await HasCompleteBinariesAsync(candidate, storage, ct))
+                return candidate;
+        }
+        return null;
     }
 
     private static async Task<bool> HasCompleteBinariesAsync(ArtAssetMatch asset, IArtBinaryStorage storage, CancellationToken ct)
