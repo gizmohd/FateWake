@@ -19,6 +19,9 @@ public sealed class OpenAiArtMasterGenerator(HttpClient http, IOptions<OpenAiArt
     {
         using var operation = OperationTelemetry.Start("art.generate.openai", log);
         var o = configured.Value; if (!o.Enabled || string.IsNullOrWhiteSpace(o.ApiKey)) throw new InvalidOperationException("OpenAI art generation is not configured.");
+        var fallback = string.Equals(invocation.Request.Model, o.FallbackModel, StringComparison.OrdinalIgnoreCase);
+        var quality = fallback ? o.FallbackQuality : o.Quality;
+        var complexity = fallback ? o.FallbackComplexity : null;
         var background = invocation.Request.AssetType is "CharacterPose" or "CharacterExpression" or "Prop" or "Foreground" or "Lighting" or "Effect" or "Atmosphere" ? "transparent" : o.Background;
         using var request = new HttpRequestMessage(HttpMethod.Post, (invocation.Request.ReferenceImages?.Count ?? 0) > 0 ? "images/edits" : "images/generations");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", o.ApiKey);
@@ -26,11 +29,12 @@ public sealed class OpenAiArtMasterGenerator(HttpClient http, IOptions<OpenAiArt
         var prompt = string.IsNullOrWhiteSpace(invocation.Request.NegativeInstructions) ? invocation.Request.ResolvedPrompt : $"{invocation.Request.ResolvedPrompt}\n\nConstraints: {invocation.Request.NegativeInstructions}";
         if ((invocation.Request.ReferenceImages?.Count ?? 0) > 0)
         {
-            var form = new MultipartFormDataContent(); form.Add(new StringContent(invocation.Request.Model ?? o.Model), "model"); form.Add(new StringContent(prompt), "prompt"); form.Add(new StringContent(o.Size), "size"); form.Add(new StringContent(o.Quality), "quality"); form.Add(new StringContent("png"), "output_format"); form.Add(new StringContent(background), "background");
+            var form = new MultipartFormDataContent(); form.Add(new StringContent(invocation.Request.Model ?? o.Model), "model"); form.Add(new StringContent(prompt), "prompt"); form.Add(new StringContent(o.Size), "size"); form.Add(new StringContent(quality), "quality"); form.Add(new StringContent("png"), "output_format"); form.Add(new StringContent(background), "background"); if (complexity is not null) form.Add(new StringContent(complexity), "complexity");
             foreach (var reference in invocation.Request.ReferenceImages!.Take(16)) { await using var input = await storage.OpenReadAsync(reference.StorageKey, ct); var referenceBytes = await ReadAllAsync(input, ct); var part = new ByteArrayContent(referenceBytes); part.Headers.ContentType = new MediaTypeHeaderValue("image/png"); form.Add(part, "image[]", Path.GetFileName(reference.StorageKey)); }
             request.Content = form;
         }
-        else request.Content = JsonContent.Create(new { model = invocation.Request.Model ?? o.Model, prompt, size = o.Size, quality = o.Quality, output_format = "png", background });
+        else if (fallback) request.Content = JsonContent.Create(new { model = invocation.Request.Model ?? o.FallbackModel, prompt, size = o.Size, quality, complexity, output_format = "png", background });
+        else request.Content = JsonContent.Create(new { model = invocation.Request.Model ?? o.Model, prompt, size = o.Size, quality, output_format = "png", background });
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct); var body = await response.Content.ReadAsStringAsync(ct);
         var usageRequestId = response.Headers.TryGetValues("x-request-id", out var usageIds) ? usageIds.FirstOrDefault() : null;
         if (usageId is { } tracked) await usage!.ReportAsync(tracked, AiProviderUsage.Parse(body, usageRequestId), ct);

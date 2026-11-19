@@ -6,6 +6,8 @@ Fatewake is a persistent narrative survival/social strategy game (mobile-first w
 
 Requires the stable .NET 11 SDK (`global.json` starts at `11.0.100`).
 
+**Permanent command-formatting rule:** Never stack multiple commands or statements on a single line. Every `;` that terminates a command or statement must be followed immediately by a CRLF line break. Use one command per line in shell scripts and terminal commands, and do not chain commands with `&&`, `;`, or other separators on the same line. This rule applies to repository scripts, build/test commands, PowerShell, Bash, C#, and C-style source syntax.
+
 **Permanent formatting rule:** After editing any repository file or page, run `dotnet format Fatewake.slnx --no-restore` before validation or handoff. Run `dotnet restore Fatewake.slnx` first if dependencies are not restored. The formatter covers supported .NET source in the solution; keep Razor markup, CSS, Markdown, and other unsupported content consistent with adjacent files.
 
 ```bash

@@ -1,10 +1,12 @@
-using Aspire.Hosting.Dotnet;
 using Microsoft.Extensions.Hosting;
+
+Environment.SetEnvironmentVariable("ASPIRE_DASHBOARD_TELEMETRY_OPTOUT", "true");
 
 IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(args);
 builder.Services.AddFatewakeObservability(builder.Configuration, "Fatewake.AppHost");
 
 IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgres")
+    .WithImage("pgvector/pgvector", "0.8.7-pg18-trixie")
     .WithDataVolume()
     .WithLifetime(ContainerLifetime.Persistent);
 IResourceBuilder<PostgresDatabaseResource> fatewake = postgres.AddDatabase("fatewake");
@@ -13,7 +15,8 @@ IResourceBuilder<ParameterResource> rabbitUserName = builder.AddParameter("rabbi
 IResourceBuilder<ParameterResource> rabbitPassword = builder.AddParameter("rabbitmq-password", "admin", secret: true);
 
 IResourceBuilder<RabbitMQServerResource> rabbit = builder.AddRabbitMQ("rabbitmq", userName: rabbitUserName, password: rabbitPassword)
-    .WithManagementPlugin()
+    .WithImage("rabbitmq", "4.4.1-management")
+    .WithEndpoint(targetPort: 15672, port: 15672, scheme: "http", name: "management")
     .WithDataVolume()
     .WithLifetime(ContainerLifetime.Persistent);
 
@@ -22,7 +25,7 @@ string artStorageRoot = Path.GetFullPath(builder.Configuration["ArtStorage:RootP
 string repoRoot = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", ".."));
 string emailsRoot = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "emails"));
 
-IResourceBuilder<DotnetProjectResource> api = builder.AddDotnetProject("api", Path.Combine(repoRoot, "src", "Fatewake.Api", "Fatewake.Api.csproj"))
+IResourceBuilder<ProjectResource> api = builder.AddProject("api", Path.Combine(repoRoot, "src", "Fatewake.Api", "Fatewake.Api.csproj"))
     .WithReference(fatewake)
     .WithReference(rabbit)
     .WithEnvironment("RabbitMq__ConnectionString", rabbit.Resource.ConnectionStringExpression)
@@ -32,7 +35,7 @@ IResourceBuilder<DotnetProjectResource> api = builder.AddDotnetProject("api", Pa
     .WaitFor(fatewake)
     .WaitFor(rabbit);
 
-IResourceBuilder<DotnetProjectResource> worker = builder.AddDotnetProject("worker", Path.Combine(repoRoot, "src", "Fatewake.Worker", "Fatewake.Worker.csproj"))
+IResourceBuilder<ProjectResource> worker = builder.AddProject("worker", Path.Combine(repoRoot, "src", "Fatewake.Worker", "Fatewake.Worker.csproj"))
     .WithReference(fatewake)
     .WithReference(rabbit)
     .WithEnvironment("RabbitMq__ConnectionString", rabbit.Resource.ConnectionStringExpression)
@@ -47,7 +50,7 @@ api.WithForwardedSection(builder, "ArtStorage");
 worker.WithForwardedSection(builder, "ArtGeneration");
 worker.WithForwardedSection(builder, "ArtStorage");
 
-IResourceBuilder<DotnetProjectResource> web = builder.AddDotnetProject("web", Path.Combine(repoRoot, "src", "Fatewake.Web", "Fatewake.Web.csproj"))
+IResourceBuilder<ProjectResource> web = builder.AddProject("web", Path.Combine(repoRoot, "src", "Fatewake.Web", "Fatewake.Web.csproj"))
     .WithReference(api)
     .WaitFor(api);
 

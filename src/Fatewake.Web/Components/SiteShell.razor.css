@@ -10,7 +10,8 @@
     display: grid;
     grid-template: auto 1fr / clamp(10.5rem, 16vw, 15rem) minmax(0, 1fr);
     gap: clamp(.55rem, 1vw, 1rem);
-    min-height: 100dvh;
+    height: 100dvh;
+    overflow: hidden;
     padding: max(.6rem, env(safe-area-inset-top)) max(.6rem, env(safe-area-inset-right))
         max(.6rem, env(safe-area-inset-bottom)) max(.6rem, env(safe-area-inset-left));
     background: radial-gradient(ellipse at 30% 0%, #301655 0%, transparent 58%), var(--void);
@@ -76,6 +77,18 @@
     text-shadow: 0 1px 5px #090817;
 }
 .play-navigation { display: flex; flex-direction: column; padding: .6rem; gap: .25rem; }
+.play-navigation,
+.play-shell > :last-child,
+.play-shell ::deep .site-content {
+    min-height: 0;
+}
+.play-navigation { overflow-y: auto; overscroll-behavior: contain; }
+.play-shell > :last-child,
+.play-shell ::deep .site-content {
+    height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
 .play-menu-title {
     margin: .15rem .5rem .3rem;
     color: var(--muted);

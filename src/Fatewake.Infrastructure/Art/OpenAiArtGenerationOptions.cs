@@ -10,5 +10,8 @@ public sealed class OpenAiArtGenerationOptions
     public string Model { get; set; } = "gpt-image-2.5-sunburst";
     public string Size { get; set; } = "1536x1024";
     public string Quality { get; set; } = "high";
+    public string FallbackModel { get; set; } = "gpt-image-2.6-flare";
+    public string FallbackQuality { get; set; } = "low";
+    public string FallbackComplexity { get; set; } = "low";
     public string Background { get; set; } = "opaque";
 }
