@@ -12,7 +12,11 @@ public sealed class AccountRoleService(FatewakeDbContext db, IConfiguration? con
         // Serialize the one-time bootstrap across API processes and concurrent sign-ins.
         await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(861017234)", ct);
         var existing = await db.Set<AccountRoleRecord>().SingleOrDefaultAsync(x => x.AccountId == accountId, ct);
-        if (existing is not null) { await transaction.CommitAsync(ct); return existing.Role; }
+        if (existing is not null)
+        {
+            await transaction.CommitAsync(ct);
+            return existing.Role;
+        }
         if (!await db.AccountEmails.AnyAsync(x => x.AccountId == accountId && x.Verified, ct))
             throw new InvalidOperationException("Role assignment requires a verified account.");
         var adminEmails = configuration?.GetSection("Administration:AdminEmails").GetChildren()
@@ -27,7 +31,8 @@ public sealed class AccountRoleService(FatewakeDbContext db, IConfiguration? con
             ? "Admin"
             : "User";
         db.Add(new AccountRoleRecord { AccountId = accountId, Role = role, AssignedAt = DateTimeOffset.UtcNow });
-        await db.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return role;
     }
 }

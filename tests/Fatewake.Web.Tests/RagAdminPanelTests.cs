@@ -24,7 +24,10 @@ public sealed class RagAdminPanelTests : AuthenticationStateProvider, IHttpClien
         ], "cookie"))));
 
     HttpClient IHttpClientFactory.CreateClient(string name) =>
-        new(new UnauthorizedApi()) { BaseAddress = new Uri("https://api.test") };
+        new(new UnauthorizedApi())
+        {
+            BaseAddress = new Uri("https://api.test")
+        };
 
     ValueTask<TValue> IJSRuntime.InvokeAsync<TValue>(string identifier, object?[]? args) =>
         throw new InvalidOperationException("Prerender must not invoke JavaScript.");

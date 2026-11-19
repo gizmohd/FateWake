@@ -4,4 +4,6 @@ Delivery emits an email.deliver span and duration with typed logger lifecycle ev
 
 Sends a plain-text verification message with a configured-origin link via SMTP when enabled. Otherwise writes a unique `.txt` file to the configured emails directory, outside Web static files. Uses owner-only permissions on Unix; restrict the directory's ACL on Windows. Files contain private bearer links and must not be committed or publicly served.
 
+Subjects, instructions and sender display name use the shared Pathweaver public identity. The configured envelope sender, SMTP host and verification origin remain unchanged; the marketing domain never silently replaces authentication configuration.
+
 SMTP errors propagate to logged HTTP 503 failures; there is no automatic fallback after SMTP failure. Durable pending challenges permit explicit resend. Multiple instances need access to their configured SMTP server or an appropriately protected shared development mail directory.

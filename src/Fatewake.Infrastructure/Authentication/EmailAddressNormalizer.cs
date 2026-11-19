@@ -10,9 +10,11 @@ public static class EmailAddressNormalizer
     public static bool TryNormalize(string? email, out string normalized)
     {
         normalized = "";
-        if (string.IsNullOrWhiteSpace(email) || email.Trim().Length > 254) return false;
+        if (string.IsNullOrWhiteSpace(email) || email.Trim().Length > 254)
+            return false;
         var value = email.Trim();
-        if (!MailAddress.TryCreate(value, out var address) || address.Address != value || !address.Host.Contains('.')) return false;
+        if (!MailAddress.TryCreate(value, out var address) || address.Address != value || !address.Host.Contains('.'))
+            return false;
         normalized = value.ToUpperInvariant();
         return true;
     }

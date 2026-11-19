@@ -67,7 +67,8 @@ app.MapLocalAuthentication();
 app.MapGet("/art/{key}/{version:int}/{format}", async (string key, int version, string format,
     AuthenticatedApiClient clients, HttpContext context, CancellationToken ct) =>
 {
-    if (version < 1 || format is not ("png" or "webp")) return Results.NotFound();
+    if (version < 1 || format is not ("png" or "webp"))
+        return Results.NotFound();
     using var request = new HttpRequestMessage(HttpMethod.Get,
         $"/api/art/{Uri.EscapeDataString(key)}/{version}/{format}");
     foreach (var header in new[] { "If-None-Match", "If-Modified-Since" })
@@ -89,7 +90,8 @@ app.MapGet("/art/{key}/{version:int}/{format}", async (string key, int version, 
             response.Content.Headers.TryGetValues(header, out values))
             context.Response.Headers[header] = values.ToArray();
     }
-    if (!response.IsSuccessStatusCode) return Results.Empty;
+    if (!response.IsSuccessStatusCode)
+        return Results.Empty;
     context.Response.ContentType = response.Content.Headers.ContentType?.ToString() ?? "image/" + format;
     if (context.Response.Headers.CacheControl.ToString().Contains("private", StringComparison.OrdinalIgnoreCase))
         context.Response.Headers.Vary = "Cookie";

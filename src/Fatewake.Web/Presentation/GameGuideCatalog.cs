@@ -8,7 +8,7 @@ public static class GameGuideCatalog
 {
     /// <summary>Introduces the current premise without changing gameplay canon or state.</summary>
     public const string Introduction =
-        "A near-future suburban morning breaks into silence. Follow a survivor through the first choices of The Silence.";
+        "A near-future suburban morning breaks into silence. Follow a Pathweaver through the first choices of The Silence.";
 
     /// <summary>The title of the currently authored opening scene.</summary>
     public static string CurrentStoryTitle => DayOneScenes.Opening.Title;
@@ -21,5 +21,5 @@ public static class GameGuideCatalog
 
     /// <summary>Explains the current survivor-appearance experience without promising unavailable controls.</summary>
     public const string CharacterAppearanceStatus =
-        "You begin with a survivor and can shape what happens through play. Character appearance customization and player-directed character images are not available yet; authored scene artwork can be prepared in the background.";
+        "You begin as a Pathweaver and can shape what happens through play. Character appearance customization and player-directed character images are not available yet; scene artwork can be prepared in the background.";
 }

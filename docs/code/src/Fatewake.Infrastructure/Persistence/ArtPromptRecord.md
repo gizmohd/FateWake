@@ -1,0 +1,3 @@
+# ArtPromptRecord
+
+Stores one canonical SQL prompt identity, its applicability scope, readiness state, and separate latest, current-serving, and requested immutable revision bindings. `IdentityKey` includes the server-derived layer/context/style and private-owner scope, so a client asset key alone cannot select a personalized prompt. `ReachedVisualContext` preserves the bounded outcome applicability needed to locate and review outcome-specific prompts. Save-only administrator revisions advance the latest draft without changing current serving state; successful requested replacement finalization promotes current only if no newer revision was requested.

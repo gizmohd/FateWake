@@ -5,33 +5,78 @@ namespace Fatewake.Infrastructure.Authentication;
 public sealed class EmailVerificationRecord
 {
     /// <summary>Challenge identifier.</summary>
-    public Guid Id { get; set; }
+    public Guid Id
+    {
+        get; set;
+    }
     /// <summary>SHA-256 hash of the random emailed token.</summary>
-    public required string TokenHash { get; set; }
+    public required string TokenHash
+    {
+        get; set;
+    }
     /// <summary>Delivery address.</summary>
-    public required string Email { get; set; }
+    public required string Email
+    {
+        get; set;
+    }
     /// <summary>Canonical email lookup key.</summary>
-    public required string NormalizedEmail { get; set; }
+    public required string NormalizedEmail
+    {
+        get; set;
+    }
     /// <summary>Pending registration hash, removed after confirmation.</summary>
-    public string? PasswordHash { get; set; }
+    public string? PasswordHash
+    {
+        get; set;
+    }
     /// <summary>Validated provider name for external mailbox proof.</summary>
-    public string? Provider { get; set; }
+    public string? Provider
+    {
+        get; set;
+    }
     /// <summary>Validated provider subject for external mailbox proof.</summary>
-    public string? Subject { get; set; }
+    public string? Subject
+    {
+        get; set;
+    }
     /// <summary>Provider-supplied display name.</summary>
-    public string? DisplayName { get; set; }
+    public string? DisplayName
+    {
+        get; set;
+    }
     /// <summary>Unconfirmed registration given name, cleared after proof is consumed.</summary>
-    public string? FirstName { get; set; }
+    public string? FirstName
+    {
+        get; set;
+    }
     /// <summary>Unconfirmed registration family name, never used to link identities.</summary>
-    public string? LastName { get; set; }
+    public string? LastName
+    {
+        get; set;
+    }
     /// <summary>Pending self-reported city, retained across resends until proof is consumed.</summary>
-    public string? City { get; set; }
+    public string? City
+    {
+        get; set;
+    }
     /// <summary>Pending free-text state/region, not authoritative gameplay location.</summary>
-    public string? State { get; set; }
+    public string? State
+    {
+        get; set;
+    }
     /// <summary>Creation time used for resend cooldown.</summary>
-    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset CreatedAt
+    {
+        get; set;
+    }
     /// <summary>Last time at which proof can be accepted.</summary>
-    public DateTimeOffset ExpiresAt { get; set; }
+    public DateTimeOffset ExpiresAt
+    {
+        get; set;
+    }
     /// <summary>Consumption time; consumed proofs cannot be reused.</summary>
-    public DateTimeOffset? ConsumedAt { get; set; }
+    public DateTimeOffset? ConsumedAt
+    {
+        get; set;
+    }
 }

@@ -1,5 +1,7 @@
 using Fatewake.Infrastructure.Art;
 using Fatewake.Infrastructure.Persistence;
+using Fatewake.Infrastructure.Rag;
+using Fatewake.Infrastructure.Story;
 using Fatewake.Infrastructure.Work;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,6 +19,35 @@ builder.Services.Configure<ArtGenerationProviderOptions>(builder.Configuration.G
 builder.Services.Configure<LocalArtGenerationOptions>(builder.Configuration.GetSection(LocalArtGenerationOptions.SectionName));
 builder.Services.Configure<ComfyUiArtGenerationOptions>(builder.Configuration.GetSection(ComfyUiArtGenerationOptions.SectionName));
 builder.Services.Configure<OpenAiArtGenerationOptions>(builder.Configuration.GetSection(OpenAiArtGenerationOptions.SectionName));
+var promptAuthoring = builder.Configuration.GetSection(ArtPromptAuthoringOptions.SectionName)
+    .Get<ArtPromptAuthoringOptions>() ?? new ArtPromptAuthoringOptions();
+builder.Services.AddSingleton(promptAuthoring);
+builder.Services.AddHttpClient<IArtPromptAuthor, OpenAiArtPromptAuthor>(client =>
+{
+    client.BaseAddress = new Uri(promptAuthoring.BaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(promptAuthoring.TimeoutSeconds);
+});
+
+var embedding = builder.Configuration.GetSection(EmbeddingOptions.SectionName)
+    .Get<EmbeddingOptions>() ?? new EmbeddingOptions();
+builder.Services.AddSingleton(embedding);
+builder.Services.AddHttpClient<IEmbeddingProvider, OpenAiEmbeddingProvider>(client =>
+{
+    client.BaseAddress = new Uri(embedding.BaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(embedding.TimeoutSeconds);
+});
+builder.Services.AddScoped<IRagEmbeddingService, RagEmbeddingService>();
+builder.Services.AddScoped<IRagRetriever, RagRetriever>();
+var sceneAuthoring = builder.Configuration.GetSection(SceneAuthoringOptions.SectionName)
+    .Get<SceneAuthoringOptions>() ?? new SceneAuthoringOptions();
+builder.Services.AddSingleton(sceneAuthoring);
+builder.Services.AddHttpClient<ISceneAuthor, OpenAiSceneAuthor>(client =>
+{
+    client.BaseAddress = new Uri(sceneAuthoring.BaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(sceneAuthoring.TimeoutSeconds);
+});
+builder.Services.AddScoped<IWorkStepHandler, SceneWorkStepHandler>();
+builder.Services.AddHostedService<RagEmbeddingWorker>();
 
 var storage = builder.Configuration.GetSection(ArtStorageOptions.SectionName).Get<ArtStorageOptions>() ?? new ArtStorageOptions();
 switch (storage.Provider.ToLowerInvariant())
@@ -53,6 +84,7 @@ builder.Services.AddScoped<IWorkStepHandler, ArtOptimizePngWorkStepHandler>();
 builder.Services.AddScoped<IWorkStepHandler, ArtInspectMetadataWorkStepHandler>();
 builder.Services.AddScoped<IWorkStepHandler, ArtValidateWorkStepHandler>();
 builder.Services.AddScoped<IWorkStepHandler, ArtFinalizeWorkStepHandler>();
+builder.Services.AddScoped<IWorkStepHandler, ArtPromptAuthoringWorkStepHandler>();
 builder.Services.AddScoped<IWorkStepHandler, RagImportWorkStepHandler>();
 
 var provider = builder.Configuration.GetSection(ArtGenerationProviderOptions.SectionName).Get<ArtGenerationProviderOptions>() ?? new ArtGenerationProviderOptions();
@@ -69,7 +101,8 @@ switch (provider.Provider.ToLowerInvariant())
         break;
     case "local":
         var local = builder.Configuration.GetSection(LocalArtGenerationOptions.SectionName).Get<LocalArtGenerationOptions>() ?? new LocalArtGenerationOptions();
-        if (!local.Enabled) throw new InvalidOperationException("Enable ArtGeneration:Local when Provider is Local.");
+        if (!local.Enabled)
+            throw new InvalidOperationException("Enable ArtGeneration:Local when Provider is Local.");
         builder.Services.AddHttpClient<IArtMasterGenerator, LocalArtMasterGenerator>(client => client.BaseAddress = new Uri(local.BaseUrl));
         break;
     case "comfyui":

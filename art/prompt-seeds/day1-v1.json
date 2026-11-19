@@ -1,0 +1,139 @@
+{
+  "seedVersion": "day1-authored-v1",
+  "sourceCommit": "9a9f233^",
+  "prompts": [
+    {
+      "assetKey": "bg-day1-bedroom-dark",
+      "positivePrompt": "Empty modest contemporary suburban bedroom at dawn, neatly rumpled bed, bedside table, violet-shadowed walls, cool cyan morning light through curtains with a faint magenta glow, ordinary intact furniture, wide interior establishing view.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/bg-day1-bedroom-dark.md"
+    },
+    {
+      "assetKey": "prop-phone-0617-noservice",
+      "positivePrompt": "A single contemporary black smartphone, upright front view, large dark glass screen with a faint cold blue glow, isolated product close-up, centered, entire phone visible, plain white backdrop for background removal.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/prop-phone-0617-noservice.md"
+    },
+    {
+      "assetKey": "bg-day1-house-hallway",
+      "positivePrompt": "Reusable empty ordinary suburban hallway/interior at dawn, intact, 9:16, no characters/text.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/bg-day1-house-hallway.md"
+    },
+    {
+      "assetKey": "light-day1-power-flicker",
+      "positivePrompt": "Transparent alpha-ready lighting overlay suggesting failing household electricity: restrained uneven warm/cool illumination, no supernatural glow.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/light-day1-power-flicker.md"
+    },
+    {
+      "assetKey": "bg-day1-neighborhood-player-threshold",
+      "positivePrompt": "Apply art/STYLE-BIBLE.md. Environment-only reusable background for Day 1 at approximately 6:17 AM. 9:16 portrait, view from inside a darkened fictional southeastern-US suburban home through doorway/window toward intact neighboring homes and quiet residential street. Abrupt outage has just begun; no people, no characters, no destruction, no emergency vehicles, no supernatural elements. Preserve central/right staging room for character overlays and lower UI safe area. Cinematic pixel-art scene at dawn: indigo and violet shadows, cool cyan window light and a thin magenta-to-amber horizon glow. No text, logos or watermark.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/bg-day1-neighborhood-player-threshold.md"
+    },
+    {
+      "assetKey": "char-eli-day1-observing",
+      "positivePrompt": "Apply art/STYLE-BIBLE.md and art/characters/ELI-SUMMERS.md. Reusable isolated full-body Eli Summers Day 1 asset. Eight-year-old boy standing still, frightened and intensely observant, gaze toward Michelle/player, arms held close naturally. Transparent background / clean alpha-ready silhouette. Match early-morning scene lighting. No horror styling, no scenery, no text.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/char-eli-day1-observing.md"
+    },
+    {
+      "assetKey": "char-injured-stranger-day1-supported",
+      "positivePrompt": "Apply art/STYLE-BIBLE.md and art/characters/INJURED-STRANGER-DAY1.md. Reusable isolated full-body/three-quarter injured stranger posed with one arm over an unseen support person's shoulder to his right, impaired stance, weight shifted, significant but non-graphic injury. Transparent background / clean alpha-ready silhouette. Match early-morning directional lighting. Pale overshirt and work pants. No visible cause of injury, symbols, uniform, gore, scenery or text.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/char-injured-stranger-day1-supported.md"
+    },
+    {
+      "assetKey": "char-michelle-day1-supporting",
+      "positivePrompt": "**Asset key:** `char-michelle-day1-supporting`  \n**Character:** Michelle Summers  \n**Canonical identity:** `character.michelle-summers`  \n**Purpose:** Reusable Day 1 supporting-character render.\n\n## Generation prompt\n\nMichelle Summers on Day 1 of The Silence, rendered as a reusable supporting-character asset. Preserve the approved Michelle Summers identity exactly: Latina woman in her mid-30s, brown eyes, strong expressive eyebrows, dark brown hair in a practical messy bun/updo, capable athletic build with realistic proportions and the same facial structure, skin tone, apparent age, hairline, and distinctive features as her approved identity reference.\n\nShe wears her baseline Day 1 clothing: dark neutral hoodie or practical jacket over a muted gray-blue top, dark utility/cargo-style pants, and sturdy practical footwear. Her clothing is ordinary contemporary American clothing, naturally fitted and lightly lived-in rather than stylized survival gear.\n\nPose her in a natural three-quarter standing presentation suitable for reuse in story compositions, with a calm but alert expression and readable silhouette. Keep hands anatomically believable and visible where composition permits. Use restrained neutral environmental grounding rather than a narrative action scene.\n\nFatewake visual language: chunky 16-bit-style pixel art, realistic proportions simplified into clean pixel forms, a dark selective outline, indigo and violet shaded clothing with a warm coral or cyan rim light, and ordered dithering. Keep Michelle an ordinary modern survivor rather than fantasy or superhero styling.\n\nUse the approved Michelle Summers identity reference whenever available. This asset establishes Day 1 appearance continuity but does not override later canonical condition, inventory, or clothing changes.\n\n## Negative instructions\n\nNo glamour pose, sexualization, fashion-model styling, exaggerated muscles, superhero proportions, fantasy clothing, armor, cyberpunk styling, tactical cosplay, unexplained weapons, medical equipment, blood, injuries, dirt, backpack, jewelry, logos, magical effects, or zombie features. Do not alter Michelle's ethnicity, apparent age, facial structure, eye color, hair color, baseline build, or identity.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/char-michelle-day1-supporting.md"
+    },
+    {
+      "assetKey": "fg-player-threshold-shadow",
+      "positivePrompt": "Apply art/STYLE-BIBLE.md. Reusable foreground framing overlay representing the dark interior edge of a doorway/window from player POV: soft near-black architectural silhouettes and subtle interior shadow, designed to frame rather than obscure subjects. 9:16 transparent overlay, center/right viewing opening, lower interaction safe area, no characters, no text.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/fg-player-threshold-shadow.md"
+    },
+    {
+      "assetKey": "light-day1-early-morning",
+      "positivePrompt": "Apply art/STYLE-BIBLE.md. Reusable transparent lighting/atmosphere overlay for very early morning immediately after an outage: restrained cool ambient exterior with faint muted amber horizon influence, subtle haze and vignette, no objects, characters, text or supernatural glow. 9:16 alpha-ready overlay.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/light-day1-early-morning.md"
+    },
+    {
+      "assetKey": "bg-day1-neighborhood-after-choice",
+      "positivePrompt": "Reusable same neighborhood as bg-day1-neighborhood-player-threshold shortly after first choice, early morning, intact, no characters.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/bg-day1-neighborhood-after-choice.md"
+    },
+    {
+      "assetKey": "bg-day1-radio-room",
+      "positivePrompt": "Reusable intact interior room/surface where portable radio is used, early morning outage, no radio, people or text.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/bg-day1-radio-room.md"
+    },
+    {
+      "assetKey": "prop-radio-day1",
+      "positivePrompt": "Reusable isolated portable emergency/household radio consistent with near-future ordinary US home, transparent alpha-ready background, no invented branding.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/prop-radio-day1.md"
+    },
+    {
+      "assetKey": "effect-radio-static",
+      "positivePrompt": "Transparent restrained analog/digital static interference overlay in chunky pixel blocks, no symbols/text.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/effect-radio-static.md"
+    },
+    {
+      "assetKey": "prop-radio-timestamp-tomorrow-0617",
+      "positivePrompt": "Isolated close-view radio/display variant matching prop-radio-day1, physically showing tomorrow's date and 06:17. Transparent background. No supernatural glow.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/prop-radio-timestamp-tomorrow-0617.md"
+    },
+    {
+      "assetKey": "bg-day1-blackout-0643",
+      "positivePrompt": "Reusable intact interior/exterior transitional environment at 6:43 AM immediately after all powered devices stop, very low available natural light, no people.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/bg-day1-blackout-0643.md"
+    },
+    {
+      "assetKey": "effect-power-collapse",
+      "positivePrompt": "Transparent visual transition overlay for abrupt electrical extinction: restrained dark falloff/flicker residue, not magical energy.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/effect-power-collapse.md"
+    },
+    {
+      "assetKey": "bg-day1-neighborhood-silent",
+      "positivePrompt": "Reusable same Day 1 neighborhood after 6:43, unnaturally still but physically intact, no characters.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/bg-day1-neighborhood-silent.md"
+    },
+    {
+      "assetKey": "light-day1-after-shutdown",
+      "positivePrompt": "Transparent lighting/atmosphere overlay after total powered-device shutdown, natural dawn only, subdued and quiet.",
+      "negativePrompt": null,
+      "source": "seed",
+      "sourceFile": "art/prompts/light-day1-after-shutdown.md"
+    }
+  ]
+}

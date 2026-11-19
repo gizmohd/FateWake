@@ -1,6 +1,6 @@
 @using Fatewake.Web.Presentation
-<section class="comic-page @(Page.Panels.Length==1?"splash":"") @(Page.Number%2==0?"verso":"recto")" aria-label="Page @Page.Number, survivor day @Page.SurvivorDay">
-    <header><span>THE SILENCE</span><span>SURVIVOR DAY @Page.SurvivorDay</span></header>
+<section class="comic-page @(Page.Panels.Length==1?"splash":"") @(Page.Number%2==0?"verso":"recto")" aria-label="Page @Page.Number, chapter @Page.SurvivorDay">
+    <header><span>THE SILENCE</span><span>CHAPTER @Page.SurvivorDay</span></header>
     <div class="live-area">
         @foreach(var panel in Page.Panels) { <NovelPanelView @key="panel.Id" Panel="panel" /> }
     </div>

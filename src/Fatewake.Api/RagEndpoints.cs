@@ -22,15 +22,24 @@ public static class RagEndpoints
             CancellationToken ct) =>
         {
             if (!request.HasFormContentType)
-                return Results.BadRequest(new { error = "A multipart document upload is required." });
+                return Results.BadRequest(new
+                {
+                    error = "A multipart document upload is required."
+                });
             var form = await request.ReadFormAsync(ct);
             var file = form.Files.GetFile("file");
             if (file is null || file.Length is < 1 or > RagIngestionLimits.MaxDocumentBytes)
-                return Results.BadRequest(new { error = "Choose a non-empty document no larger than 100 MiB." });
+                return Results.BadRequest(new
+                {
+                    error = "Choose a non-empty document no larger than 100 MiB."
+                });
             var sourceKey = form["sourceKey"].ToString().Trim();
             var title = form["title"].ToString().Trim();
             if (sourceKey.Length is < 1 or > 200 || title.Length is < 1 or > 300)
-                return Results.BadRequest(new { error = "Source key and title are required." });
+                return Results.BadRequest(new
+                {
+                    error = "Source key and title are required."
+                });
             await using var stream = file.OpenReadStream();
             using var buffer = new MemoryStream();
             await stream.CopyToAsync(buffer, ct);

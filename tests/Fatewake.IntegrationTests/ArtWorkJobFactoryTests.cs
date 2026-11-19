@@ -33,12 +33,24 @@ public sealed class ArtWorkJobFactoryTests
 
     private sealed class CapturingBuilder : IWorkJobBuilder
     {
-        public WorkJobDefinition? Definition { get; private set; }
+        public WorkJobDefinition? Definition
+        {
+            get; private set;
+        }
 
         public Task<CreatedWorkJob> CreateAsync(WorkJobDefinition definition, CancellationToken ct = default)
         {
             Definition = definition;
             return Task.FromResult(new CreatedWorkJob(Guid.NewGuid(), false, new Dictionary<string, Guid>()));
+        }
+
+        public async Task<CreatedWorkJob> CreateAsync(WorkJobDefinition definition,
+            Func<Guid, CancellationToken, Task> transactionWork, CancellationToken ct = default)
+        {
+            Definition = definition;
+            var jobId = Guid.NewGuid();
+            await transactionWork(jobId, ct);
+            return new CreatedWorkJob(jobId, false, new Dictionary<string, Guid>());
         }
     }
 }

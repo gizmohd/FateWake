@@ -11,7 +11,8 @@ public static class ComfyUiGeneratorRegistration
     public static void AddComfyUiMasterGenerator(this IServiceCollection services, IConfiguration configuration)
     {
         var comfy = configuration.GetSection(ComfyUiArtGenerationOptions.SectionName).Get<ComfyUiArtGenerationOptions>() ?? new();
-        if (!comfy.Enabled) throw new InvalidOperationException("Enable ArtGeneration:ComfyUI when Provider is ComfyUI.");
+        if (!comfy.Enabled)
+            throw new InvalidOperationException("Enable ArtGeneration:ComfyUI when Provider is ComfyUI.");
         services.AddHttpClient<ComfyUiArtMasterGenerator>(client => client.BaseAddress = new Uri(comfy.BaseUrl))
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
         var fallback = configuration.GetSection(OpenAiArtGenerationOptions.SectionName).Get<OpenAiArtGenerationOptions>() ?? new();

@@ -44,7 +44,7 @@ public static class OpenIddictEndpoints
             await scopes.CreateAsync(new OpenIddictScopeDescriptor
             {
                 Name = scope,
-                DisplayName = scope == "fatewake-api" ? "Fatewake API" : scope,
+                DisplayName = scope == "fatewake-api" ? "Pathweaver API" : scope,
                 Resources = { configuration["OpenIddict:ApiAudience"] ?? "fatewake-api" }
             }, ct);
         }
@@ -60,7 +60,7 @@ public static class OpenIddictEndpoints
                 ClientId = clientId,
                 ClientType = ClientTypes.Public,
                 ConsentType = ConsentTypes.Implicit,
-                DisplayName = "Fatewake Web",
+                DisplayName = "Pathweaver Web",
                 Permissions =
                 {
                     Permissions.Endpoints.Authorization,
@@ -90,7 +90,8 @@ public static class OpenIddictEndpoints
             await applications.PopulateAsync(descriptor, application, ct);
             var redirectAdded = descriptor.RedirectUris.Add(redirectUri);
             var logoutAdded = descriptor.PostLogoutRedirectUris.Add(postLogoutUri);
-            if (redirectAdded || logoutAdded) await applications.UpdateAsync(application, descriptor, ct);
+            if (redirectAdded || logoutAdded)
+                await applications.UpdateAsync(application, descriptor, ct);
         }
     }
 
@@ -135,7 +136,8 @@ public static class OpenIddictEndpoints
         var webClient = configuration["OpenIddictWeb:ClientId"] ?? "fatewake-web";
         if (HttpMethods.IsGet(context.Request.Method))
         {
-            if (clientId == webClient) return Results.BadRequest();
+            if (clientId == webClient)
+                return Results.BadRequest();
             if (request.HasPromptValue(PromptValues.None))
                 return Results.Forbid(new AuthenticationProperties(new Dictionary<string, string?>
                 {
@@ -157,7 +159,8 @@ public static class OpenIddictEndpoints
                     context, form["provider"].ToString(), configuration, verification, ct),
                 _ => null
             };
-            if (account?.VerificationRequired == true) return Results.Accepted();
+            if (account?.VerificationRequired == true)
+                return Results.Accepted();
         }
         else
         {
@@ -167,7 +170,8 @@ public static class OpenIddictEndpoints
                 return Results.Unauthorized();
             account = new(subject, context.User.FindFirstValue(ClaimTypes.Email), null);
         }
-        if (account?.AccountId is not { } accountId || account.Email is not { } email) return Results.Unauthorized();
+        if (account?.AccountId is not { } accountId || account.Email is not { } email)
+            return Results.Unauthorized();
 
         var access = await CanonicalAccountAccess.FindAsync(db, accountId, ct);
         if (access is null || access.Epoch > started || (clientId != webClient && !MatchesEpoch(context.User, access.Epoch)))
@@ -175,7 +179,8 @@ public static class OpenIddictEndpoints
         var role = clientId == webClient ? await roles.AssignOnSignInAsync(accountId, ct) : "User";
         var identity = CreateIdentity(accountId, email, role);
         identity.AddClaim(ClientClaim, clientId);
-        if (access.Epoch is { } epoch) identity.AddClaim(EpochClaim, FormatEpoch(epoch));
+        if (access.Epoch is { } epoch)
+            identity.AddClaim(EpochClaim, FormatEpoch(epoch));
         identity.SetScopes(request.GetScopes());
         identity.SetResources(configuration["OpenIddict:ApiAudience"] ?? "fatewake-api");
         SetDestinations(identity);

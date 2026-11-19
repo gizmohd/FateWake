@@ -1,4 +1,4 @@
 # SceneArtRevision
 
-Administrator artwork review support. Review submissions retain account, scene/layer versions, critique, correction instructions and timestamp. Only authenticated accounts with the canonical persisted Admin role may access review routes. The first successful verified sign-in is Admin; all later accounts are User. Replacement requests use a new fingerprint and the durable artwork pipeline; complete-composition critiques do not regenerate individual layers.
+Builds a provider request from the exact selected immutable SQL prompt revision. It never consults critique history or silently applies the newest revision. Administrator-selected regeneration pins this request to a specific asset version and only changes the serving prompt binding after validated replacement completion.
 

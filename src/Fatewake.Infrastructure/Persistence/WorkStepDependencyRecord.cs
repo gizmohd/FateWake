@@ -3,6 +3,12 @@ namespace Fatewake.Infrastructure.Persistence;
 /// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Persistence/WorkStepDependencyRecord.md">WorkStepDependencyRecord documentation</see>.</remarks>
 public sealed class WorkStepDependencyRecord
 {
-    public Guid StepId { get; set; }
-    public Guid DependsOnStepId { get; set; }
+    public Guid StepId
+    {
+        get; set;
+    }
+    public Guid DependsOnStepId
+    {
+        get; set;
+    }
 }

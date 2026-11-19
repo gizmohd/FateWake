@@ -79,7 +79,8 @@ public sealed class LocalAccountService(
         if (verified == PasswordVerificationResult.Failed || account.Status != AccountStatus.Active)
         {
             credential.FailedAttempts++;
-            if (credential.FailedAttempts >= 5) credential.LockoutEnd = now.AddMinutes(15);
+            if (credential.FailedAttempts >= 5)
+                credential.LockoutEnd = now.AddMinutes(15);
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             log.LogInformation("Local password verification rejected for account {AccountId}", credential.AccountId);
@@ -105,7 +106,8 @@ public sealed class LocalAccountService(
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         var account = await db.Accounts.FromSqlInterpolated($"""SELECT * FROM account WHERE "Id" = {accountId} FOR UPDATE""").SingleAsync(ct);
         var email = await db.AccountEmails.SingleOrDefaultAsync(x => x.AccountId == accountId && x.Verified, ct);
-        if (email is null || account.Status != AccountStatus.Active) return new(null, null, "Verify your email first.");
+        if (email is null || account.Status != AccountStatus.Active)
+            return new(null, null, "Verify your email first.");
         if (await db.LocalCredentials.AnyAsync(x => x.AccountId == accountId, ct))
             return new(null, null, "A local password is already configured.");
         var credential = new LocalCredentialRecord { AccountId = accountId, NormalizedEmail = email.NormalizedEmail, PasswordHash = "" };

@@ -47,12 +47,14 @@ public sealed class OperationTelemetry : IDisposable
     /// <summary>Ends the span and records low-cardinality duration and failures once.</summary>
     public void Dispose()
     {
-        if (disposed) return;
+        if (disposed)
+            return;
         disposed = true;
         var elapsed = Stopwatch.GetElapsedTime(started).TotalSeconds;
         var tags = new TagList { { "operation", operation }, { "outcome", outcome } };
         Duration.Record(elapsed, tags);
-        if (outcome == "error") Failures.Add(1, tags);
+        if (outcome == "error")
+            Failures.Add(1, tags);
         activity?.SetTag("operation.outcome", outcome);
         logger?.LogDebug("Operation {Operation} ended with {Outcome} in {ElapsedSeconds} seconds", operation, outcome, elapsed);
         activity?.Dispose();

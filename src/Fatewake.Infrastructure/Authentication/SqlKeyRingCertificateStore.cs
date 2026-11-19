@@ -67,18 +67,21 @@ public sealed class SqlKeyRingCertificateStore(IServiceScopeFactory scopes, Time
                 foreach (var key in db.DataProtectionKeys.ToList())
                 {
                     ct.ThrowIfCancellationRequested();
-                    if (key.Xml is null) continue;
+                    if (key.Xml is null)
+                        continue;
                     var xml = XElement.Parse(key.Xml);
                     var changed = false;
                     foreach (var envelope in xml.Descendants("sqlEncryptedKey").ToArray())
                     {
                         if ((string?)envelope.Attribute("certificate") is not { } thumbprint ||
-                            !expiredById.TryGetValue(thumbprint, out var old)) continue;
+                            !expiredById.TryGetValue(thumbprint, out var old))
+                            continue;
                         using var previous = Load(old);
                         envelope.ReplaceWith(SqlCertificateCryptography.Encrypt(SqlCertificateCryptography.Decrypt(envelope, previous), active));
                         changed = true;
                     }
-                    if (!changed) continue;
+                    if (!changed)
+                        continue;
                     key.Xml = xml.ToString(SaveOptions.DisableFormatting);
                     rewrapped++;
                 }
@@ -105,7 +108,8 @@ public sealed class SqlKeyRingCertificateStore(IServiceScopeFactory scopes, Time
     {
         var row = db.DataProtectionCertificates.Where(record => record.NotBefore <= now && record.NotAfter > now.AddMinutes(5))
             .OrderByDescending(record => record.NotAfter).FirstOrDefault();
-        if (row is not null) return row;
+        if (row is not null)
+            return row;
         using var rsa = RSA.Create(3072);
         var request = new CertificateRequest("CN=Fatewake Data Protection", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.KeyEncipherment, critical: true));

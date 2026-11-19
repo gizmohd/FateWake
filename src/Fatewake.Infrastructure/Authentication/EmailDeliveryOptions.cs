@@ -5,7 +5,10 @@ namespace Fatewake.Infrastructure.Authentication;
 public sealed class EmailDeliveryOptions
 {
     /// <summary>Enables SMTP; otherwise messages are written to text files.</summary>
-    public bool SmtpEnabled { get; set; }
+    public bool SmtpEnabled
+    {
+        get; set;
+    }
     /// <summary>SMTP server hostname.</summary>
     public string Host { get; set; } = "";
     /// <summary>SMTP STARTTLS port.</summary>
@@ -13,9 +16,15 @@ public sealed class EmailDeliveryOptions
     /// <summary>Requires STARTTLS transport encryption.</summary>
     public bool EnableSsl { get; set; } = true;
     /// <summary>Optional SMTP username.</summary>
-    public string? Username { get; set; }
+    public string? Username
+    {
+        get; set;
+    }
     /// <summary>SMTP secret supplied from protected configuration.</summary>
-    public string? Password { get; set; }
+    public string? Password
+    {
+        get; set;
+    }
     /// <summary>Sender accepted by the server.</summary>
     public string FromAddress { get; set; } = "noreply@fatewake.local";
     /// <summary>Trusted public origin for verification links.</summary>

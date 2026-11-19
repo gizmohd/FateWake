@@ -19,17 +19,31 @@ public sealed class AdminDashboardRenderTests
     [InlineData(false)]
     public async Task Dashboard_renders_admin_metrics_or_denies_access(bool admin)
     {
-        var clients = new Clients(); var services = new ServiceCollection(); services.AddLogging();
-        services.AddSingleton<AuthenticationStateProvider>(new Identity(admin)); services.AddSingleton<IHttpClientFactory>(clients); services.AddScoped<AuthenticatedApiClient>();
-        await using var provider = services.BuildServiceProvider(); await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
+        var clients = new Clients();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<AuthenticationStateProvider>(new Identity(admin));
+        services.AddSingleton<IHttpClientFactory>(clients);
+        services.AddScoped<AuthenticatedApiClient>();
+        await using var provider = services.BuildServiceProvider();
+        await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
         var html = await renderer.Dispatcher.InvokeAsync(async () => (await renderer.RenderComponentAsync<AdminDashboardPanel>(ParameterView.Empty)).ToHtmlString());
         if (admin)
         {
-            Assert.Contains("Generation &amp; AI usage", html); Assert.Contains("AI requests by year, month and day", html); Assert.Contains("2026", html);
-            Assert.Contains("Find user", html); Assert.Contains("Unavailable", html); Assert.Contains("Tracking began", html); Assert.Contains("No image jobs match", html);
+            Assert.Contains("Generation &amp; AI usage", html);
+            Assert.Contains("AI requests by year, month and day", html);
+            Assert.Contains("2026", html);
+            Assert.Contains("Find user", html);
+            Assert.Contains("Unavailable", html);
+            Assert.Contains("Tracking began", html);
+            Assert.Contains("No image jobs match", html);
             Assert.All(clients.Requests, x => Assert.Equal(HttpMethod.Get, x.Method));
         }
-        else { Assert.Contains("requires Admin access", html); Assert.Empty(clients.Requests); }
+        else
+        {
+            Assert.Contains("requires Admin access", html);
+            Assert.Empty(clients.Requests);
+        }
     }
     private sealed class Identity(bool admin) : AuthenticationStateProvider
     {

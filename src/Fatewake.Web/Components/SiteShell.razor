@@ -2,11 +2,11 @@
 
 <div class="play-shell">
     <header class="play-masthead play-frame">
-        <a class="play-brand" href="/" aria-label="Fatewake home">
+        <a class="play-brand" href="/" aria-label="Pathweaver home">
             <span class="play-star" aria-hidden="true">✦</span>
             <div>
-                <span class="play-wordmark">Fatewake</span>
-                <p>A Wayfinder Universe experience</p>
+                <span class="play-wordmark">@BrandIdentity.GameName</span>
+                <p>@BrandIdentity.Franchise</p>
             </div>
         </a>
         @Chapter
@@ -28,6 +28,10 @@
         }
         <AuthorizeView>
             <Authorized>
+                @if (SurvivorId is not null)
+                {
+                    <NavLink href="@($"/timelines/{SurvivorId}")" Match="NavLinkMatch.All" ActiveClass="play-menu-active">Threads</NavLink>
+                }
                 <NavLink href="/account" Match="NavLinkMatch.All" ActiveClass="play-menu-active"><span aria-hidden="true">◇</span> Account</NavLink>
             </Authorized>
             <NotAuthorized>

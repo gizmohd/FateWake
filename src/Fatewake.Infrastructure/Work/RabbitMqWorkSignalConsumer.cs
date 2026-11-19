@@ -61,14 +61,18 @@ public sealed class RabbitMqWorkSignalConsumer(
                 }
                 finally
                 {
-                    foreach (var channel in channels) await channel.DisposeAsync();
+                    foreach (var channel in channels)
+                        await channel.DisposeAsync();
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             catch (Exception ex)
             {
                 log.LogWarning(ex, "RabbitMQ wakeup consumption unavailable; PostgreSQL polling remains active");
-                try { await Task.Delay(work.Value.PollInterval, stoppingToken); }
+                try
+                {
+                    await Task.Delay(work.Value.PollInterval, stoppingToken);
+                }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             }
         }

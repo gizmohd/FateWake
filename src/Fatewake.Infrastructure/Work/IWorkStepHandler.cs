@@ -4,7 +4,10 @@ namespace Fatewake.Infrastructure.Work;
 public interface IWorkStepHandler
 {
     /// <summary>Gets the durable step type handled by this implementation.</summary>
-    string StepType { get; }
+    string StepType
+    {
+        get;
+    }
     /// <summary>Executes the idempotent step with durable job and lease context.</summary>
     Task<string?> ExecuteAsync(WorkStepExecutionContext context, CancellationToken ct);
 }

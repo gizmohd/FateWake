@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using Fatewake.Api;
 using Fatewake.Infrastructure.Art;
+using Fatewake.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -18,7 +19,8 @@ public sealed class ComfyUiGenerationTests
     public async Task Local_ComfyUI_generates_real_portrait_artwork(string type)
     {
         var repository = Environment.GetEnvironmentVariable("FATEWAKE_COMFY_SMOKE_ROOT");
-        if (string.IsNullOrWhiteSpace(repository)) Assert.Skip("A running ComfyUI and installed models are required.");
+        if (string.IsNullOrWhiteSpace(repository))
+            Assert.Skip("A running ComfyUI and installed models are required.");
         var ct = TestContext.Current.CancellationToken;
         var ssd = Environment.GetEnvironmentVariable("FATEWAKE_COMFY_SMOKE_PROFILE") != "sd15";
         var profile = ssd ? "fatewake-ssd1b" : "fatewake";
@@ -36,7 +38,19 @@ public sealed class ComfyUiGenerationTests
             ["ArtGeneration:CatalogRoot"] = Path.Combine(repository, "art"),
             ["ArtGeneration:Provider"] = "ComfyUI"
         }).Build());
-        var request = catalog.Create(type == "Background" ? "bg-day1-bedroom-dark" : "prop-radio-day1");
+        var key = type == "Background" ? "bg-day1-bedroom-dark" : "prop-radio-day1";
+        using var seed = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(repository, "art", "prompt-seeds", "day1-v1.json"), ct));
+        var prompt = seed.RootElement.GetProperty("prompts").EnumerateArray()
+            .Single(entry => entry.GetProperty("assetKey").GetString() == key);
+        var revision = new ArtPromptRevisionRecord
+        {
+            Id = Guid.NewGuid(),
+            RevisionNumber = 1,
+            PositivePrompt = prompt.GetProperty("positivePrompt").GetString()!,
+            Source = "seed"
+        };
+        var request = SceneArtRevision.Create(catalog, key, revision);
         var timer = System.Diagnostics.Stopwatch.StartNew();
         var image = await generator.GenerateAsync(new("fatewake-comfy-smoke-" + type, request), ct);
         timer.Stop();
@@ -144,7 +158,10 @@ public sealed class ComfyUiGenerationTests
             }
             if (request.RequestUri.AbsolutePath.StartsWith("/history/", StringComparison.Ordinal))
                 return Json("{\"test-prompt\":{\"outputs\":{\"7\":{\"images\":[{\"filename\":\"test.png\"}]}}}}");
-            return new(HttpStatusCode.OK) { Content = new ByteArrayContent([1, 2, 3]) };
+            return new(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent([1, 2, 3])
+            };
         }
         private static HttpResponseMessage Json(string value) => new(HttpStatusCode.OK) { Content = new StringContent(value, Encoding.UTF8, "application/json") };
     }

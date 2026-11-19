@@ -38,7 +38,8 @@ public sealed class AdminApplicationEndpoints(FatewakeDbContext db, IOpenIddictA
 
     private async Task<IResult> ListAsync(string? search, int page, CancellationToken ct)
     {
-        if (page is < 1 or > 10000 || search?.Length > 100) return Results.BadRequest();
+        if (page is < 1 or > 10000 || search?.Length > 100)
+            return Results.BadRequest();
         using var operation = OperationTelemetry.Start("admin.oidc_list", log);
         var query = RegistrationRows;
         if (!string.IsNullOrWhiteSpace(search))
@@ -49,7 +50,11 @@ public sealed class AdminApplicationEndpoints(FatewakeDbContext db, IOpenIddictA
         var total = await query.CountAsync(ct);
         var rows = await query.OrderBy(row => row.ClientId).ThenBy(row => row.Id).Skip((page - 1) * 25).Take(25)
             .Select(row => new { row.Id, row.ClientId, row.DisplayName, row.ClientType }).ToListAsync(ct);
-        return Results.Ok(new { total, rows });
+        return Results.Ok(new
+        {
+            total,
+            rows
+        });
     }
 
     private async Task<IResult> ReadAsync(string id, CancellationToken ct)
@@ -82,11 +87,16 @@ public sealed class AdminApplicationEndpoints(FatewakeDbContext db, IOpenIddictA
         if (id is null)
             await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(861017235)", ct);
         var app = id is null ? null : await applications.FindByIdAsync(id, ct) as OpenIddictEntityFrameworkCoreApplication;
-        if (id is not null && app is null) return Results.NotFound();
+        if (id is not null && app is null)
+            return Results.NotFound();
         if (app is not null && app.ConcurrencyToken != request.Version)
-            return Results.Conflict(new { error = "The application was changed. Reload the details." });
+            return Results.Conflict(new
+            {
+                error = "The application was changed. Reload the details."
+            });
         var descriptor = new OpenIddictApplicationDescriptor();
-        if (app is not null) await applications.PopulateAsync(descriptor, app, ct);
+        if (app is not null)
+            await applications.PopulateAsync(descriptor, app, ct);
         var isSeeded = app is not null && IsSeeded(app);
         string? secret = null;
         if (isSeeded)
@@ -94,14 +104,23 @@ public sealed class AdminApplicationEndpoints(FatewakeDbContext db, IOpenIddictA
             if (rotate || request.ClientId != descriptor.ClientId || request.ClientType != descriptor.ClientType ||
                 request.DisplayName != descriptor.DisplayName ||
                 request.AllowRefreshTokens != descriptor.Permissions.Contains(Permissions.GrantTypes.RefreshToken))
-                return Results.Conflict(new { error = "Only callback URLs can be edited on the seeded Fatewake Web client." });
+                return Results.Conflict(new
+                {
+                    error = "Only callback URLs can be edited on the seeded Pathweaver Web client."
+                });
             if (request.RedirectUris is not { Length: > 0 and <= 12 } redirects || request.PostLogoutRedirectUris is not { Length: <= 12 } logout ||
                 !TryUris(redirects, out var callbacks) || !TryUris(logout, out var logoutCallbacks))
-                return Results.BadRequest(new { error = "Provide valid, exact callback URLs." });
+                return Results.BadRequest(new
+                {
+                    error = "Provide valid, exact callback URLs."
+                });
             var requiredRedirect = OpenIddictEndpoints.ConfiguredRedirectUri(configuration);
             var requiredLogout = OpenIddictEndpoints.ConfiguredPostLogoutUri(configuration);
             if (!callbacks.Contains(requiredRedirect) || !logoutCallbacks.Contains(requiredLogout))
-                return Results.Conflict(new { error = "Keep the configured Fatewake Web redirect and post-logout URLs. Change the service configuration before removing them." });
+                return Results.Conflict(new
+                {
+                    error = "Keep the configured Pathweaver Web redirect and post-logout URLs. Change the service configuration before removing them."
+                });
             descriptor.RedirectUris.Clear();
             descriptor.RedirectUris.UnionWith(callbacks);
             descriptor.PostLogoutRedirectUris.Clear();
@@ -109,7 +128,11 @@ public sealed class AdminApplicationEndpoints(FatewakeDbContext db, IOpenIddictA
         }
         else if (rotate)
         {
-            if (descriptor.ClientType != ClientTypes.Confidential) return Results.BadRequest(new { error = "Only confidential clients have secrets." });
+            if (descriptor.ClientType != ClientTypes.Confidential)
+                return Results.BadRequest(new
+                {
+                    error = "Only confidential clients have secrets."
+                });
             secret = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
             descriptor.ClientSecret = secret;
         }
@@ -122,11 +145,20 @@ public sealed class AdminApplicationEndpoints(FatewakeDbContext db, IOpenIddictA
                 request.ClientType is not (ClientTypes.Public or ClientTypes.Confidential) ||
                 request.RedirectUris is not { Length: > 0 and <= 12 } redirects || request.PostLogoutRedirectUris is not { Length: <= 12 } logout ||
                 !TryUris(redirects, out var callbacks) || !TryUris(logout, out var logoutCallbacks))
-                return Results.BadRequest(new { error = "Provide a valid client ID, display name, type, and exact callback URLs." });
+                return Results.BadRequest(new
+                {
+                    error = "Provide a valid client ID, display name, type, and exact callback URLs."
+                });
             if (app is not null && app.ClientId != clientId)
-                return Results.BadRequest(new { error = "Client ID cannot change after creation." });
+                return Results.BadRequest(new
+                {
+                    error = "Client ID cannot change after creation."
+                });
             if (app is null && await applications.FindByClientIdAsync(clientId, ct) is not null)
-                return Results.Conflict(new { error = "This client ID is already registered." });
+                return Results.Conflict(new
+                {
+                    error = "This client ID is already registered."
+                });
             descriptor.ClientId = clientId;
             descriptor.ClientType = request.ClientType;
             descriptor.DisplayName = name;
@@ -138,15 +170,18 @@ public sealed class AdminApplicationEndpoints(FatewakeDbContext db, IOpenIddictA
             descriptor.Permissions.Clear();
             descriptor.Permissions.UnionWith([Permissions.Endpoints.Authorization, Permissions.Endpoints.Token,
                 Permissions.GrantTypes.AuthorizationCode, Permissions.ResponseTypes.Code, Permissions.Prefixes.Scope + "fatewake-api"]);
-            if (logoutCallbacks.Count > 0) descriptor.Permissions.Add(Permissions.Endpoints.EndSession);
-            if (request.AllowRefreshTokens) descriptor.Permissions.Add(Permissions.GrantTypes.RefreshToken);
+            if (logoutCallbacks.Count > 0)
+                descriptor.Permissions.Add(Permissions.Endpoints.EndSession);
+            if (request.AllowRefreshTokens)
+                descriptor.Permissions.Add(Permissions.GrantTypes.RefreshToken);
             descriptor.Requirements.Add(Requirements.Features.ProofKeyForCodeExchange);
             if (descriptor.ClientType == ClientTypes.Confidential && app?.ClientType != ClientTypes.Confidential)
             {
                 secret = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
                 descriptor.ClientSecret = secret;
             }
-            if (descriptor.ClientType == ClientTypes.Public) descriptor.ClientSecret = null;
+            if (descriptor.ClientType == ClientTypes.Public)
+                descriptor.ClientSecret = null;
         }
 
         try
@@ -164,17 +199,27 @@ public sealed class AdminApplicationEndpoints(FatewakeDbContext db, IOpenIddictA
             }
             await AuditAsync(context, id!, rotate ? "application.rotate" : app is null ? "application.create" : "application.update", ct);
             await tx.CommitAsync(ct);
-            return Results.Ok(new { id, secret });
+            return Results.Ok(new
+            {
+                id,
+                secret
+            });
         }
         catch (OpenIddictExceptions.ConcurrencyException ex)
         {
             operation.Fail(ex);
-            return Results.Conflict(new { error = "The application was changed. Reload the details." });
+            return Results.Conflict(new
+            {
+                error = "The application was changed. Reload the details."
+            });
         }
         catch (OpenIddictExceptions.ValidationException ex)
         {
             operation.Fail(ex);
-            return Results.BadRequest(new { error = "OpenIddict rejected the application settings." });
+            return Results.BadRequest(new
+            {
+                error = "OpenIddict rejected the application settings."
+            });
         }
     }
 
@@ -185,9 +230,15 @@ public sealed class AdminApplicationEndpoints(FatewakeDbContext db, IOpenIddictA
         if (await applications.FindByIdAsync(id, ct) is not OpenIddictEntityFrameworkCoreApplication app)
             return Results.NotFound();
         if (IsSeeded(app) || app.ConcurrencyToken != version)
-            return Results.Conflict(new { error = "The application is protected or was changed. Reload the details." });
+            return Results.Conflict(new
+            {
+                error = "The application is protected or was changed. Reload the details."
+            });
         if (!string.Equals(confirm, app.ClientId, StringComparison.Ordinal))
-            return Results.BadRequest(new { error = "Enter the exact client ID to confirm removal." });
+            return Results.BadRequest(new
+            {
+                error = "Enter the exact client ID to confirm removal."
+            });
         try
         {
             await tokens.RevokeByApplicationIdAsync(id, ct);
@@ -200,7 +251,10 @@ public sealed class AdminApplicationEndpoints(FatewakeDbContext db, IOpenIddictA
         catch (OpenIddictExceptions.ConcurrencyException ex)
         {
             operation.Fail(ex);
-            return Results.Conflict(new { error = "The application was changed. Reload the details." });
+            return Results.Conflict(new
+            {
+                error = "The application was changed. Reload the details."
+            });
         }
     }
 
@@ -215,7 +269,8 @@ public sealed class AdminApplicationEndpoints(FatewakeDbContext db, IOpenIddictA
             if (value is not { Length: > 0 and <= 2048 } || !Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
                 uri.Fragment.Length != 0 || uri.Query.Length != 0 || uri.UserInfo.Length != 0 || value.Contains('*') ||
                 (uri.Scheme != Uri.UriSchemeHttps && !(environment.IsDevelopment() && uri.IsLoopback && uri.Scheme == Uri.UriSchemeHttp)) ||
-                !uris.Add(uri)) return false;
+                !uris.Add(uri))
+                return false;
         }
         return true;
     }

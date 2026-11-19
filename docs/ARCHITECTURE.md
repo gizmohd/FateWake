@@ -35,6 +35,10 @@ Prototype Fatewake as a mobile-first web application/PWA. Evaluate native packag
 ## Boundary
 Game state and consequence resolution remain deterministic and testable. AI-generated text is presentation layered on authoritative state.
 
+The public game is **Pathweaver** in **The Wayfinder Universe**. Technical `Fatewake` projects, service names, OAuth identifiers and persisted IDs remain stable. Pathweavers continue alternate personal timelines called **Threads**; daily narrative episodes are **Chapters**, arcs **Acts**, and timeline-convergence events **Convergences**.
+
+Personal Thread creation/selection is an authenticated owner-only application operation. A stable survivor identity selects branch-owned canonical facts/episodes, while immutable checkpoints freeze the reached rules state and disclosure boundary. Account, survivor and timeline locks coordinate resolution, progression and fork/switch transactions. Source histories remain intact and effects are not replayed. Shared-world/cross-timeline history cannot be rewound by this feature.
+
 Private registration profiles remain outside GameEngine and survivor identity. API/Infrastructure validate and persist first/last name and city/state under canonical account ownership. The Web BFF protects form submissions with antiforgery; new external signups complete their details after provider/mailbox proof. Legacy accounts are not forced to backfill. `/api/auth/me` exposes only profile-completion status; tokens carry no private profile fields.
 
 ## Observability boundary

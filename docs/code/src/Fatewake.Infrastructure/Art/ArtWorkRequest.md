@@ -1,7 +1,7 @@
 # ArtWorkRequest
 
 ## Purpose
-Immutable request used to identify and generate a canonical visual asset. VisualFingerprint is the durable idempotency identity for the logical art job.
+Immutable request used to identify and generate a canonical visual asset. `VisualFingerprint` is the durable idempotency identity for the logical art job. Requests created from a SQL prompt revision carry its revision ID and revision number so the worker and generation audit retain the exact approved prompt version.
 
 ## Workflow
 Artwork is treated as a durable asset-creation operation. Existing approved assets should be resolved before provider generation. After a master exists, independent derivative work may execute concurrently on different worker replicas. Validation is a fan-in barrier and finalization occurs only after required outputs succeed.
@@ -10,7 +10,7 @@ Artwork is treated as a durable asset-creation operation. Existing approved asse
 No step assumes process affinity. Inputs and intermediate identifiers must reference PostgreSQL/shared object storage rather than pod-local state. Handlers are retryable and must be idempotent because leases can expire and RabbitMQ delivery is at least once.
 
 ## Cost and provenance
-Provider generation is the expensive boundary. Generation handlers must preserve exact prompt/provider/model/reference provenance and must not repeat a provider call when a valid persisted master already exists for the canonical fingerprint.
+Provider generation is the expensive boundary. Generation handlers must preserve exact positive/negative prompt, prompt revision, provider/model, reference and parameter provenance and must not repeat a provider call when a valid persisted master already exists for the canonical fingerprint. Explicit prompt replacement pins the selected revision and source asset version.
 
 ## Ownership
 Shared authored assets leave `IsPrivate` false and can be reused by all players. Survivor-specific artwork sets `IsPrivate` so finalization records its owning account; private assets are only eligible for reuse by that account and are delivered with private cache directives.

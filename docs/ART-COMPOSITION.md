@@ -5,9 +5,9 @@ Build graphic-novel panels from reusable approved assets instead of generating a
 
 ## Shared visual direction
 
-All newly generated layers follow [the Style Bible](../art/STYLE-BIBLE.md): bright, richly saturated late-1990s high-color 2D console-adventure illustration, strong readable color/value contrast, nuanced gradients and fine detail. The Bible's shared runtime style sections supply generation instructions; layer prompts supply subjects, scene state and continuity rather than a competing global palette. Interface token colors do not limit scene colors.
+All newly generated layers follow [the Style Bible](../art/STYLE-BIBLE.md) (v4): chunky 16-bit-style pixel art in the neon-twilight palette of the game-screen mockup, with crisp square pixels, selective dark outlines and dithered gradients. The Bible's shared runtime style sections supply generation instructions; layer prompts supply subjects, scene state and continuity rather than a competing global palette. Pixel art is only scaled by integer factors with nearest-neighbor sampling.
 
-Match layers to the same scene-specific light and color treatment. Preserve approved skin tones, wardrobe, material colors and time of day; an intentionally dark object or dawn scene is not a request for muddy desaturation. Atmosphere/lighting layers remain object-free treatments where their asset contract requires it. This direction does not alter composition dimensions, provider workflows, delivery derivatives or approved historical versions. Technical image validation is not a substitute for visual-style review.
+Match layers to the same scene-specific light and color treatment. Preserve approved skin tones, wardrobe and time of day; an intentionally dark object or dawn scene is not a request for muddy desaturation. Atmosphere/lighting layers remain object-free treatments where their asset contract requires it. This direction does not alter composition dimensions, provider workflows, delivery derivatives or approved historical versions. Technical image validation is not a substitute for visual-style review.
 
 ## Composition stack
 Recommended back-to-front order:
@@ -66,7 +66,7 @@ Later: canvas/WebGL only if animation/performance requires it.
 Prefer WEBP/AVIF for opaque backgrounds and WEBP/PNG with alpha for overlays depending on browser/tooling quality. Keep source masters separately from delivery derivatives.
 
 ## Hero art
-Major reveals may use a purpose-generated flattened HeroIllustration. Hero images still receive stable keys, provenance and prompt files and can coexist with reusable layered panels.
+Major reveals may use a purpose-generated flattened HeroIllustration. Hero images still receive stable keys and provenance and can coexist with reusable layered panels; their operational prompts are versioned in PostgreSQL.
 
 
 ## Generated Asset Persistence and Reuse
@@ -157,7 +157,7 @@ The PostgreSQL `art_binary` table stores masters and derivatives by their stable
 
 The browser-facing `/art/{key}/{version}/{format}` URL is a same-origin Web proxy to the API. Content-hash ETags provide conditional `304` responses, and the proxy forwards cache validators. Runtime delivery serves only registered WebP/optimized-PNG derivatives, never archival masters. Globally shared approved assets use immutable public caching. Assets with an account owner require matching authentication and use private, cookie-varied caching; never publish them to a shared CDN cache.
 
-The scene renderer may enqueue a bounded set of upcoming authored scene-layer keys without waiting for generation. A selected authored action raises the priority of pending work, including a job already enqueued by prediction. Only allowlisted scene keys may be requested; predictions must remain reuse-first and avoid generating every hypothetical branch.
+The scene renderer may enqueue a bounded set of upcoming authored scene-layer keys without waiting for generation. A selected authored action raises the priority of pending work, including a job already enqueued by prediction. Only allowlisted scene keys may be requested; predictions must remain reuse-first and avoid generating every hypothetical branch. Operational prompt content comes from immutable SQL revisions. A missing valid prompt queues coalesced `art.prompt` work from server-captured canonical context; no prompt Markdown fallback or arbitrary client asset key is accepted.
 
 
 ## Generation Prompt Audit Trail
@@ -182,8 +182,12 @@ Where supported or applicable, also retain:
 - provider request/job identifier when available;
 - generation timestamp and cost/usage metadata.
 
-Prompt provenance is retained for debugging, continuity review, quality investigation, moderation/safety investigation and reproducibility. It must remain associated with the immutable generated asset version even if the prompt template is later changed.
+Prompt provenance is retained for debugging, continuity review, quality investigation, moderation/safety investigation and reproducibility. `art_generation` retains the exact submitted text and may link to the immutable SQL prompt revision only when equivalence is proven. It must remain associated with the immutable generated asset version even if the prompt changes.
 
 Sensitive information, secrets, authentication data and unnecessary player/private data must never be inserted into or persisted as image-generation prompts. Player-derived prompt data should be minimized to the visual information necessary to generate the requested artwork.
 
-An AI edit or derivative stores its own resolved prompt and references its parent asset; it must not rely solely on the parent's prompt history.
+An AI edit or derivative stores its own resolved prompt and references its parent asset; it must not rely solely on the parent's prompt history. The versioned `art/prompt-seeds/day1-v1.json` is a one-time import source only; PostgreSQL is operational truth. Seed import never overwrites database revisions.
+
+Missing prompt authoring is a presentation-only Responses operation using GPT-6 Luna with reasoning effort `none`, strict structured output, and no tools. The input is immutable, allowlisted scene/layer metadata plus canonical visual facts, style, framing and continuity. It excludes freeform player text, private profile fields and hidden future state. Provider output is untrusted subject text; server-enforced role, style, alpha, geometry and continuity requirements remain separate and are appended to the final image request.
+
+Administrator prompt editing creates immutable revisions with optimistic conflict checks. Save-only edits never change serving bindings. Explicit selected regeneration pins its revision and durable work to the chosen asset version; the existing approved version remains usable until validated replacement finalization promotes the still-current requested revision. Historic missing submissions are shown unavailable, not inferred.

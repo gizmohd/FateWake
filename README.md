@@ -1,17 +1,23 @@
-# Fatewake
+# Pathweaver
 
-> **Every choice leaves a wake.**
+> **Every choice shapes reality.**
 
-Fatewake is a persistent narrative survival and social strategy game where player decisions create lasting consequences.
+**From the universe of The Wayfinder's Heir.** There are those who find the path. And those who weave it.
+
+Pathweaver is an episodic science-fiction narrative adventure in **The Wayfinder Universe**, at **thepathweaver.com**, where player decisions shape branching realities.
+
+Players are **Pathweavers**. Daily episodes are **Chapters**, major story arcs are **Acts**, alternate timelines are **Threads**, and timeline convergence events are **Convergences**. The brand's visual direction is **16-bit cinematic pixel art**. This rebrand does not regenerate or post-filter existing artwork; archival masters, high-quality delivery derivatives and the shared runtime art contract remain protected.
+
+Technical project/namespace names, database identifiers, API routes, cookies, existing saves and OAuth client/audience IDs retain `Fatewake`/`fatewake` for compatibility. Configure production hosting, SMTP and sign-in callbacks explicitly; public branding does not redirect local authentication to the marketing domain.
 
 ## Current Design
 
-- **Genre:** Persistent narrative survival / social strategy
+- **Genre:** Episodic science-fiction narrative adventure
 - **Initial platform:** Mobile-first web/PWA
 - **Required daily session:** Approximately 3–5 minutes
-- **Structure:** One daily episode with optional deeper play
+- **Structure:** Daily Chapters with optional deeper play, grouped into Acts
 - **Season One:** *The Silence*
-- **Core mechanic:** Wake Effects
+- **Core mechanic:** Player-driven branching realities (Threads), with consequential Wake Effects
 - **Principle:** The game engine decides what happens; AI decides how it is told.
 
 ## Initial local AI models
@@ -34,7 +40,7 @@ The API applies migrations before becoming healthy; Web and Worker wait for it. 
 
 The public introduction and current getting-started guide are at `/`; `/play` starts or resumes gameplay. The guide's scene title/day/beat count follow authored story metadata, and it accurately describes character customization as not yet available. Versioned artwork is delivered through the Web app's same-origin `/art/{key}/{version}/{format}` endpoint with ETag validation. Shared approved art is immutable-public; account-owned character art is ownership-checked and privately cached.
 
-`ArtGeneration:Provider` defaults to `None`: approved artwork can be reused without generating new images. For new artwork, configure the worker with `OpenAI`, `Local`, or `ComfyUI` and enable the corresponding provider section. Keep API keys outside tracked configuration files; `src\Fatewake.Worker\appsettings.json` lists every setting with disabled/empty defaults, and the same template appears in `src\Fatewake.AppHost\appsettings.json`. Under AppHost, set them as AppHost user secrets. The same pattern applies to every secret-bearing section (`ArtGeneration`, `Authentication`, `Email`): tracked `appsettings.json` holds empty defaults, and AppHost forwards each non-empty user-secret value to the consuming services with `ApiKey`/`ClientSecret`/`Password`-style keys masked as secret parameters:
+`ArtGeneration:Provider` defaults to `None`: approved artwork can be reused without generating new images. For new artwork, configure the worker with `OpenAI`, `Local`, or `ComfyUI` and enable the corresponding provider section. Keep API keys outside tracked configuration files; `src\Fatewake.Worker\appsettings.json` lists every setting with disabled/empty defaults, and the same template appears in `src\Fatewake.AppHost\appsettings.json`. Under AppHost, set them as AppHost user secrets. The same pattern applies to every secret-bearing section (`ArtGeneration`, `ArtPromptAuthoring`, `Authentication`, `Email`): tracked `appsettings.json` holds safe disabled/empty defaults, and AppHost forwards each non-empty user-secret value to the consuming services with `ApiKey`/`ClientSecret`/`Password`-style keys masked as secret parameters:
 
 ```powershell
 dotnet user-secrets set "ArtGeneration:Provider" "OpenAI" --project src\Fatewake.AppHost
@@ -42,15 +48,40 @@ dotnet user-secrets set "ArtGeneration:OpenAI:Enabled" "true" --project src\Fate
 dotnet user-secrets set "ArtGeneration:OpenAI:ApiKey" "<api-key>" --project src\Fatewake.AppHost
 ```
 
+Missing valid scene-layer prompts can be authored from canonical server context through OpenAI Responses. The text authoring feature is independently disabled by default; enabling it does not enable image generation. Configure it separately:
+
+```powershell
+dotnet user-secrets set "ArtPromptAuthoring:Enabled" "true" --project src\Fatewake.AppHost
+dotnet user-secrets set "ArtPromptAuthoring:ApiKey" "<api-key>" --project src\Fatewake.AppHost
+dotnet user-secrets set "ArtPromptAuthoring:Model" "gpt-6-luna" --project src\Fatewake.AppHost
+```
+
+The configurable default model is `gpt-6-luna` with reasoning effort `none`, strict structured output, and no tools. The worker saves a validated immutable SQL prompt revision before creating an image job. The initial authored Day 1 prompt set is imported once from `art\prompt-seeds\day1-v1.json`; operational prompts come from PostgreSQL, never prompt Markdown files or hard-coded subject fallbacks. `art\STYLE-BIBLE.md` remains the shared versioned style contract; canonical character/location sheets remain continuity sources.
+
+
+Semantic RAG retrieval uses pgvector. The worker embeds every chunk without a vector (imports and generated story) with OpenAI embeddings (`text-embedding-3-small`, 1024 dimensions, matching `rag_chunk."Embedding"`). Embedding is off until configured:
+
+```powershell
+dotnet user-secrets set "Embedding:Enabled" "true" --project src\Fatewake.AppHost
+dotnet user-secrets set "Embedding:ApiKey" "<api-key>" --project src\Fatewake.AppHost
+```
+
+Every scene, including the first, is authored by the AI narrator from retrieved canon (worker queue `story.scene`). The server enforces that no more than four consecutive scenes omit a decision. Scene authoring is off until configured, and it fails explicitly if the RAG corpus has no approved canon:
+
+```powershell
+dotnet user-secrets set "SceneAuthoring:Enabled" "true" --project src\Fatewake.AppHost
+dotnet user-secrets set "SceneAuthoring:ApiKey" "<api-key>" --project src\Fatewake.AppHost
+```
+
 For an OpenAI-compatible image server, use `Provider=Local` with `ArtGeneration:Local:Enabled`, `BaseUrl`, optional `ApiKey`, and `Model`. Restart AppHost after changing secrets. RabbitMQ supplies wakeup hints; PostgreSQL leases and periodic polling remain the durable execution/recovery mechanism.
 
-Day 1 scenes now resolve their authored layers through `POST /api/art/scene/resolve`. Approved artwork is reused; missing layers create one durable job per prompt/style fingerprint. The renderer polls pending work every five seconds and displays approved PNG/WebP derivatives through the web app's same-origin `/art/{key}/{version}/{format}` route. Disabled providers and terminal job failures are visible in the scene. Scene requests accept only shipped layer keys, never client-supplied prompts.
+Day 1 scenes now resolve their authored layers through `POST /api/art/scene/resolve`. Approved artwork is reused; a valid SQL prompt miss creates a coalesced durable authoring job followed by image work when enabled. The renderer polls pending work every five seconds and displays approved PNG/WebP derivatives through the web app's same-origin `/art/{key}/{version}/{format}` route. Disabled providers and terminal job failures are visible in the scene. Scene requests accept only shipped layer keys, never client-supplied prompts.
 
-When running through AppHost, configure `ArtGeneration:*` in AppHost user-secrets or environment variables; AppHost forwards them to both API and Worker. When running services separately, provide the same provider configuration and PostgreSQL connection to both, and keep `ArtStorage:RootPath` configured wherever legacy reads are still needed. Authored prompts, style, character and location context ship with API build/publish output. `ArtGeneration:CatalogRoot` can override the catalog directory. For ComfyUI setup, see [the local generation guide](docs/COMFYUI-LOCAL-SETUP.md). For portrait output, configure the selected provider's size or ComfyUI workflow accordingly; reusable overlays require alpha-capable workflows/models.
+When running through AppHost, configure `ArtGeneration:*` and `ArtPromptAuthoring:*` in AppHost user-secrets or environment variables; AppHost forwards each section to the consuming services. When running services separately, provide the same provider configuration and PostgreSQL connection to API and Worker, and keep `ArtStorage:RootPath` configured wherever legacy reads are still needed. The seed JSON, shared style, and character/location context ship with API build/publish output; prompt Markdown is not a runtime dependency. `ArtGeneration:CatalogRoot` can override the catalog directory. For ComfyUI setup, see [the local generation guide](docs/COMFYUI-LOCAL-SETUP.md). For portrait output, configure the selected provider's size or ComfyUI workflow accordingly; reusable overlays require alpha-capable workflows/models.
 
 ComfyUI generation stays disabled until the configured workflow file exists, avoiding failed jobs during initial setup. When running API and Worker separately, make that workflow available at the configured path in both services. After exporting the workflow and starting ComfyUI, reload the scene to request its missing artwork.
 
-The PostgreSQL artwork smoke test uses `FATEWAKE_ART_TEST_CONNECTION`, which must point to an isolated, empty test database. It sends concurrent scene requests through the production routes, runs all seven worker handlers using a deterministic image generator, and verifies PNG/WebP delivery without paid image calls.
+The PostgreSQL artwork tests use `FATEWAKE_ART_TEST_CONNECTION`, which must point to a disposable database. They cover concurrent SQL prompt misses, admin save-only and selected regeneration, plus the image pipeline with a deterministic fake generator. The text-authoring tests use a fake HTTP provider; no paid or live AI calls are made.
 
 Database tests use `FATEWAKE_TEST_CONNECTION` and **delete/recreate that database**. Never point it at your development database. `FATEWAKE_TEST_RABBITMQ` enables the broker wakeup integration test.
 

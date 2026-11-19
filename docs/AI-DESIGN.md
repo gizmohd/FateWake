@@ -57,3 +57,7 @@ Generated assets retain provenance: provider/model, prompt/template version, nor
 Personal or secret state must be part of applicability. Content generated from one survivor's private knowledge, journal, relationships or hidden state cannot be reused for another survivor merely because the prose is similar.
 
 A cache miss is never permission for AI to decide canonical state. Reuse and generation remain presentation/content-production concerns around deterministic rules.
+
+## Artwork Prompt Authoring
+
+The optional SQL-backed artwork prompt authorer is a presentation-only text operation. It uses OpenAI Responses with GPT-6 Luna, reasoning effort `none`, strict structured output and no tools. It receives immutable server-owned scene/layer metadata, canonical visual context, style, framing and continuity—not freeform player text, profile data or hidden future facts. Output is bounded and validated, then stored as an immutable SQL prompt revision before a successor image job is created. The feature is disabled by default and does not enable or replace the separately configured image-generation provider.

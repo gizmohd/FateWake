@@ -10,7 +10,8 @@ public sealed class SurvivorVisualResolverTests
     [Fact]
     public void Stored_and_concealed_items_are_not_rendered_by_default()
     {
-        var id = Guid.NewGuid(); var resolver = new SurvivorVisualResolver();
+        var id = Guid.NewGuid();
+        var resolver = new SurvivorVisualResolver();
         var state = new SurvivorVisualState(id, 1, DateTimeOffset.UtcNow, "standing-front", [
             new(VisualSlot.Back,"wear-backpack-daypack-gray-01",1,"pack",CarryVisibility:CarryVisibility.AlwaysVisible),
             new(VisualSlot.Belt,"tool-flashlight-01",1,"flashlight",CarryVisibility:CarryVisibility.Concealed),
@@ -26,7 +27,8 @@ public sealed class SurvivorVisualResolverTests
     [Fact]
     public void Story_action_can_reveal_or_put_an_item_in_hand()
     {
-        var id = Guid.NewGuid(); var resolver = new SurvivorVisualResolver();
+        var id = Guid.NewGuid();
+        var resolver = new SurvivorVisualResolver();
         var state = new SurvivorVisualState(id, 2, DateTimeOffset.UtcNow, "standing-front", [
             new(VisualSlot.PrimaryCarry,"tool-hatchet-basic-01",1,"hatchet",CarryVisibility:CarryVisibility.Stored)
         ], new Dictionary<string, string>());
@@ -39,7 +41,9 @@ public sealed class SurvivorVisualResolverTests
     [Fact]
     public void Historical_snapshot_fingerprints_only_the_projected_appearance()
     {
-        var id = Guid.NewGuid(); var resolver = new SurvivorVisualResolver(); var identity = new SurvivorVisualIdentity(id, "identity-test", 1);
+        var id = Guid.NewGuid();
+        var resolver = new SurvivorVisualResolver();
+        var identity = new SurvivorVisualIdentity(id, "identity-test", 1);
         var state = new SurvivorVisualState(id, 7, DateTimeOffset.UtcNow, "standing-front", [
             new(VisualSlot.Back,"pack-01",1,"pack",CarryVisibility:CarryVisibility.AlwaysVisible),
             new(VisualSlot.PrimaryCarry,"tool-hatchet-basic-01",1,"hatchet",CarryVisibility:CarryVisibility.Stored)

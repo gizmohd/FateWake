@@ -13,7 +13,10 @@ public sealed class WorkQueueWakeup : IDisposable
     public void Signal(string queue)
     {
         var semaphore = _queues.GetOrAdd(queue, _ => new SemaphoreSlim(0, 1));
-        try { semaphore.Release(); }
+        try
+        {
+            semaphore.Release();
+        }
         catch (SemaphoreFullException) { /* A wakeup is already pending. */ }
     }
 
@@ -31,6 +34,7 @@ public sealed class WorkQueueWakeup : IDisposable
     /// <summary>Releases queue semaphores after consumers and workers have stopped.</summary>
     public void Dispose()
     {
-        foreach (var semaphore in _queues.Values) semaphore.Dispose();
+        foreach (var semaphore in _queues.Values)
+            semaphore.Dispose();
     }
 }

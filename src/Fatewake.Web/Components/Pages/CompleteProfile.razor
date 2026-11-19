@@ -1,10 +1,10 @@
 @page "/complete-profile"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
-<PageTitle>Complete your profile - Fatewake</PageTitle>
+<PageTitle>Complete your profile - @BrandIdentity.GameName</PageTitle>
 <main class="account-page">
     <h1>Complete your profile</h1>
-    <p>Finish setting up your account with your name and location. These details are separate from your survivor's identity.</p>
+    <p>Finish setting up your account with your name and location. These details are separate from your Pathweaver's identity.</p>
     @if (Error is not null)
     {
         <p role="alert">@(Error == "invalid"

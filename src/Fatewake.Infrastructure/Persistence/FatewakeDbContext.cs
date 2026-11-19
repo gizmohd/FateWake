@@ -26,6 +26,9 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
     public DbSet<SurvivorVisualIdentityRecord> SurvivorVisualIdentities => Set<SurvivorVisualIdentityRecord>(); public DbSet<WorkJobRecord> WorkJobs => Set<WorkJobRecord>(); public DbSet<WorkArtifactRecord> WorkArtifacts => Set<WorkArtifactRecord>(); public DbSet<WorkStepRecord> WorkSteps => Set<WorkStepRecord>(); public DbSet<WorkStepDependencyRecord> WorkStepDependencies => Set<WorkStepDependencyRecord>(); public DbSet<AccountRecord> Accounts => Set<AccountRecord>(); public DbSet<ExternalIdentityRecord> ExternalIdentities => Set<ExternalIdentityRecord>(); public DbSet<ArtAssetRecord> ArtAssets => Set<ArtAssetRecord>(); public DbSet<ArtAssetDerivativeRecord> ArtAssetDerivatives => Set<ArtAssetDerivativeRecord>(); public DbSet<ArtGenerationRecord> ArtGenerations => Set<ArtGenerationRecord>(); public DbSet<ArtRegenerationRecord> ArtRegenerationRequests => Set<ArtRegenerationRecord>(); public DbSet<RagSourceRecord> RagSources => Set<RagSourceRecord>(); public DbSet<RagDocumentRecord> RagDocuments => Set<RagDocumentRecord>(); public DbSet<RagChunkRecord> RagChunks => Set<RagChunkRecord>(); public DbSet<RagClaimRecord> RagClaims => Set<RagClaimRecord>(); public DbSet<RagIngestRunRecord> RagIngestRuns => Set<RagIngestRunRecord>(); public DbSet<RagStagingRecord> RagStaging => Set<RagStagingRecord>(); public DbSet<RealmRecord> Realms => Set<RealmRecord>(); public DbSet<TimelineRecord> Timelines => Set<TimelineRecord>(); public DbSet<SurvivorRecord> Survivors => Set<SurvivorRecord>(); public DbSet<EventInstanceRecord> EventInstances => Set<EventInstanceRecord>(); public DbSet<ActionAttemptRecord> ActionAttempts => Set<ActionAttemptRecord>(); public DbSet<ActionResolutionRecord> ActionResolutions => Set<ActionResolutionRecord>(); public DbSet<GameEventRecord> GameEvents => Set<GameEventRecord>(); public DbSet<WakeRecord> Wakes => Set<WakeRecord>();
     protected override void OnModelCreating(ModelBuilder m)
     {
+        TimelineModel.Configure(m);
+        GeneratedSceneModel.Configure(m);
+        ArtPromptModel.Configure(m);
         m.Entity<DataProtectionKey>().ToTable("data_protection_keys");
         m.Entity<DataProtectionCertificateRecord>(entity =>
         {
@@ -44,17 +47,24 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
         m.HasDbFunction(typeof(FatewakeDbContext).GetMethod(nameof(JsonText))!).HasName("ai_json_text");
         m.Entity<AiUsageRecord>(b =>
         {
-            b.ToTable("ai_usage"); b.HasKey(x => x.Id);
+            b.ToTable("ai_usage");
+            b.HasKey(x => x.Id);
             b.HasIndex(x => new { x.Provider, x.AttemptKey }).IsUnique();
             b.HasIndex(x => new { x.Provider, x.AccountingKey }).IsUnique().HasFilter("\"AccountingKey\" IS NOT NULL");
-            b.HasIndex(x => x.StartedAt); b.HasIndex(x => new { x.Provider, x.Model, x.Operation, x.StartedAt }); b.HasIndex(x => x.WorkJobId);
+            b.HasIndex(x => x.StartedAt);
+            b.HasIndex(x => new { x.Provider, x.Model, x.Operation, x.StartedAt });
+            b.HasIndex(x => x.WorkJobId);
         });
         m.Entity<AiUsageTrackingRecord>(b => { b.ToTable("ai_usage_tracking"); b.HasKey(x => x.Id); });
         m.Entity<StoryPanelRecord>(b =>
         {
-            b.ToTable("story_panel"); b.HasKey(x => x.Id); b.Property(x => x.EntryKey).HasMaxLength(200);
-            b.Property(x => x.Kind).HasMaxLength(30); b.Property(x => x.Layers).HasColumnType("jsonb");
-            b.HasIndex(x => new { x.SurvivorId, x.EntryKey }).IsUnique(); b.HasIndex(x => new { x.TimelineId, x.Sequence }).IsUnique();
+            b.ToTable("story_panel");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.EntryKey).HasMaxLength(200);
+            b.Property(x => x.Kind).HasMaxLength(30);
+            b.Property(x => x.Layers).HasColumnType("jsonb");
+            b.HasIndex(x => new { x.SurvivorId, x.TimelineId, x.EntryKey }).IsUnique();
+            b.HasIndex(x => new { x.TimelineId, x.Sequence }).IsUnique();
             b.HasOne<SurvivorRecord>().WithMany().HasForeignKey(x => x.SurvivorId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<TimelineRecord>().WithMany().HasForeignKey(x => x.TimelineId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<EventInstanceRecord>().WithMany().HasForeignKey(x => x.EventInstanceId).OnDelete(DeleteBehavior.NoAction);
@@ -62,29 +72,38 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
         });
         m.Entity<AccountRoleRecord>(b =>
         {
-            b.ToTable("account_role"); b.HasKey(x => x.AccountId); b.Property(x => x.Role).HasMaxLength(10);
+            b.ToTable("account_role");
+            b.HasKey(x => x.AccountId);
+            b.Property(x => x.Role).HasMaxLength(10);
             b.HasOne<AccountRecord>().WithOne().HasForeignKey<AccountRoleRecord>(x => x.AccountId).OnDelete(DeleteBehavior.NoAction);
         });
         m.Entity<ArtReviewRecord>(b =>
         {
-            b.ToTable("art_review"); b.HasKey(x => x.Id);
-            b.HasIndex(x => new { x.SceneKey, x.CreatedAt }); b.HasIndex(x => new { x.AssetKey, x.CreatedAt });
+            b.ToTable("art_review");
+            b.HasKey(x => x.Id);
+            b.HasIndex(x => new { x.SceneKey, x.CreatedAt });
+            b.HasIndex(x => new { x.AssetKey, x.CreatedAt });
             b.Property(x => x.CompositionVersions).HasColumnType("jsonb");
-            b.Property(x => x.SceneKey).HasMaxLength(100); b.Property(x => x.AssetKey).HasMaxLength(100);
-            b.Property(x => x.Critique).HasMaxLength(4000); b.Property(x => x.Correction).HasMaxLength(4000);
+            b.Property(x => x.SceneKey).HasMaxLength(100);
+            b.Property(x => x.AssetKey).HasMaxLength(100);
+            b.Property(x => x.Critique).HasMaxLength(4000);
+            b.Property(x => x.Correction).HasMaxLength(4000);
             b.HasOne<AccountRecord>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.NoAction);
         });
         m.Entity<AccountEmailRecord>(b =>
         {
-            b.ToTable("account_email"); b.HasKey(x => x.AccountId);
+            b.ToTable("account_email");
+            b.HasKey(x => x.AccountId);
             b.HasIndex(x => x.NormalizedEmail).IsUnique();
             b.Property(x => x.NormalizedEmail).HasMaxLength(254);
             b.HasOne<AccountRecord>().WithOne().HasForeignKey<AccountEmailRecord>(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
         m.Entity<EmailVerificationRecord>(b =>
         {
-            b.ToTable("email_verification"); b.HasKey(x => x.Id);
-            b.HasIndex(x => x.TokenHash).IsUnique(); b.HasIndex(x => x.NormalizedEmail);
+            b.ToTable("email_verification");
+            b.HasKey(x => x.Id);
+            b.HasIndex(x => x.TokenHash).IsUnique();
+            b.HasIndex(x => x.NormalizedEmail);
             b.Property(x => x.FirstName).HasMaxLength(AccountProfileDetails.MaximumLength);
             b.Property(x => x.LastName).HasMaxLength(AccountProfileDetails.MaximumLength);
             b.Property(x => x.City).HasMaxLength(AccountProfileDetails.MaximumLength);
@@ -121,14 +140,16 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
         m.Entity<ArtGenerationRecord>(b => { b.ToTable("art_generation"); b.HasKey(x => x.Id); b.HasIndex(x => x.WorkJobId).IsUnique(); b.HasIndex(x => x.IdempotencyKey).IsUnique(); b.HasIndex(x => x.ArtAssetId); b.Property(x => x.ReferenceAssets).HasColumnType("jsonb"); b.Property(x => x.GenerationParameters).HasColumnType("jsonb"); b.Property(x => x.ContinuityVersions).HasColumnType("jsonb"); b.HasOne<WorkJobRecord>().WithMany().HasForeignKey(x => x.WorkJobId).OnDelete(DeleteBehavior.Cascade); b.HasOne<ArtAssetRecord>().WithMany().HasForeignKey(x => x.ArtAssetId).OnDelete(DeleteBehavior.NoAction); });
         m.Entity<RagSourceRecord>(b =>
         {
-            b.ToTable("rag_source"); b.HasKey(x => x.Id);
+            b.ToTable("rag_source");
+            b.HasKey(x => x.Id);
             b.HasIndex(x => x.SourceKey).IsUnique();
             b.HasIndex(x => new { x.SourceType, x.ReviewStatus });
             b.Property(x => x.Metadata).HasColumnType("jsonb");
         });
         m.Entity<RagDocumentRecord>(b =>
         {
-            b.ToTable("rag_document"); b.HasKey(x => x.Id);
+            b.ToTable("rag_document");
+            b.HasKey(x => x.Id);
             b.HasIndex(x => new { x.SourceId, x.DocumentKey }).IsUnique();
             b.HasIndex(x => new { x.DocumentType, x.Status });
             b.Property(x => x.Metadata).HasColumnType("jsonb");
@@ -136,7 +157,8 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
         });
         m.Entity<RagChunkRecord>(b =>
         {
-            b.ToTable("rag_chunk"); b.HasKey(x => x.Id);
+            b.ToTable("rag_chunk");
+            b.HasKey(x => x.Id);
             b.HasIndex(x => new { x.DocumentId, x.Ordinal }).IsUnique();
             b.HasIndex(x => x.ChunkKey).IsUnique();
             b.HasIndex(x => new { x.TimelineKey, x.SurvivorDayMin, x.SurvivorDayMax });
@@ -145,22 +167,26 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
         });
         m.Entity<RagClaimRecord>(b =>
         {
-            b.ToTable("rag_claim"); b.HasKey(x => x.Id);
+            b.ToTable("rag_claim");
+            b.HasKey(x => x.Id);
             b.HasIndex(x => new { x.Subject, x.Status });
-            b.HasIndex(x => x.SourceChunkId); b.HasIndex(x => x.SourceDocumentId);
+            b.HasIndex(x => x.SourceChunkId);
+            b.HasIndex(x => x.SourceDocumentId);
             b.Property(x => x.Metadata).HasColumnType("jsonb");
             b.HasOne<RagChunkRecord>().WithMany().HasForeignKey(x => x.SourceChunkId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<RagDocumentRecord>().WithMany().HasForeignKey(x => x.SourceDocumentId).OnDelete(DeleteBehavior.SetNull);
         });
         m.Entity<RagIngestRunRecord>(b =>
         {
-            b.ToTable("rag_ingest_run"); b.HasKey(x => x.Id);
+            b.ToTable("rag_ingest_run");
+            b.HasKey(x => x.Id);
             b.HasIndex(x => x.RunKey).IsUnique();
             b.HasIndex(x => new { x.Status, x.StartedAt });
         });
         m.Entity<RagStagingRecord>(b =>
         {
-            b.ToTable("rag_staging"); b.HasKey(x => x.Id);
+            b.ToTable("rag_staging");
+            b.HasKey(x => x.Id);
             b.HasIndex(x => new { x.ContentHash, x.FileName }).IsUnique();
             b.Property(x => x.Bytes).HasColumnType("bytea");
             b.Property(x => x.FileName).HasMaxLength(1024);
@@ -168,11 +194,15 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
         });
         m.Entity<ArtRegenerationRecord>(b =>
         {
-            b.ToTable("art_regeneration_request"); b.HasKey(x => x.Id);
+            b.ToTable("art_regeneration_request");
+            b.HasKey(x => x.Id);
             b.HasIndex(x => x.SourceWorkJobId).IsUnique();
-            b.HasIndex(x => new { x.Status, x.NextEligibleAt }); b.HasIndex(x => x.ArtAssetId);
-            b.Property(x => x.Status).HasMaxLength(20); b.Property(x => x.VisualFingerprint).HasMaxLength(1024);
-            b.Property(x => x.TargetProvider).HasMaxLength(50); b.Property(x => x.RequestJson).HasColumnType("jsonb");
+            b.HasIndex(x => new { x.Status, x.NextEligibleAt });
+            b.HasIndex(x => x.ArtAssetId);
+            b.Property(x => x.Status).HasMaxLength(20);
+            b.Property(x => x.VisualFingerprint).HasMaxLength(1024);
+            b.Property(x => x.TargetProvider).HasMaxLength(50);
+            b.Property(x => x.RequestJson).HasColumnType("jsonb");
             b.HasOne<WorkJobRecord>().WithMany().HasForeignKey(x => x.SourceWorkJobId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne<ArtAssetRecord>().WithMany().HasForeignKey(x => x.ArtAssetId).OnDelete(DeleteBehavior.NoAction);
         });
@@ -205,6 +235,3 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
         m.Entity<WakeRecord>().HasOne<GameEventRecord>().WithMany().HasForeignKey(x => x.OriginEventId).OnDelete(DeleteBehavior.NoAction);
     }
 }
-
-public sealed class GameEventRecord { public Guid Id { get; set; } public Guid TimelineId { get; set; } public Guid? SurvivorId { get; set; } public required string EventType { get; set; } public long Sequence { get; set; } public int SurvivorDay { get; set; } public Guid? CausationEventId { get; set; } public Guid CorrelationId { get; set; } public required string Payload { get; set; } public int SchemaVersion { get; set; } = 1; public DateTimeOffset OccurredAt { get; set; } }
-public sealed class WakeRecord { public Guid Id { get; set; } public Guid TimelineId { get; set; } public Guid OriginEventId { get; set; } public required string WakeType { get; set; } public required string Scope { get; set; } public string? TargetEntityType { get; set; } public Guid? TargetEntityId { get; set; } public short Severity { get; set; } public required WakeState State { get; set; } public required string Properties { get; set; } public int CreatedDay { get; set; } public DateTimeOffset CreatedAt { get; set; } }

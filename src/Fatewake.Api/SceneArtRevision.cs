@@ -1,25 +1,17 @@
 using Fatewake.Infrastructure.Art;
 using Fatewake.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
-using System.Security.Cryptography;
-using System.Text;
+
 namespace Fatewake.Api;
-/// <summary>Applies the latest explicit administrator correction to scene-layer generation.</summary>
+
+/// <summary>Builds scene artwork only from an explicitly selected immutable SQL prompt revision.</summary>
+/// <see href="../../../docs/code/src/Fatewake.Api/SceneArtRevision.md">SceneArtRevision documentation</see>
 public static class SceneArtRevision
 {
-    /// <summary>Builds a request with a durable correction revision and distinct cache identity.</summary>
-    public static async Task<ArtWorkRequest> CreateAsync(SceneArtCatalog catalog, FatewakeDbContext db, string key, CancellationToken ct)
+    /// <summary>Creates a pinned request without consulting critiques or an implicit latest-revision override.</summary>
+    public static ArtWorkRequest Create(SceneArtCatalog catalog, string key, ArtPromptRevisionRecord revision,
+        Guid? accountId = null, Guid? survivorId = null, int priority = 0, string? reachedVisualContext = null)
     {
-        var work = catalog.Create(key);
-        var review = await db.Set<ArtReviewRecord>().AsNoTracking().Where(x => x.AssetKey == key && x.Regenerate)
-            .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
-        if (review is null) return work;
-        var prompt = $"Required subject and composition correction: {review.Correction}\n\n{work.ResolvedPrompt}";
-        return work with
-        {
-            ResolvedPrompt = prompt,
-            VisualFingerprint = Convert.ToHexString(SHA256.HashData(
-            Encoding.UTF8.GetBytes($"{work.VisualFingerprint}\n{review.Id}\n{prompt}"))).ToLowerInvariant()
-        };
+        var metadata = catalog.Describe(key, reachedVisualContext);
+        return catalog.CreateWorkRequest(metadata, revision, accountId, survivorId, priority);
     }
 }

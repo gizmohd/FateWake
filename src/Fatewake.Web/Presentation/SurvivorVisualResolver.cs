@@ -22,7 +22,8 @@ public sealed class SurvivorVisualResolver : ISurvivorVisualResolver
     /// <inheritdoc />
     public SurvivorVisualSnapshot Snapshot(SurvivorVisualIdentity identity, SurvivorVisualProjection projection)
     {
-        if (identity.SurvivorId != projection.SurvivorId) throw new InvalidOperationException("Visual identity and projection belong to different survivors.");
+        if (identity.SurvivorId != projection.SurvivorId)
+            throw new InvalidOperationException("Visual identity and projection belong to different survivors.");
         var normalized = JsonSerializer.Serialize(new
         {
             identity.IdentityAssetKey,
@@ -46,9 +47,12 @@ public sealed class SurvivorVisualResolver : ISurvivorVisualResolver
 
     private static bool IsVisible(VisibleVisual item, SceneVisualContext context)
     {
-        if (item.Emphasis == VisualEmphasis.Suppress) return false;
-        if (item.Emphasis is VisualEmphasis.Reveal or VisualEmphasis.InHand) return true;
-        if (item.Source.CarryVisibility is CarryVisibility.Concealed or CarryVisibility.Stored) return false;
+        if (item.Emphasis == VisualEmphasis.Suppress)
+            return false;
+        if (item.Emphasis is VisualEmphasis.Reveal or VisualEmphasis.InHand)
+            return true;
+        if (item.Source.CarryVisibility is CarryVisibility.Concealed or CarryVisibility.Stored)
+            return false;
         return item.Source.CompatiblePoses is null || item.Source.CompatiblePoses.Count == 0 || item.Source.CompatiblePoses.Contains(context.PoseKey, StringComparer.OrdinalIgnoreCase);
     }
 

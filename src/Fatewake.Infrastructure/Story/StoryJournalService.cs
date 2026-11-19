@@ -2,9 +2,12 @@ using System.Text.Json;
 using Fatewake.Infrastructure.Persistence;
 using Fatewake.Story;
 using Microsoft.EntityFrameworkCore;
+using Fatewake.Observability;
+using Microsoft.Extensions.Logging;
 namespace Fatewake.Infrastructure.Story;
 /// <summary>Stores seen panels and projects history without executing game actions or image generation.</summary>
-public sealed class StoryJournalService(FatewakeDbContext db)
+/// <see href="../../../docs/code/src/Fatewake.Infrastructure/Story/StoryJournalService.md">Documentation</see>
+public sealed class StoryJournalService(FatewakeDbContext db, ILogger<StoryJournalService>? log = null)
 {
     /// <summary>Records an accepted authoritative decision even if the client disconnects before advancing.</summary>
     public async Task RecordOutcomeAsync(Guid survivorId, Guid eventInstanceId, Fatewake.GameEngine.ActionResolution outcome, CancellationToken ct = default)
@@ -17,9 +20,11 @@ public sealed class StoryJournalService(FatewakeDbContext db)
     /// <summary>Recovers already-reached legacy beats once, then records the current beat.</summary>
     public async Task RecordProgressAsync(SessionState state, CancellationToken ct = default)
     {
-        if (state.SceneKey != DayOneScenes.Opening.Key) return;
+        if (state.SceneKey != DayOneScenes.Opening.Key)
+            return;
         var beat = DayOneScenes.Opening.Beats.FirstOrDefault(x => x.Key == state.BeatKey);
-        if (beat is null) return;
+        if (beat is null)
+            return;
         var index = DayOneScenes.Opening.IndexOf(beat.Key);
         if (index > 0)
             foreach (var prior in DayOneScenes.Opening.Beats.Take(index))
@@ -31,11 +36,14 @@ public sealed class StoryJournalService(FatewakeDbContext db)
 
     private async Task RecordBeatAsync(SessionState state, BeatDefinition beat, bool reconstructed, CancellationToken ct)
     {
-        if (beat.Kind == BeatKind.Consequence && string.IsNullOrWhiteSpace(state.LastOutcome)) return;
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-        await LockTimelineAsync(state.TimelineId, ct);
+        if (beat.Kind == BeatKind.Consequence && string.IsNullOrWhiteSpace(state.LastOutcome))
+            return;
+        await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+        await LockTimelineAsync(state.SurvivorId, state.TimelineId, ct);
         var key = $"beat:{state.EventInstanceId}:{beat.Key}";
-        if (await db.Set<StoryPanelRecord>().AnyAsync(x => x.SurvivorId == state.SurvivorId && x.EntryKey == key, ct)) return;
+        if (await db.Set<StoryPanelRecord>().AnyAsync(x => x.SurvivorId == state.SurvivorId &&
+            x.TimelineId == state.TimelineId && x.EntryKey == key, ct))
+            return;
         var layers = DayOneArt.For(beat.ArtworkKey).Select(x => x with { AssetVersion = 0 }).ToArray();
         if (reconstructed)
             for (var i = 0; i < layers.Length; i++)
@@ -43,7 +51,10 @@ public sealed class StoryJournalService(FatewakeDbContext db)
                 var assetKey = layers[i].AssetKey;
                 var version = await db.ArtAssets.Where(x => x.Key == assetKey && x.Status == ArtAssetStatus.Approved)
                     .OrderByDescending(x => x.Version).Select(x => (int?)x.Version).FirstOrDefaultAsync(ct);
-                layers[i] = layers[i] with { AssetVersion = version ?? 0 };
+                layers[i] = layers[i] with
+                {
+                    AssetVersion = version ?? 0
+                };
             }
         db.Add(new StoryPanelRecord
         {
@@ -65,7 +76,9 @@ public sealed class StoryJournalService(FatewakeDbContext db)
             Reconstructed = reconstructed,
             RecordedAt = DateTimeOffset.UtcNow
         });
-        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+        await db.SaveChangesAsync(ct);
+        if (tx is not null)
+            await tx.CommitAsync(ct);
     }
 
     /// <summary>Pins first displayed approved versions; later regeneration cannot rewrite historical artwork.</summary>
@@ -74,31 +87,50 @@ public sealed class StoryJournalService(FatewakeDbContext db)
     {
         var key = $"beat:{eventInstanceId}:{beatKey}";
         var panel = await db.Set<StoryPanelRecord>().SingleOrDefaultAsync(x => x.SurvivorId == survivorId && x.EntryKey == key, ct);
-        if (panel is null) return false;
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-        await LockTimelineAsync(panel.TimelineId, ct);
+        if (panel is null)
+            return false;
+        await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+        await LockTimelineAsync(panel.SurvivorId, panel.TimelineId, ct);
         await db.Entry(panel).ReloadAsync(ct);
         var layers = JsonSerializer.Deserialize<ArtLayer[]>(panel.Layers) ?? [];
-        if (versions.Keys.Any(key => !layers.Any(x => x.AssetKey == key))) return false;
+        if (versions.Keys.Any(key => !layers.Any(x => x.AssetKey == key)))
+            return false;
         for (var i = 0; i < layers.Length; i++)
             if (layers[i].AssetVersion == 0 && versions.GetValueOrDefault(layers[i].AssetKey) is { } version)
             {
-                if (!await db.ArtAssets.AnyAsync(x => x.Key == layers[i].AssetKey && x.Version == version && x.Status == ArtAssetStatus.Approved, ct)) return false;
-                layers[i] = layers[i] with { AssetVersion = version };
+                if (!await db.ArtAssets.AnyAsync(x => x.Key == layers[i].AssetKey && x.Version == version && x.Status == ArtAssetStatus.Approved, ct))
+                    return false;
+                layers[i] = layers[i] with
+                {
+                    AssetVersion = version
+                };
             }
         panel.Layers = JsonSerializer.Serialize(layers);
-        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); return true;
+        await db.SaveChangesAsync(ct);
+        if (tx is not null)
+            await tx.CommitAsync(ct);
+        return true;
     }
 
     /// <summary>Reads only reached, audience-owned panels and explicitly revealed cause narration.</summary>
     public async Task<NovelPanel[]> ReadAsync(Guid survivorId, CancellationToken ct = default)
     {
-        var day = await db.Survivors.Where(x => x.Id == survivorId).Select(x => x.SurvivorDay).SingleAsync(ct);
-        var entries = await db.Set<StoryPanelRecord>().AsNoTracking().Where(x => x.SurvivorId == survivorId && x.VisibleFromDay <= day)
-            .OrderBy(x => x.Sequence).ToArrayAsync(ct);
-        return entries.Select(x => new NovelPanel(x.Id, x.Sequence, x.SurvivorDay, x.Kind, x.Title, x.TimeLabel,
-            x.CauseRevealed && !string.IsNullOrWhiteSpace(x.HiddenCauseNarration) ? $"{x.Narration}\n\n{x.HiddenCauseNarration}" : x.Narration,
-            x.DialogueSpeaker, x.DialogueText, JsonSerializer.Deserialize<ArtLayer[]>(x.Layers) ?? [], x.Reconstructed)).ToArray();
+        using var operation = OperationTelemetry.Start("story.read", log);
+        try
+        {
+            var active = await ActiveAsync(survivorId, ct);
+            var entries = await db.Set<StoryPanelRecord>().AsNoTracking().Where(x => x.SurvivorId == survivorId &&
+                x.TimelineId == active.TimelineId && x.VisibleFromDay <= active.SurvivorDay)
+                .OrderBy(x => x.Sequence).ToArrayAsync(ct);
+            return entries.Select(x => new NovelPanel(x.Id, x.Sequence, x.SurvivorDay, x.Kind, x.Title, x.TimeLabel,
+                x.CauseRevealed && !string.IsNullOrWhiteSpace(x.HiddenCauseNarration) ? $"{x.Narration}\n\n{x.HiddenCauseNarration}" : x.Narration,
+                x.DialogueSpeaker, x.DialogueText, JsonSerializer.Deserialize<ArtLayer[]>(x.Layers) ?? [], x.Reconstructed)).ToArray();
+        }
+        catch (Exception ex)
+        {
+            operation.Fail(ex);
+            throw;
+        }
     }
 
     /// <summary>Engine-facing integration for an external user, NPC, group or world event affecting this survivor.</summary>
@@ -106,17 +138,21 @@ public sealed class StoryJournalService(FatewakeDbContext db)
     public async Task<Guid> RecordInfluenceAsync(Guid survivorId, Guid sourceEventId, string observableImpact,
         string? hiddenCause, int visibleFromDay, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(observableImpact) || visibleFromDay < 1) throw new ArgumentException("Audience-safe impact and visibility day are required.");
+        if (string.IsNullOrWhiteSpace(observableImpact) || visibleFromDay < 1)
+            throw new ArgumentException("Audience-safe impact and visibility day are required.");
         var survivor = await db.Survivors.SingleAsync(x => x.Id == survivorId, ct);
         var source = await db.GameEvents.SingleAsync(x => x.Id == sourceEventId, ct);
         var sourceRealm = await db.Timelines.Where(x => x.Id == source.TimelineId).Select(x => x.RealmId).SingleAsync(ct);
         var targetRealm = await db.Timelines.Where(x => x.Id == survivor.TimelineId).Select(x => x.RealmId).SingleAsync(ct);
-        if (sourceRealm != targetRealm) throw new InvalidOperationException("Influences must be within the same Realm.");
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-        await LockTimelineAsync(survivor.TimelineId, ct);
+        if (sourceRealm != targetRealm)
+            throw new InvalidOperationException("Influences must be within the same Realm.");
+        await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+        await LockTimelineAsync(survivor.Id, survivor.TimelineId, ct);
         var key = $"influence:{sourceEventId}";
-        var existing = await db.Set<StoryPanelRecord>().Where(x => x.SurvivorId == survivorId && x.EntryKey == key).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
-        if (existing is { } id) return id;
+        var existing = await db.Set<StoryPanelRecord>().Where(x => x.SurvivorId == survivorId &&
+            x.TimelineId == survivor.TimelineId && x.EntryKey == key).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
+        if (existing is { } id)
+            return id;
         var panel = new StoryPanelRecord
         {
             Id = Guid.NewGuid(),
@@ -135,44 +171,76 @@ public sealed class StoryJournalService(FatewakeDbContext db)
             RecordedAt = DateTimeOffset.UtcNow,
             NotificationRevision = 1
         };
-        db.Add(panel); await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); return panel.Id;
+        db.Add(panel);
+        await db.SaveChangesAsync(ct);
+        if (tx is not null)
+            await tx.CommitAsync(ct);
+        return panel.Id;
     }
 
     /// <summary>Called by authoritative reveal rules when this audience may learn the external cause.</summary>
     public async Task RevealCauseAsync(Guid panelId, CancellationToken ct = default)
     {
         var panel = await db.Set<StoryPanelRecord>().SingleAsync(x => x.Id == panelId && x.Kind == "cutscene", ct);
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-        await LockTimelineAsync(panel.TimelineId, ct);
+        await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+        await LockTimelineAsync(panel.SurvivorId, panel.TimelineId, ct);
         await db.Entry(panel).ReloadAsync(ct);
-        if (panel.CauseRevealed) return;
+        if (panel.CauseRevealed)
+            return;
         panel.CauseRevealed = true;
-        if (!string.IsNullOrWhiteSpace(panel.HiddenCauseNarration)) panel.NotificationRevision++;
-        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+        if (!string.IsNullOrWhiteSpace(panel.HiddenCauseNarration))
+            panel.NotificationRevision++;
+        await db.SaveChangesAsync(ct);
+        if (tx is not null)
+            await tx.CommitAsync(ct);
     }
     /// <summary>Returns pending important updates using the same disclosure gates as the novel.</summary>
     public async Task<StoryNotice[]> NoticesAsync(Guid survivorId, CancellationToken ct = default)
     {
-        var day = await db.Survivors.Where(x => x.Id == survivorId).Select(x => x.SurvivorDay).SingleAsync(ct);
-        var panels = await db.Set<StoryPanelRecord>().AsNoTracking().Where(x => x.SurvivorId == survivorId && x.VisibleFromDay <= day && x.NotificationRevision > x.SeenRevision)
+        var active = await ActiveAsync(survivorId, ct);
+        var panels = await db.Set<StoryPanelRecord>().AsNoTracking().Where(x => x.SurvivorId == survivorId &&
+            x.TimelineId == active.TimelineId && x.VisibleFromDay <= active.SurvivorDay && x.NotificationRevision > x.SeenRevision)
             .OrderBy(x => x.Sequence).Take(10).ToArrayAsync(ct);
         return panels.Select(x => new StoryNotice(x.Id, x.NotificationRevision,
-            x.CauseRevealed ? "Your story is clearer" : "Your timeline has changed",
+            x.CauseRevealed ? "Your story is clearer" : "Your Thread has changed",
             x.CauseRevealed && !string.IsNullOrWhiteSpace(x.HiddenCauseNarration) ? $"{x.Narration}\n\n{x.HiddenCauseNarration}" : x.Narration)).ToArray();
     }
     /// <summary>Acknowledges only the displayed revision; a later revelation remains unread.</summary>
     public async Task<bool> AcknowledgeAsync(Guid survivorId, Guid panelId, int revision, CancellationToken ct = default)
     {
         var panel = await db.Set<StoryPanelRecord>().SingleOrDefaultAsync(x => x.Id == panelId && x.SurvivorId == survivorId, ct);
-        if (panel is null) return false;
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-        await LockTimelineAsync(panel.TimelineId, ct); await db.Entry(panel).ReloadAsync(ct);
-        var day = await db.Survivors.Where(x => x.Id == survivorId).Select(x => x.SurvivorDay).SingleAsync(ct);
-        if (revision < 1 || revision > panel.NotificationRevision || panel.VisibleFromDay > day) return false;
+        if (panel is null)
+            return false;
+        await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+        await LockTimelineAsync(panel.SurvivorId, panel.TimelineId, ct);
+        await db.Entry(panel).ReloadAsync(ct);
+        var active = await ActiveAsync(survivorId, ct);
+        if (revision < 1 || revision > panel.NotificationRevision || panel.VisibleFromDay > active.SurvivorDay)
+            return false;
         panel.SeenRevision = Math.Max(panel.SeenRevision, revision);
-        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); return true;
+        await db.SaveChangesAsync(ct);
+        if (tx is not null)
+            await tx.CommitAsync(ct);
+        return true;
     }
-    private Task<int> LockTimelineAsync(Guid timelineId, CancellationToken ct) => db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM timeline WHERE \"Id\" = {timelineId} FOR UPDATE", ct);
+    private async Task LockTimelineAsync(Guid survivorId, Guid timelineId, CancellationToken ct)
+    {
+        await new TimelineStateStore(db).LockAsync(survivorId, timelineId, ct);
+    }
+
+    private async Task<SurvivorTimelineStateRecord> ActiveAsync(Guid survivorId, CancellationToken ct)
+    {
+        var survivor = await db.Survivors.AsNoTracking().SingleAsync(row => row.Id == survivorId, ct);
+        return await db.Set<SurvivorTimelineStateRecord>().AsNoTracking()
+            .SingleOrDefaultAsync(row => row.SurvivorId == survivorId && row.TimelineId == survivor.TimelineId, ct)
+            ?? new SurvivorTimelineStateRecord
+            {
+                SurvivorId = survivorId,
+                TimelineId = survivor.TimelineId,
+                SurvivorDay = survivor.SurvivorDay,
+                Status = survivor.Status
+            };
+    }
     private async Task<long> NextSequenceAsync(Guid timelineId, CancellationToken ct) =>
         (await db.Set<StoryPanelRecord>().Where(x => x.TimelineId == timelineId).MaxAsync(x => (long?)x.Sequence, ct) ?? 0) + 1;
 }

@@ -11,27 +11,75 @@ public static class StoryEndpoints
     {
         app.MapGet("/api/story/{survivorId:guid}/notices", async (Guid survivorId, HttpContext context, FatewakeDbContext db, StoryJournalService story, CancellationToken ct) =>
         {
-            if (InvalidBearer(context)) return Results.Unauthorized();
-            if (!await OwnsAsync(db, survivorId, context.User, ct)) return Results.NotFound();
+            if (InvalidBearer(context))
+                return Results.Unauthorized();
+            if (!await OwnsAsync(db, survivorId, context.User, ct))
+                return Results.NotFound();
             return Results.Ok(await story.NoticesAsync(survivorId, ct));
         });
         app.MapPost("/api/story/{survivorId:guid}/notices/{panelId:guid}/{revision:int}/ack", async (Guid survivorId, Guid panelId, int revision, HttpContext context, FatewakeDbContext db, StoryJournalService story, CancellationToken ct) =>
         {
-            if (InvalidBearer(context)) return Results.Unauthorized();
-            if (!await OwnsAsync(db, survivorId, context.User, ct)) return Results.NotFound();
+            if (InvalidBearer(context))
+                return Results.Unauthorized();
+            if (!await OwnsAsync(db, survivorId, context.User, ct))
+                return Results.NotFound();
             return await story.AcknowledgeAsync(survivorId, panelId, revision, ct) ? Results.Ok() : Results.BadRequest();
         });
         app.MapGet("/api/story/{survivorId:guid}", async (Guid survivorId, HttpContext context, FatewakeDbContext db, StoryJournalService story, CancellationToken ct) =>
         {
-            if (InvalidBearer(context)) return Results.Unauthorized();
-            if (!await OwnsAsync(db, survivorId, context.User, ct)) return Results.NotFound();
+            if (InvalidBearer(context))
+                return Results.Unauthorized();
+            if (!await OwnsAsync(db, survivorId, context.User, ct))
+                return Results.NotFound();
             return Results.Ok(await story.ReadAsync(survivorId, ct));
+        });
+        app.MapGet("/api/story/{survivorId:guid}/scene", async (Guid survivorId, bool? retry, HttpContext context, FatewakeDbContext db, IStoryPlayService play, CancellationToken ct) =>
+        {
+            if (InvalidBearer(context))
+                return Results.Unauthorized();
+            if (!await OwnsAsync(db, survivorId, context.User, ct))
+                return Results.NotFound();
+            return Results.Ok(await play.GetCurrentAsync(survivorId, retry == true, ct));
+        });
+        app.MapPost("/api/story/{survivorId:guid}/scene/{sequence:int}/advance", async (Guid survivorId, int sequence, HttpContext context, FatewakeDbContext db, IStoryPlayService play, CancellationToken ct) =>
+        {
+            if (InvalidBearer(context))
+                return Results.Unauthorized();
+            if (!await OwnsAsync(db, survivorId, context.User, ct))
+                return Results.NotFound();
+            try
+            {
+                return Results.Ok(await play.AdvanceAsync(survivorId, sequence, ct));
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.Conflict();
+            }
+        });
+        app.MapPost("/api/story/{survivorId:guid}/scene/{sequence:int}/choose", async (Guid survivorId, int sequence, StoryChoiceRequest request, HttpContext context, FatewakeDbContext db, IStoryPlayService play, CancellationToken ct) =>
+        {
+            if (InvalidBearer(context))
+                return Results.Unauthorized();
+            if (!await OwnsAsync(db, survivorId, context.User, ct))
+                return Results.NotFound();
+            try
+            {
+                return await play.ChooseAsync(survivorId, sequence, request.ActionType, request.RawInput, ct) is { } view
+                    ? Results.Ok(view) : Results.BadRequest();
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.Conflict();
+            }
         });
         app.MapPost("/api/story/{survivorId:guid}/artwork", async (Guid survivorId, StoryArtworkRequest request, HttpContext context, FatewakeDbContext db, StoryJournalService story, CancellationToken ct) =>
         {
-            if (InvalidBearer(context)) return Results.Unauthorized();
-            if (!await OwnsAsync(db, survivorId, context.User, ct)) return Results.NotFound();
-            if (request.Versions is null || request.Versions.Count > 24 || request.Versions.Values.Any(x => x is <= 0)) return Results.BadRequest();
+            if (InvalidBearer(context))
+                return Results.Unauthorized();
+            if (!await OwnsAsync(db, survivorId, context.User, ct))
+                return Results.NotFound();
+            if (request.Versions is null || request.Versions.Count > 24 || request.Versions.Values.Any(x => x is <= 0))
+                return Results.BadRequest();
             return await story.PinArtworkAsync(survivorId, request.EventInstanceId, request.BeatKey, request.Versions, ct) ? Results.Ok() : Results.BadRequest();
         });
     }

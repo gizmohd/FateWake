@@ -34,8 +34,10 @@ internal static class BrowserAuthorizationCode
         using var authorizationContent = new FormUrlEncodedContent(authorization);
         using var response = await client.PostAsync("/connect/authorize", authorizationContent, ct);
         client.DefaultRequestHeaders.Authorization = null;
-        if (response.StatusCode == HttpStatusCode.Accepted) return "/check-email";
-        if (response.StatusCode == HttpStatusCode.Unauthorized) return null;
+        if (response.StatusCode == HttpStatusCode.Accepted)
+            return "/check-email";
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+            return null;
         if (response.StatusCode != HttpStatusCode.Redirect || response.Headers.Location is not { IsAbsoluteUri: true } location ||
             location.GetLeftPart(UriPartial.Path) != redirect.AbsoluteUri || location.Fragment.Length != 0)
             throw new HttpRequestException("Account authorization did not return the configured callback.", null, response.StatusCode);

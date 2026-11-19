@@ -19,7 +19,8 @@ public sealed class TestOidcBackchannel(SecurityKey key) : HttpMessageHandler
     /// <inheritdoc />
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        if (request.RequestUri?.AbsolutePath != "/token") throw new InvalidOperationException("Unexpected OIDC backchannel request.");
+        if (request.RequestUri?.AbsolutePath != "/token")
+            throw new InvalidOperationException("Unexpected OIDC backchannel request.");
         var form = await request.Content!.ReadAsStringAsync(cancellationToken);
         var values = form.Split('&').Select(x => x.Split('=', 2)).ToDictionary(x => x[0], x => Uri.UnescapeDataString(x[1]));
         if (values["code"] != "test-code" || values["grant_type"] != "authorization_code" ||

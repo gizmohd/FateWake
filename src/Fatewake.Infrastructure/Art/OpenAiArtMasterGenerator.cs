@@ -18,7 +18,9 @@ public sealed class OpenAiArtMasterGenerator(HttpClient http, IOptions<OpenAiArt
     private async Task<GeneratedArtMaster> GenerateCoreAsync(ArtGenerationInvocation invocation, Guid? usageId, CancellationToken ct)
     {
         using var operation = OperationTelemetry.Start("art.generate.openai", log);
-        var o = configured.Value; if (!o.Enabled || string.IsNullOrWhiteSpace(o.ApiKey)) throw new InvalidOperationException("OpenAI art generation is not configured.");
+        var o = configured.Value;
+        if (!o.Enabled || string.IsNullOrWhiteSpace(o.ApiKey))
+            throw new InvalidOperationException("OpenAI art generation is not configured.");
         var fallback = string.Equals(invocation.Request.Model, o.FallbackModel, StringComparison.OrdinalIgnoreCase);
         var quality = fallback ? o.FallbackQuality : o.Quality;
         var complexity = fallback ? o.FallbackComplexity : null;
@@ -29,20 +31,68 @@ public sealed class OpenAiArtMasterGenerator(HttpClient http, IOptions<OpenAiArt
         var prompt = string.IsNullOrWhiteSpace(invocation.Request.NegativeInstructions) ? invocation.Request.ResolvedPrompt : $"{invocation.Request.ResolvedPrompt}\n\nConstraints: {invocation.Request.NegativeInstructions}";
         if ((invocation.Request.ReferenceImages?.Count ?? 0) > 0)
         {
-            var form = new MultipartFormDataContent(); form.Add(new StringContent(invocation.Request.Model ?? o.Model), "model"); form.Add(new StringContent(prompt), "prompt"); form.Add(new StringContent(o.Size), "size"); form.Add(new StringContent(quality), "quality"); form.Add(new StringContent("png"), "output_format"); form.Add(new StringContent(background), "background"); if (complexity is not null) form.Add(new StringContent(complexity), "complexity");
-            foreach (var reference in invocation.Request.ReferenceImages!.Take(16)) { await using var input = await storage.OpenReadAsync(reference.StorageKey, ct); var referenceBytes = await ReadAllAsync(input, ct); var part = new ByteArrayContent(referenceBytes); part.Headers.ContentType = new MediaTypeHeaderValue("image/png"); form.Add(part, "image[]", Path.GetFileName(reference.StorageKey)); }
+            var form = new MultipartFormDataContent();
+            form.Add(new StringContent(invocation.Request.Model ?? o.Model), "model");
+            form.Add(new StringContent(prompt), "prompt");
+            form.Add(new StringContent(o.Size), "size");
+            form.Add(new StringContent(quality), "quality");
+            form.Add(new StringContent("png"), "output_format");
+            form.Add(new StringContent(background), "background");
+            if (complexity is not null)
+                form.Add(new StringContent(complexity), "complexity");
+            foreach (var reference in invocation.Request.ReferenceImages!.Take(16))
+            {
+                await using var input = await storage.OpenReadAsync(reference.StorageKey, ct);
+                var referenceBytes = await ReadAllAsync(input, ct);
+                var part = new ByteArrayContent(referenceBytes);
+                part.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+                form.Add(part, "image[]", Path.GetFileName(reference.StorageKey));
+            }
             request.Content = form;
         }
-        else if (fallback) request.Content = JsonContent.Create(new { model = invocation.Request.Model ?? o.FallbackModel, prompt, size = o.Size, quality, complexity, output_format = "png", background });
-        else request.Content = JsonContent.Create(new { model = invocation.Request.Model ?? o.Model, prompt, size = o.Size, quality, output_format = "png", background });
-        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct); var body = await response.Content.ReadAsStringAsync(ct);
+        else if (fallback)
+            request.Content = JsonContent.Create(new
+            {
+                model = invocation.Request.Model ?? o.FallbackModel,
+                prompt,
+                size = o.Size,
+                quality,
+                complexity,
+                output_format = "png",
+                background
+            });
+        else
+            request.Content = JsonContent.Create(new
+            {
+                model = invocation.Request.Model ?? o.Model,
+                prompt,
+                size = o.Size,
+                quality,
+                output_format = "png",
+                background
+            });
+        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
         var usageRequestId = response.Headers.TryGetValues("x-request-id", out var usageIds) ? usageIds.FirstOrDefault() : null;
-        if (usageId is { } tracked) await usage!.ReportAsync(tracked, AiProviderUsage.Parse(body, usageRequestId), ct);
-        if (!response.IsSuccessStatusCode) throw new HttpRequestException($"OpenAI image generation failed ({(int)response.StatusCode}).", null, response.StatusCode);
-        using var json = JsonDocument.Parse(body); var root = json.RootElement; var first = root.GetProperty("data")[0];
-        byte[] bytes; if (first.TryGetProperty("b64_json", out var b64)) bytes = Convert.FromBase64String(b64.GetString() ?? throw new InvalidDataException("OpenAI returned empty image data.")); else throw new InvalidDataException("OpenAI response did not contain PNG image data.");
+        if (usageId is { } tracked)
+            await usage!.ReportAsync(tracked, AiProviderUsage.Parse(body, usageRequestId), ct);
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException($"OpenAI image generation failed ({(int)response.StatusCode}).", null, response.StatusCode);
+        using var json = JsonDocument.Parse(body);
+        var root = json.RootElement;
+        var first = root.GetProperty("data")[0];
+        byte[] bytes;
+        if (first.TryGetProperty("b64_json", out var b64))
+            bytes = Convert.FromBase64String(b64.GetString() ?? throw new InvalidDataException("OpenAI returned empty image data."));
+        else
+            throw new InvalidDataException("OpenAI response did not contain PNG image data.");
         var requestId = response.Headers.TryGetValues("x-request-id", out var values) ? values.FirstOrDefault() : null;
         return new GeneratedArtMaster(bytes, requestId, null);
     }
-    private static async Task<byte[]> ReadAllAsync(Stream input, CancellationToken ct) { using var ms = new MemoryStream(); await input.CopyToAsync(ms, ct); return ms.ToArray(); }
+    private static async Task<byte[]> ReadAllAsync(Stream input, CancellationToken ct)
+    {
+        using var ms = new MemoryStream();
+        await input.CopyToAsync(ms, ct);
+        return ms.ToArray();
+    }
 }

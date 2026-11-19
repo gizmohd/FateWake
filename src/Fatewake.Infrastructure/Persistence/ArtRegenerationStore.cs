@@ -9,7 +9,8 @@ public sealed class ArtRegenerationStore(FatewakeDbContext db) : IArtRegeneratio
     public async Task<ArtRegenerationRecord> QueueAsync(Guid sourceWorkJobId, string visualFingerprint, string requestJson, string targetProvider, string? targetModel, string reason, CancellationToken ct = default)
     {
         var existing = await db.ArtRegenerationRequests.SingleOrDefaultAsync(x => x.SourceWorkJobId == sourceWorkJobId && x.Status != "Completed", ct);
-        if (existing is not null) return existing;
+        if (existing is not null)
+            return existing;
         var now = DateTimeOffset.UtcNow;
         var record = new ArtRegenerationRecord
         {

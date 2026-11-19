@@ -17,9 +17,11 @@ public sealed class AdminArtReviewTests
     [InlineData(false)]
     public async Task Review_controls_and_versioned_thumbnails_require_API_permission(bool authorized)
     {
-        var services = new ServiceCollection(); services.AddLogging();
+        var services = new ServiceCollection();
+        services.AddLogging();
         services.AddSingleton<AuthenticationStateProvider, newState>();
-        services.AddSingleton<IHttpClientFactory>(new Clients(authorized)); services.AddScoped<AuthenticatedApiClient>();
+        services.AddSingleton<IHttpClientFactory>(new Clients(authorized));
+        services.AddScoped<AuthenticatedApiClient>();
         await using var provider = services.BuildServiceProvider();
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
         var html = await renderer.Dispatcher.InvokeAsync(async () =>
@@ -28,10 +30,18 @@ public sealed class AdminArtReviewTests
             {
                 ["SceneKey"] = "day1-phone-0617",
                 ["Versions"] = new Dictionary<string, int?> { ["bg-day1-bedroom-dark"] = 2 }
-            })); return result.ToHtmlString();
+            }));
+            return result.ToHtmlString();
         });
-        if (authorized) { Assert.Contains("Review artwork", html); Assert.Contains("/art/bg-day1-bedroom-dark/2/webp", html); Assert.Contains("Complete composition", html); Assert.Contains("Save critique", html); }
-        else Assert.DoesNotContain("Review artwork", html);
+        if (authorized)
+        {
+            Assert.Contains("Review artwork", html);
+            Assert.Contains("/art/bg-day1-bedroom-dark/2/webp", html);
+            Assert.Contains("Complete composition", html);
+            Assert.Contains("Save critique", html);
+        }
+        else
+            Assert.DoesNotContain("Review artwork", html);
     }
     private sealed class newState : AuthenticationStateProvider
     {

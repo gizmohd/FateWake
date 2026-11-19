@@ -8,6 +8,11 @@ public sealed class ArtWorkJobFactory(IWorkJobBuilder jobs) : IArtWorkJobFactory
 {
     /// <inheritdoc/>
     public Task<CreatedWorkJob> CreateAsync(ArtWorkRequest request, CancellationToken ct = default)
+        => CreateAsync(request, static (_, _) => Task.CompletedTask, ct);
+
+    /// <inheritdoc />
+    public Task<CreatedWorkJob> CreateAsync(ArtWorkRequest request,
+        Func<Guid, CancellationToken, Task> transactionWork, CancellationToken ct = default)
     {
         if (request.IsPrivate && request.AccountId is null)
             throw new ArgumentException("Private artwork requires an owning account.", nameof(request));
@@ -25,6 +30,6 @@ public sealed class ArtWorkJobFactory(IWorkJobBuilder jobs) : IArtWorkJobFactory
         var idempotencyKey = request.IsPrivate
             ? $"{request.VisualFingerprint}:account:{request.AccountId:N}"
             : request.VisualFingerprint;
-        return jobs.CreateAsync(new("art.asset", idempotencyKey, input, steps, request.Priority), ct);
+        return jobs.CreateAsync(new("art.asset", idempotencyKey, input, steps, request.Priority), transactionWork, ct);
     }
 }

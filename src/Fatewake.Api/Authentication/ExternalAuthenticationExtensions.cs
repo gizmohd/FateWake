@@ -15,9 +15,11 @@ public static class ExternalAuthenticationExtensions
         foreach (var provider in new[] { "Google", "Microsoft" })
         {
             var section = configuration.GetSection("Authentication:" + provider);
-            if (!section.GetValue<bool>("Enabled")) continue;
+            if (!section.GetValue<bool>("Enabled"))
+                continue;
             var audience = section["ClientId"];
-            if (string.IsNullOrWhiteSpace(audience)) throw new InvalidOperationException($"{provider} requires ClientId.");
+            if (string.IsNullOrWhiteSpace(audience))
+                throw new InvalidOperationException($"{provider} requires ClientId.");
             var authority = Authority(provider, section["TenantId"]);
             authentication.AddJwtBearer(provider, options =>
             {
@@ -40,9 +42,11 @@ public static class ExternalAuthenticationExtensions
         if (provider is not ("Google" or "Microsoft") || !configuration.GetValue<bool>("Authentication:" + provider + ":Enabled"))
             return null;
         var authenticated = await context.AuthenticateAsync(provider);
-        if (!authenticated.Succeeded || authenticated.Principal is not { } user) return null;
+        if (!authenticated.Succeeded || authenticated.Principal is not { } user)
+            return null;
         var subject = user.FindFirstValue("sub");
-        if (string.IsNullOrWhiteSpace(subject)) return null;
+        if (string.IsNullOrWhiteSpace(subject))
+            return null;
         var email = user.FindFirstValue("email") ?? user.FindFirstValue("preferred_username");
         var verified = provider == "Google" && user.FindFirstValue("email_verified")?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
         return await accounts.ExternalAsync(new(provider, subject, email, verified, user.FindFirstValue("name"), null), ct);
@@ -50,9 +54,11 @@ public static class ExternalAuthenticationExtensions
 
     private static string Authority(string provider, string? tenant)
     {
-        if (provider == "Google") return "https://accounts.google.com";
+        if (provider == "Google")
+            return "https://accounts.google.com";
         tenant = string.IsNullOrWhiteSpace(tenant) || tenant == "consumers" ? "9188040d-6c67-4c5b-b112-36a304b66dad" : tenant;
-        if (!Guid.TryParse(tenant, out var tenantId)) throw new InvalidOperationException("Microsoft TenantId must be a tenant GUID or consumers.");
+        if (!Guid.TryParse(tenant, out var tenantId))
+            throw new InvalidOperationException("Microsoft TenantId must be a tenant GUID or consumers.");
         return $"https://login.microsoftonline.com/{tenantId}/v2.0";
     }
 }

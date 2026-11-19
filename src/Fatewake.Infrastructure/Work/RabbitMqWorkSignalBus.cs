@@ -32,7 +32,10 @@ public sealed class RabbitMqWorkSignalBus(IOptions<RabbitMqWorkOptions> options)
 
             await _channel.QueueDeclareAsync(queue, durable: true, exclusive: false, autoDelete: false, cancellationToken: ct);
             await _channel.QueueBindAsync(queue, options.Value.Exchange, queue, cancellationToken: ct);
-            var body = JsonSerializer.SerializeToUtf8Bytes(new { stepId });
+            var body = JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                stepId
+            });
             var props = new BasicProperties { Persistent = true, MessageId = stepId.ToString("N"), ContentType = "application/json" };
             await _channel.BasicPublishAsync(options.Value.Exchange, queue, false, props, body, ct);
         }
@@ -47,15 +50,20 @@ public sealed class RabbitMqWorkSignalBus(IOptions<RabbitMqWorkOptions> options)
     public async ValueTask DisposeAsync()
     {
         await _gate.WaitAsync();
-        try { await CloseAsync(); }
+        try
+        {
+            await CloseAsync();
+        }
         finally { _gate.Release(); }
         _gate.Dispose();
     }
 
     private async Task CloseAsync()
     {
-        if (_channel is not null) await _channel.DisposeAsync();
-        if (_connection is not null) await _connection.DisposeAsync();
+        if (_channel is not null)
+            await _channel.DisposeAsync();
+        if (_connection is not null)
+            await _connection.DisposeAsync();
         _channel = null;
         _connection = null;
     }

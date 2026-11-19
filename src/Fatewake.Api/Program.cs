@@ -97,6 +97,9 @@ builder.Services.AddOptions<EmailDeliveryOptions>().Bind(builder.Configuration.G
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("timeline-mutation", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 6, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     options.AddPolicy("local-auth", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
@@ -109,6 +112,8 @@ builder.Services.AddScoped<IResolutionStore, ResolutionStore>();
 builder.Services.AddScoped<Fatewake.Observability.IAiUsageRecorder, Fatewake.Infrastructure.Usage.AiUsageRecorder>();
 builder.Services.AddScoped<Fatewake.Infrastructure.Usage.AdminDashboardService>();
 builder.Services.AddScoped<ISessionStore, SessionStore>();
+builder.Services.AddScoped<TimelineStateStore>();
+builder.Services.AddScoped<TimelineBranchService>();
 builder.Services.AddScoped<StoryJournalService>();
 builder.Services.AddScoped<IRagIngestionService, RagIngestionService>();
 builder.Services.AddScoped<IRagStagingStore, RagStagingStore>();
@@ -138,6 +143,11 @@ builder.Services.AddSingleton<IWorkSignalBus, RabbitMqWorkSignalBus>();
 builder.Services.AddScoped<IWorkJobBuilder, WorkJobBuilder>();
 builder.Services.AddScoped<IArtWorkJobFactory, ArtWorkJobFactory>();
 builder.Services.AddSingleton<SceneArtCatalog>();
+builder.Services.AddScoped<ArtPromptJobFactory>();
+builder.Services.AddScoped<ISceneScheduler, SceneScheduler>();
+builder.Services.AddScoped<IStoryPlayService, StoryPlayService>();
+builder.Services.AddScoped<SceneArtPromptService>();
+builder.Services.AddScoped<ArtPromptSeedImporter>();
 builder.Services.AddKeyedSingleton<IArtImageProcessor, SkiaSharpArtImageProcessor>("skia");
 builder.Services.AddSingleton<IArtImageProcessor, SkiaSharpArtImageProcessor>();
 builder.Services.AddSingleton<IIntentInterpreter, BaselineIntentInterpreter>();
@@ -148,15 +158,31 @@ var app = builder.Build();
 app.Use(async (context, next) =>
 {
     using var operation = OperationTelemetry.Start("api.request");
-    try { await next(context); }
+    try
+    {
+        await next(context);
+    }
     catch (Exception ex) when ((context.Request.Path.StartsWithSegments("/api/auth") || context.Request.Path == "/connect/authorize") &&
         (ex is System.Net.Mail.SmtpException or IOException))
     {
         operation.Fail(ex);
         app.Logger.LogError(ex, "Email delivery or storage operation failed");
-        if (context.Response.HasStarted) throw;
+        if (context.Response.HasStarted)
+            throw;
         context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
-        await context.Response.WriteAsJsonAsync(new { error = "Email delivery is unavailable. Please retry or request another verification email." });
+        await context.Response.WriteAsJsonAsync(new
+        {
+            error = "Email delivery is unavailable. Please retry or request another verification email."
+        });
+    }
+    catch (TimelineConflictException ex)
+    {
+        app.Logger.LogWarning("Timeline operation rejected because its state or prerequisites changed");
+        context.Response.StatusCode = StatusCodes.Status409Conflict;
+        await context.Response.WriteAsJsonAsync(new
+        {
+            error = ex.Message
+        });
     }
     catch (Exception ex) { operation.Fail(ex); throw; }
 });
@@ -167,6 +193,7 @@ app.UseRateLimiter();
 app.MapSceneArt();
 app.MapArtReviews();
 app.MapStory();
+app.MapTimelines();
 app.MapAdminDashboard();
 app.MapRagAdmin();
 app.MapOpenIddict();
@@ -177,6 +204,7 @@ await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<FatewakeDbContext>();
     await DatabaseInitializer.InitializeAsync(db);
+    await scope.ServiceProvider.GetRequiredService<ArtPromptSeedImporter>().InitializeAsync();
     await OpenIddictEndpoints.SeedAsync(scope.ServiceProvider, app.Configuration);
     if (string.Equals(artStorage.Provider, "Postgres", StringComparison.OrdinalIgnoreCase))
         await scope.ServiceProvider.GetRequiredService<ArtBinaryBackfillService>().BackfillAsync();
@@ -184,32 +212,50 @@ await using (var scope = app.Services.CreateAsyncScope())
 
 app.MapGet("/health", async (FatewakeDbContext db, CancellationToken ct) =>
     await db.Database.CanConnectAsync(ct)
-        ? Results.Ok(new { status = "ok" })
+        ? Results.Ok(new
+        {
+            status = "ok"
+        })
         : Results.StatusCode(StatusCodes.Status503ServiceUnavailable));
 
 app.MapPost("/api/auth/register", async (LocalRegistrationRequest request, LocalAccountService accounts, CancellationToken ct) =>
 {
     var result = await accounts.RegisterAsync(request.Email, request.Password, ct,
         new(request.FirstName, request.LastName, request.City, request.State));
-    return result.VerificationRequired ? Results.Accepted(value: new { verificationRequired = true })
-        : result.AccountId is not null ? Results.NoContent() : Results.BadRequest(new { error = result.Error });
+    return result.VerificationRequired ? Results.Accepted(value: new
+    {
+        verificationRequired = true
+    })
+        : result.AccountId is not null ? Results.NoContent() : Results.BadRequest(new
+        {
+            error = result.Error
+        });
 }).RequireRateLimiting("local-auth");
 
 app.MapPut("/api/auth/profile", async (AccountProfileDetails request, ClaimsPrincipal user, AccountProfileService profiles, CancellationToken ct) =>
 {
     var error = await profiles.CompleteAsync(AccountId(user)!.Value, request, ct);
-    return error is null ? Results.NoContent() : Results.BadRequest(new { error });
+    return error is null ? Results.NoContent() : Results.BadRequest(new
+    {
+        error
+    });
 }).RequireAuthorization().RequireRateLimiting("local-auth");
 
 app.MapPost("/api/auth/resend-verification", async (EmailRequest request, VerifiedAccountService verification, CancellationToken ct) =>
 {
     await verification.ResendAsync(request.Email, ct);
-    return Results.Accepted(value: new { message = "If verification is needed, an email has been sent." });
+    return Results.Accepted(value: new
+    {
+        message = "If verification is needed, an email has been sent."
+    });
 }).RequireRateLimiting("local-auth");
 app.MapPost("/api/auth/set-password", async (PasswordRequest request, ClaimsPrincipal user, LocalAccountService accounts, CancellationToken ct) =>
 {
     var result = await accounts.SetPasswordAsync(AccountId(user)!.Value, request.Password, ct);
-    return result.AccountId is null ? Results.BadRequest(new { error = result.Error }) : Results.Ok();
+    return result.AccountId is null ? Results.BadRequest(new
+    {
+        error = result.Error
+    }) : Results.Ok();
 }).RequireAuthorization().RequireRateLimiting("local-auth");
 app.MapGet("/api/auth/me", async (ClaimsPrincipal user, FatewakeDbContext db, CancellationToken ct) =>
 {
@@ -235,12 +281,12 @@ app.MapPost("/api/session/start", async (
     FatewakeDbContext db,
     CancellationToken ct) =>
 {
-    if (InvalidBearer(context)) return Results.Unauthorized();
+    if (InvalidBearer(context))
+        return Results.Unauthorized();
     var accountId = AccountId(user);
     if (request.SurvivorId is { } survivorId && !await CanAccess(db, survivorId, accountId, ct))
         return Results.NotFound();
     var state = await sessions.StartOrResumeAsync(request.SurvivorId, request.BroadRegion ?? "unknown", ct, accountId);
-    await story.RecordProgressAsync(state, ct);
     return Results.Ok(state);
 });
 
@@ -253,10 +299,11 @@ app.MapPost("/api/session/progress", async (
     FatewakeDbContext db,
     CancellationToken ct) =>
 {
-    if (InvalidBearer(context)) return Results.Unauthorized();
-    if (!await CanAccess(db, request.SurvivorId, AccountId(user), ct)) return Results.NotFound();
+    if (InvalidBearer(context))
+        return Results.Unauthorized();
+    if (!await CanAccess(db, request.SurvivorId, AccountId(user), ct))
+        return Results.NotFound();
     var state = await sessions.SavePresentationProgressAsync(request.SurvivorId, request.EventInstanceId, request.SceneKey, request.BeatKey, ct);
-    if (state is not null) await story.RecordProgressAsync(state, ct);
     return state is null ? Results.NotFound() : Results.Ok(state);
 });
 
@@ -271,10 +318,11 @@ if (app.Environment.IsDevelopment())
         FatewakeDbContext db,
         CancellationToken ct) =>
     {
-        if (InvalidBearer(context)) return Results.Unauthorized();
-        if (!await CanAccess(db, request.SurvivorId, AccountId(user), ct)) return Results.NotFound();
+        if (InvalidBearer(context))
+            return Results.Unauthorized();
+        if (!await CanAccess(db, request.SurvivorId, AccountId(user), ct))
+            return Results.NotFound();
         var state = await sessions.ResetChapterAsync(request.SurvivorId, request.EventInstanceId, ct);
-        if (state is not null) await story.RecordProgressAsync(state, ct);
         return state is null ? Results.NotFound() : Results.Ok(state);
     });
 }
@@ -290,16 +338,14 @@ app.MapPost("/api/day1/resolve", async (
     FatewakeDbContext db,
     CancellationToken ct) =>
 {
-    if (InvalidBearer(context)) return Results.Unauthorized();
+    if (InvalidBearer(context))
+        return Results.Unauthorized();
     if (!await CanAccess(db, request.SurvivorId, AccountId(user), ct) ||
         !await db.EventInstances.AnyAsync(x => x.Id == request.EventInstanceId && x.SurvivorId == request.SurvivorId &&
-            x.TimelineId == request.TimelineId, ct)) return Results.NotFound();
-    var state = new GameSnapshot(
-        request.SurvivorId,
-        request.TimelineId,
-        1,
-        "day-001-injured-stranger",
-        new Dictionary<string, string>());
+            x.TimelineId == request.TimelineId, ct))
+        return Results.NotFound();
+    var state = await new TimelineStateStore(db).LoadAsync(
+        request.SurvivorId, request.TimelineId, request.EventInstanceId, ct);
 
     var action = request.Action.ActionType == "freeform" &&
                  !string.IsNullOrWhiteSpace(request.Action.RawInput)
@@ -319,7 +365,6 @@ app.MapPost("/api/day1/resolve", async (
             action,
             resolution,
             ct);
-        await story.RecordOutcomeAsync(request.SurvivorId, request.EventInstanceId, resolution, ct);
     }
 
     return Results.Ok(resolution);
@@ -343,7 +388,8 @@ static RsaSecurityKey ReadOpenIddictKey(IConfiguration configuration, string nam
         throw new InvalidOperationException($"{name} requires an RSA private key in PEM format.");
     using var rsa = RSA.Create();
     rsa.ImportFromPem(pem);
-    if (rsa.KeySize < 2048) throw new InvalidOperationException($"{name} must be at least 2048 bits.");
+    if (rsa.KeySize < 2048)
+        throw new InvalidOperationException($"{name} must be at least 2048 bits.");
     return new RsaSecurityKey(rsa.ExportParameters(includePrivateParameters: true));
 }
 

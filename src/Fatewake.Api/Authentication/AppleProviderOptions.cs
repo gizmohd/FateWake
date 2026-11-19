@@ -5,11 +5,20 @@ namespace Fatewake.Api.Authentication;
 public sealed class AppleProviderOptions : ProviderOptions
 {
     /// <summary>Apple developer team identifier.</summary>
-    public string? TeamId { get; init; }
+    public string? TeamId
+    {
+        get; init;
+    }
 
     /// <summary>Apple sign-in key identifier.</summary>
-    public string? KeyId { get; init; }
+    public string? KeyId
+    {
+        get; init;
+    }
 
     /// <summary>Private signing key material supplied through secure configuration.</summary>
-    public string? PrivateKey { get; init; }
+    public string? PrivateKey
+    {
+        get; init;
+    }
 }

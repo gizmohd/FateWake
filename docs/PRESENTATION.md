@@ -1,9 +1,33 @@
-# Fatewake Presentation System
+# Pathweaver Presentation System
 
-## Direction
-Fatewake retains an interactive graphic-novel / restrained motion-comic structure, not a text-adventure form. The current target rendering is **high-color 32-bit-era 2D adventure art with a 1990s console/VGA-style interface**. See [Retro Presentation and Local Narrative AI Requirements](RETRO-AI-REQUIREMENTS.md) for resolution, mobile layout, portraits, accessibility, and acceptance criteria. This supersedes the earlier 16-bit pixel-art direction. Existing approved assets remain versioned legacy content; apply the new style to new assets and explicit versioned replacements rather than silently mixing styles or overwriting history. This direction is not yet fully implemented.
+## Brand identity
 
-Scene artwork and portraits follow the bright, richly saturated console-adventure direction in [the Style Bible](../art/STYLE-BIBLE.md), with strong readable color/value contrast, fine detail and scene-appropriate colorful shadows. Its shared runtime style sections are authoritative; UI tokens do not restrict the artwork's palette. Canonical dark clothing, neutral objects and low-light scenes remain valid without globally desaturating the image.
+| Element | Public identity |
+| --- | --- |
+| Game | Pathweaver |
+| Domain | thepathweaver.com |
+| Franchise | The Wayfinder Universe |
+| Credit | From the universe of The Wayfinder's Heir |
+| Tagline | Every choice shapes reality. |
+| Genre | Episodic science-fiction narrative adventure |
+| Visual brief | 16-bit cinematic pixel art |
+| Core mechanic | Player-driven branching realities |
+| Players | Pathweavers |
+| Daily episodes | Chapters |
+| Major arcs | Acts |
+| Alternate timelines | Threads |
+| Convergence events | Convergences |
+
+Brand introduction: **There are those who find the path. And those who weave it.**
+
+Public copy follows this terminology. Existing `Fatewake` project names, `survivor`/`timeline` storage and transport identifiers, OAuth registrations, browser storage and configured service URLs remain compatibility identifiers, not public branding. Do not silently change callback URLs to the marketing domain.
+
+The new visual brief is a branding direction, not permission to quantize, rescale or overwrite existing images. The current runtime Style Bible remains the explicit generation contract until separately revised; immutable high-resolution masters, validated WebP/optimized PNG derivatives, required alpha and 640x360 logical backgrounds remain mandatory. No bulk image regeneration is part of the site rebrand.
+
+## Current runtime artwork contract
+Pathweaver retains an interactive graphic-novel / restrained motion-comic structure, not a text-adventure form. The existing generation contract uses **high-color 32-bit-era 2D adventure art with a 1990s console/VGA-style interface**; the brand brief above records the newly requested cinematic pixel-art direction without pretending the existing pipeline or approved library has already changed. See [Retro Presentation and Local Narrative AI Requirements](RETRO-AI-REQUIREMENTS.md) for resolution, mobile layout, portraits, accessibility, and acceptance criteria. Existing approved assets remain versioned content; style replacements must be explicit, not silent history rewrites.
+
+Scene artwork and portraits follow the chunky pixel-art, neon-twilight direction in [the Style Bible](../art/STYLE-BIBLE.md) (v4), matching the game-screen mockup. Its shared runtime style sections are authoritative; canonical clothing, neutral objects and low-light scenes keep readable color separation within the palette.
 
 Gameplay authority remains outside presentation:
 **Canonical State → Scene Projection → Panels/Beats → Player Interaction → CandidateAction → GameEngine**
@@ -11,7 +35,7 @@ Gameplay authority remains outside presentation:
 Artwork, animation, dialogue placement and prose never determine canonical outcomes.
 
 ## Hierarchy
-- **Episode** — playable survivor-day narrative unit.
+- **Chapter** — playable Pathweaver-day narrative unit (the technical episode identifier remains unchanged).
 - **Scene** — location/time dramatic unit.
 - **Panel** — visual composition within a scene.
 - **Beat** — timed/revealed presentation moment within a panel.
@@ -52,11 +76,11 @@ The Day 1 6:17 opening is the reference implementation for Fatewake's visual lan
 
 
 ## Placeholder Prompt Contract
-Every application artwork placeholder must use a stable `ArtworkKey`. Before or with introduction of a new key, add `art/prompts/{ArtworkKey}.md`.
+Every application artwork placeholder must use a stable, server-allowlisted `ArtworkKey`. Seed established authored prompts in `art/prompt-seeds/`; operational prompt revisions are stored in PostgreSQL, and a valid missing prompt follows the durable generate-on-miss path rather than reading a local Markdown file.
 
-A prompt file is incomplete unless it:
+A prompt revision is incomplete unless its server-owned context:
 - references the current Style Bible;
-- references every recurring character/location continuity sheet visible in the panel;
+- includes every recurring character/location continuity sheet visible in the panel;
 - states narrative purpose and known story state;
 - defines composition/crop safe areas;
 - identifies details the player must not learn yet;
@@ -65,9 +89,9 @@ A prompt file is incomplete unless it:
 When an image becomes approved, future panels featuring the same character/location should use that approved image as a visual reference when supported. Text prompts alone are not sufficient for long-term identity continuity.
 
 ### Art asset metadata
-Production assets should eventually record:
+Production assets record:
 - artwork key
-- prompt version
+- exact resolved positive/negative prompt and SQL revision when provenance is available
 - Style Bible version
 - referenced character/location versions
 - generation provider/model
@@ -76,7 +100,7 @@ Production assets should eventually record:
 - continuity notes
 - created timestamp
 
-This metadata belongs to presentation provenance, not canonical game state.
+This metadata belongs to presentation provenance, not canonical game state. Historic generations with no recorded prompt provenance are shown as unavailable rather than reconstructed.
 
 
 ## Implemented vertical-slice runtime

@@ -9,7 +9,7 @@
 
 <main class="rag-admin">
     <header>
-        <div class="eyebrow">FATEWAKE · ADMINISTRATION</div>
+        <div class="eyebrow">PATHWEAVER · ADMINISTRATION</div>
         <h1>RAG corpus</h1>
         <p>Upload approved source documents for scene and dialogue context retrieval.</p>
     </header>
@@ -27,7 +27,7 @@
                     <InputFile OnChange="SelectFile" disabled="@_uploading" accept=".txt,.md,.json,.csv,.xml,.yaml,.yml,.html,.htm,.pdf,.docx" />
                 </label>
                 <label>Source key
-                    <input @bind="_sourceKey" maxlength="200" placeholder="wayfinder-manuscript-v1" />
+                    <input value="@_sourceKey" @onchange="SourceKeyChanged" maxlength="200" placeholder="wayfinder-manuscript-v1" />
                 </label>
                 <label>Source type
                     <select @bind="_sourceType">
@@ -40,7 +40,7 @@
                     </select>
                 </label>
                 <label>Title
-                    <input @bind="_title" maxlength="300" placeholder="The Wayfinder Legacy — Volume One" />
+                    <input value="@_title" @oninput="TitleChanged" maxlength="300" placeholder="The Wayfinder Legacy — Volume One" />
                 </label>
                 <label>License status
                     <select @bind="_licenseStatus">
@@ -64,7 +64,7 @@
                     </select>
                 </label>
                 <label>Timeline key
-                    <input @bind="_timelineKey" maxlength="100" placeholder="wayfinder-core" />
+                    <input value="@_timelineKey" @onchange="TimelineKeyChanged" maxlength="100" placeholder="wayfinder-core" />
                 </label>
                 <label>Spoiler series
                     <input type="number" min="1" max="20" @bind="_spoilerSeries" />
@@ -179,6 +179,28 @@
     private string _reviewStatus = "PendingReview";
     private string _visibility = "Internal";
     private string _timelineKey = "";
+    private bool _sourceKeyEdited, _timelineKeyEdited;
+
+    private void TitleChanged(ChangeEventArgs args)
+    {
+        _title = args.Value?.ToString() ?? "";
+        if (!_sourceKeyEdited)
+            _sourceKey = RagKeySlug.FromTitle(_title, 200);
+        if (!_timelineKeyEdited)
+            _timelineKey = RagKeySlug.FromTitle(_title, 100);
+    }
+
+    private void SourceKeyChanged(ChangeEventArgs args)
+    {
+        _sourceKey = args.Value?.ToString() ?? "";
+        _sourceKeyEdited = _sourceKey.Length > 0;
+    }
+
+    private void TimelineKeyChanged(ChangeEventArgs args)
+    {
+        _timelineKey = args.Value?.ToString() ?? "";
+        _timelineKeyEdited = _timelineKey.Length > 0;
+    }
     private int? _spoilerSeries;
     private IBrowserFile? _file;
     private string? _message;

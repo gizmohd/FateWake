@@ -2,12 +2,18 @@
 @using System.Net.Http.Json
 @using Fatewake.Web.Components.Presentation
 @using Fatewake.Web.Presentation
+@using Microsoft.AspNetCore.Components.Authorization
 @inject Fatewake.Web.Authentication.AuthenticatedApiClient ApiClient
 @inject ILogger<Novel> Logger
-<PageTitle>Your story — Fatewake</PageTitle>
+<PageTitle>Your story — @BrandIdentity.GameName</PageTitle>
 <main class="novel">
-    <nav><a href="/play">Continue your story</a></nav>
-    <header><div class="eyebrow">FATEWAKE · THE STORY SO FAR</div><h1>Your story</h1><p>Every remembered moment, in the order it happened.</p></header>
+    <nav>
+        <a href="/play">Continue your story</a>
+        <AuthorizeView>
+            <Authorized><a href="/timelines/@SurvivorId">Your Threads</a></Authorized>
+        </AuthorizeView>
+    </nav>
+    <header><div class="eyebrow">PATHWEAVER · THE STORY SO FAR</div><h1>Your story</h1><p>Every remembered moment, in the order it happened.</p></header>
     @if (_error is not null) { <p role="alert">@_error</p> }
     else if (_panels is null) { <p role="status">Opening your story…</p> }
     else if (_panels.Length == 0) { <p>Your story has no recorded panels yet. Continue playing to begin.</p> }
@@ -16,7 +22,7 @@
         @if (_panels.Any(x => x.Reconstructed)) { <p class="archive-note">Earlier pages were recovered from your saved progress. Their artwork reflects the versions available when this journal began.</p> }
         @foreach (var chapter in NovelPage.Arrange(_panels).GroupBy(x => x.SurvivorDay))
         {
-            <section aria-label="Survivor day @chapter.Key"><h2>Survivor day @chapter.Key</h2><div class="pages">
+            <section aria-label="Chapter @chapter.Key"><h2>Chapter @chapter.Key</h2><div class="pages">
                 @foreach (var page in chapter) { <NovelPageView @key="page.Panels[0].Id" Page="page" /> }
             </div></section>
         }

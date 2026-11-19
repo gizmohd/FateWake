@@ -8,7 +8,12 @@ public static class TrackedAiCall
     {
         var id = recorder is null ? (Guid?)null : await recorder.BeginAsync(context, ct);
         var outcome = "failed";
-        try { var result = await operation(id); outcome = "succeeded"; return result; }
+        try
+        {
+            var result = await operation(id);
+            outcome = "succeeded";
+            return result;
+        }
         catch (OperationCanceledException) { outcome = ct.IsCancellationRequested ? "cancelled" : "timed_out"; throw; }
         finally
         {

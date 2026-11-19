@@ -39,7 +39,8 @@ public sealed class ArtRegenerationWorker(
     private async Task<bool> IsComfyAvailableAsync(CancellationToken ct)
     {
         var options = comfyOptions.Value;
-        if (!options.Enabled) return false;
+        if (!options.Enabled)
+            return false;
         using var client = httpClientFactory.CreateClient("art.comfyui.health");
         client.BaseAddress = new Uri(options.BaseUrl);
         if (!string.IsNullOrWhiteSpace(options.ApiKey))
@@ -63,7 +64,8 @@ public sealed class ArtRegenerationWorker(
         foreach (var item in pending)
         {
             var request = JsonSerializer.Deserialize<ArtWorkRequest>(item.RequestJson);
-            if (request is null) continue;
+            if (request is null)
+                continue;
             var regenerationRequest = request with
             {
                 Provider = "ComfyUI",

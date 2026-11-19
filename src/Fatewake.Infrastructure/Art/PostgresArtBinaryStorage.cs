@@ -76,7 +76,8 @@ public sealed class PostgresArtBinaryStorage(
                 .Where(x => x.StorageKey == storageKey)
                 .Select(x => x.Bytes)
                 .SingleOrDefaultAsync(ct);
-            if (bytes is not null) return new MemoryStream(bytes, writable: false);
+            if (bytes is not null)
+                return new MemoryStream(bytes, writable: false);
             if (legacyStorage is null || !await legacyStorage.ExistsAsync(storageKey, ct))
                 throw new FileNotFoundException("Artwork binary was not found in PostgreSQL or the configured legacy store.", storageKey);
 
@@ -100,7 +101,8 @@ public sealed class PostgresArtBinaryStorage(
         using var operation = OperationTelemetry.Start("art.binary.exists", log);
         try
         {
-            if (await db.ArtBinaries.AsNoTracking().AnyAsync(x => x.StorageKey == storageKey, ct)) return true;
+            if (await db.ArtBinaries.AsNoTracking().AnyAsync(x => x.StorageKey == storageKey, ct))
+                return true;
             return legacyStorage is not null && await legacyStorage.ExistsAsync(storageKey, ct);
         }
         catch (Exception ex)

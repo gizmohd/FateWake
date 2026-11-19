@@ -11,12 +11,16 @@ public sealed class WorkExecutionOptions
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>Gets configurable concurrent worker slots per logical queue for each process or pod.</summary>
-    public Dictionary<string, int> QueueConcurrency { get; set; } = new(StringComparer.OrdinalIgnoreCase)
+    public Dictionary<string, int> QueueConcurrency
+    {
+        get; set;
+    } = new(StringComparer.OrdinalIgnoreCase)
     {
         ["art.generate"] = 1,
         ["art.encode"] = 2,
         ["art.validate"] = 2,
         ["art.finalize"] = 1,
+        ["art.prompt-author"] = 1,
         ["rag.import"] = 1,
         ["narrative.render"] = 2,
         ["maintenance"] = 1

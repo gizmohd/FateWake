@@ -11,14 +11,17 @@ public sealed class AdminRoleClaimsTransformation(FatewakeDbContext db, IConfigu
     public async Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
     {
         if (principal.Identity?.IsAuthenticated != true ||
-            !Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var account)) return principal;
+            !Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var account))
+            return principal;
         var access = await CanonicalAccountAccess.FindAsync(db, account);
-        if (access is null || !OpenIddictEndpoints.MatchesEpoch(principal, access.Epoch)) return new ClaimsPrincipal(new ClaimsIdentity());
+        if (access is null || !OpenIddictEndpoints.MatchesEpoch(principal, access.Epoch))
+            return new ClaimsPrincipal(new ClaimsIdentity());
         var role = principal.FindFirstValue(OpenIddictEndpoints.ClientClaim) is { } client &&
             client != (configuration?["OpenIddictWeb:ClientId"] ?? "fatewake-web") ? "User" : access.Role;
         var copy = principal.Clone();
         foreach (var identity in copy.Identities)
-            foreach (var claim in identity.FindAll(identity.RoleClaimType).ToArray()) identity.RemoveClaim(claim);
+            foreach (var claim in identity.FindAll(identity.RoleClaimType).ToArray())
+                identity.RemoveClaim(claim);
         var authenticated = copy.Identities.First(x => x.IsAuthenticated);
         authenticated.AddClaim(new Claim(authenticated.RoleClaimType, role));
         return copy;

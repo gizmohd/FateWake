@@ -24,7 +24,8 @@ public sealed class NovelPanelTests
     [Fact]
     public async Task Reader_renders_saved_art_and_cutscene_without_generation_services()
     {
-        var services = new ServiceCollection(); services.AddLogging();
+        var services = new ServiceCollection();
+        services.AddLogging();
         await using var provider = services.BuildServiceProvider();
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
         var panel = new NovelPanel(Guid.NewGuid(), 1, 1, "cutscene", "A turn of fate", null, "The group reaches shelter.", null, null,
@@ -34,9 +35,11 @@ public sealed class NovelPanelTests
             var result = await renderer.RenderComponentAsync<NovelPanelView>(ParameterView.FromDictionary(new Dictionary<string, object?> { ["Panel"] = panel }));
             return result.ToHtmlString();
         });
-        Assert.Contains("A TURN OF FATE", html); Assert.Contains("The group reaches shelter.", html);
+        Assert.Contains("A TURN OF FATE", html);
+        Assert.Contains("The group reaches shelter.", html);
         Assert.Contains("/art/bg-day1-bedroom-dark/7/png", html);
-        Assert.DoesNotContain("button", html); Assert.DoesNotContain("Preparing artwork", html);
+        Assert.DoesNotContain("button", html);
+        Assert.DoesNotContain("Preparing artwork", html);
         var toast = await renderer.Dispatcher.InvokeAsync(async () =>
         {
             var result = await renderer.RenderComponentAsync<StoryToastView>(ParameterView.FromDictionary(new Dictionary<string, object?>
@@ -45,7 +48,10 @@ public sealed class NovelPanelTests
             }));
             return result.ToHtmlString();
         });
-        Assert.Contains("role=\"status\"", toast); Assert.Contains("Your story is clearer", toast);
-        Assert.Contains("Read the story", toast); Assert.Contains("Dismiss", toast); Assert.Contains("unlocked the gate", toast);
+        Assert.Contains("role=\"status\"", toast);
+        Assert.Contains("Your story is clearer", toast);
+        Assert.Contains("Read the story", toast);
+        Assert.Contains("Dismiss", toast);
+        Assert.Contains("unlocked the gate", toast);
     }
 }

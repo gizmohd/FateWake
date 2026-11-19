@@ -11,7 +11,8 @@ public static class ComfyUiResource
     public static IResourceBuilder<ExecutableResource>? AddLocalComfyUi(this IDistributedApplicationBuilder builder)
     {
         var section = builder.Configuration.GetSection("ComfyUIHost");
-        if (!section.GetValue<bool>("Enabled")) return null;
+        if (!section.GetValue<bool>("Enabled"))
+            return null;
         var executable = section["PythonExecutable"];
         var directory = section["WorkingDirectory"];
         var port = section.GetValue<int>("Port", 8188);

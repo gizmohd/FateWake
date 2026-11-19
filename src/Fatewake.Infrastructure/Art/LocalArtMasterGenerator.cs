@@ -18,17 +18,31 @@ public sealed class LocalArtMasterGenerator(HttpClient http, IOptions<LocalArtGe
     private async Task<GeneratedArtMaster> GenerateCoreAsync(ArtGenerationInvocation invocation, Guid? usageId, CancellationToken ct)
     {
         using var operation = OperationTelemetry.Start("art.generate.local", log);
-        var o = options.Value; if (!o.Enabled) throw new InvalidOperationException("Local art generation is not enabled.");
+        var o = options.Value;
+        if (!o.Enabled)
+            throw new InvalidOperationException("Local art generation is not enabled.");
         using var req = new HttpRequestMessage(HttpMethod.Post, "images/generations");
-        if (!string.IsNullOrWhiteSpace(o.ApiKey)) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", o.ApiKey);
+        if (!string.IsNullOrWhiteSpace(o.ApiKey))
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", o.ApiKey);
         req.Headers.TryAddWithoutValidation("Idempotency-Key", invocation.IdempotencyKey);
         var prompt = string.IsNullOrWhiteSpace(invocation.Request.NegativeInstructions) ? invocation.Request.ResolvedPrompt : $"{invocation.Request.ResolvedPrompt}\n\nAvoid: {invocation.Request.NegativeInstructions}";
-        req.Content = JsonContent.Create(new { model = string.IsNullOrWhiteSpace(invocation.Request.Model) ? o.Model : invocation.Request.Model, prompt, size = o.Size, quality = o.Quality, response_format = "b64_json" });
-        using var res = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct); var body = await res.Content.ReadAsStringAsync(ct);
+        req.Content = JsonContent.Create(new
+        {
+            model = string.IsNullOrWhiteSpace(invocation.Request.Model) ? o.Model : invocation.Request.Model,
+            prompt,
+            size = o.Size,
+            quality = o.Quality,
+            response_format = "b64_json"
+        });
+        using var res = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+        var body = await res.Content.ReadAsStringAsync(ct);
         var usageRequestId = res.Headers.TryGetValues("x-request-id", out var usageIds) ? usageIds.FirstOrDefault() : null;
-        if (usageId is { } tracked) await usage!.ReportAsync(tracked, AiProviderUsage.Parse(body, usageRequestId), ct);
-        if (!res.IsSuccessStatusCode) throw new HttpRequestException($"Local image generation failed ({(int)res.StatusCode}).", null, res.StatusCode);
-        using var json = JsonDocument.Parse(body); var first = json.RootElement.GetProperty("data")[0];
+        if (usageId is { } tracked)
+            await usage!.ReportAsync(tracked, AiProviderUsage.Parse(body, usageRequestId), ct);
+        if (!res.IsSuccessStatusCode)
+            throw new HttpRequestException($"Local image generation failed ({(int)res.StatusCode}).", null, res.StatusCode);
+        using var json = JsonDocument.Parse(body);
+        var first = json.RootElement.GetProperty("data")[0];
         var b64 = first.GetProperty("b64_json").GetString() ?? throw new InvalidDataException("Local endpoint returned empty image data.");
         var id = res.Headers.TryGetValues("x-request-id", out var ids) ? ids.FirstOrDefault() : null;
         return new GeneratedArtMaster(Convert.FromBase64String(b64), id, null);

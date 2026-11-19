@@ -1,25 +1,26 @@
-# Fatewake Visual Style Bible — v3
+# Fatewake Visual Style Bible — v4
 
 ## Core look
-A late-1990s console adventure with bright, richly saturated high-color 32-bit-era 2D raster art and a framed, controller-menu feel. Think cinematic illustrated scene, expressive portrait beside the dialogue, and a short list of choices. Strong color and value contrast belong in the artwork as well as the interface. Keep the interactive graphic-novel pacing. “32-bit” describes the period and rendering style. Deliver RGB or RGBA according to the asset's role.
+Chunky, hand-placed 16-bit-style pixel art in a neon-twilight palette, matching the Fatewake console interface: deep indigo and violet shadows, magenta and coral sunset glow, cyan and electric-blue highlights, and warm rim light on characters. Think a cinematic pixel-art scene with a clear focal point, an expressive pixel portrait beside the dialogue, and a short list of choices. The artwork and the interface share one retro-console identity. Keep the interactive graphic-novel pacing. Deliver RGB or RGBA according to the asset's role.
 
-The [shared concept boards](https://chatgpt.com/share/6afe27f5-593c-83ea-8b70-9f7af7741503) establish the slanted wordmark, violet frames, cyan selection bar, portrait-led dialogue and numbered actions. Apply the selected high-color treatment in [Retro Presentation and Local Narrative AI Requirements](../docs/RETRO-AI-REQUIREMENTS.md) to the artwork. Use the [shared `/play` shell](../src/Fatewake.Web/Components/SiteShell.razor) as the site layout reference. The boards' orbital locations and characters are interface mockup content. Season One opens in recognizable suburban America.
+The reference frame is the Fatewake game-screen mockup: a wide pixel-art scene (a character seen from behind looking over a glowing dusk landscape, large ringed or banded planet and stars, layered silhouettes with a violet-to-magenta-to-orange horizon), a square pixel portrait with a dark outline, and violet-framed panels with a cyan selection bar. Use the [shared `/play` shell](../src/Fatewake.Web/Components/SiteShell.razor) as the layout reference. The mockup's space-station setting, locations and characters are interface mockup content: Season One opens in recognizable suburban America, rendered in this pixel-art style and palette.
 
 ## Scene art and portraits
 
-- Use confidently stylized, hand-illustrated forms, fine raster texture, nuanced gradients and crisp silhouettes. Build scenes from distinct foreground, subject and background color/value groups. Give each scene a clear focal point and keep fine detail away from important silhouettes.
-- Shade with layered, directional light, colorful shadows and readable shadow detail. Use believable skin tones and recognizable cloth, glass and painted surfaces without photographic rendering. Aim for an illustration that reads at console-scale and still holds up at delivery size.
-- Use realistic anatomy and restrained expressions. Keep approved portrait families in a consistent square crop and scale, with a legible face at small sizes. Target 128×128 or 192×192 logical pixels. Change expressions as the scene calls for them. Wardrobe or injury variants follow recorded story state.
-- Generate reusable environments, characters, props and lighting layers with matching perspective, scale and light direction. Leave clean alpha edges on transparent layers and preserve negative space for other layers and the interface.
+- Use visible, deliberate pixel art: crisp square pixels, a consistent pixel size across the whole image, hard clean edges with no anti-aliased blur, selective dark outlines or contrast edges on characters, and limited-palette ramps with ordered dithering for skies and gradients. Do not mix pixel sizes or add smooth vector or painterly areas.
+- Build scenes from distinct foreground, subject and background layers: dark foreground silhouettes, a mid-ground subject, and a glowing background. Give each scene a clear focal point, strong value contrast, and keep fine detail away from important silhouettes.
+- Light with a strong dominant source and colored rim light, with violet and indigo shadows against warm coral, amber or magenta glow, plus cool cyan accents. Keep skin tones believable and readable under this lighting; clothing keeps its canonical colors, shaded toward blue and violet.
+- Use realistic proportions with restrained expressions, simplified into pixel form. Keep approved portrait families in a consistent square crop and scale with a legible face at small sizes and a dark pixel frame. Target 128×128 or 192×192 logical pixels per portrait. Change expressions as the scene calls for them. Wardrobe or injury variants follow recorded story state.
+- Generate reusable environments, characters, props and lighting layers with matching perspective, pixel size, scale and light direction. Leave clean, hard alpha edges on transparent layers and preserve negative space for other layers and the interface.
 
 ## Palette
 
-**In-world art.** Use a vivid, varied console-adventure palette with deliberately saturated local colors and strong, readable warm/cool contrast. This is not a globally muted, gray, charcoal or desaturated treatment.
+**In-world art.** Use a limited, saturated neon-twilight palette: indigo, violet and deep purple for shadow and sky; magenta, rose and coral for glow; cyan, electric blue and teal for highlights and cool accents; warm amber for practical light. Each image should read as a handful of cohesive color ramps, not a photographic spectrum.
 
-- Give vegetation, painted surfaces, skies and ordinary household objects distinct illustrated colors. Rich greens, blues, warm ambers and other scene-appropriate hues should remain legible instead of collapsing into a shared neutral wash.
-- Use colored shadow planes and reflected light: blue/violet shadows against warm light are useful when the scene supports them. Preserve tonal transitions and material detail; avoid crushed blacks, clipped highlights and fluorescent overexposure.
-- Neutral walls, asphalt and canonical dark clothing are valid object colors, not a rule to desaturate the whole scene. Preserve approved skin tones, clothing colors and location references. Do not recolor every object to match the interface.
-- Follow recorded time, weather and light sources. Dawn can use clear cool blue against warm amber; interiors and night scenes retain appropriate darkness with readable color separation. Strong saturation does not imply midday brightness, powered lights during an outage, supernatural glow or a neon cyberpunk setting.
+- Give skies, ground, foliage, buildings and objects distinct ramps within this palette. A suburban street at dusk or dawn uses violet houses, a magenta-to-orange horizon, cyan window and sky highlights and dark indigo shadows.
+- Use colored shadow planes and reflected light; blue/violet shadows against warm light are the signature. Avoid gray, brown or beige washes, muddy mid-tones and blown-out highlights.
+- Preserve canonical character identity: face structure, hair, build, skin tone and base clothing stay recognizable, shaded and highlighted within the palette. Do not recolor characters wholesale to match the interface.
+- Follow recorded time, weather and light sources. Night, dawn, dusk and indoor scenes use the same ramps at different values, with readable separation between layers. Neon styling is a lighting and palette treatment, not a setting: no cyberpunk city, no sci-fi hardware, no supernatural glow unless the story state calls for it.
 
 **Interface.** The current shell uses the Neon Frontier palette with these colors and roles. These are UI tokens, not a restricted scene-art palette. Keep their existing values and contrast/accessibility roles; vivid artwork should complement the frame without copying every accent.
 
@@ -43,7 +44,7 @@ The [shared concept boards](https://chatgpt.com/share/6afe27f5-593c-83ea-8b70-9f
 
 ## Camera language
 
-Use 640×360 as the logical target for widescreen scene presentations. Keep the existing Day 1 9:16 layered masters for the portrait composition. Plan safe crops or letterboxing for other viewports. Keep important clues, faces and contact poses within the central safe area, then inspect the actual crop on a phone and at desktop size. Preserve gradients and edges with high-quality resampling.
+Use 640×360 as the logical target for widescreen scene presentations. Keep the existing Day 1 9:16 layered masters for the portrait composition. Plan safe crops or letterboxing for other viewports. Keep important clues, faces and contact poses within the central safe area, then inspect the actual crop on a phone and at desktop size. Pixel art is authored at its logical size and shown at integer multiples; scale it up with nearest-neighbor sampling so pixels stay square and crisp, never with smoothing.
 
 Use establishing wides, intimate medium shots, selective close-ups, foreground framing and occasional asymmetric panels. Reserve centered portraits for deliberate reference or identity shots.
 
@@ -60,20 +61,20 @@ Tension through restraint. People look scared, exhausted, suspicious, relieved o
 
 ## Prompt guidance
 
-Start each art prompt with its subject, framing, story state and approved continuity references. Apply the shared runtime generation style and exclusions below, then the asset-role and scene-specific requirements. Naturalistic anatomy and recognizable materials do not require photographic rendering or a muted palette. Anime/manga influence is not categorically prohibited; it must still preserve the approved identity, proportions, world and shared console-adventure direction. Keep chrome, sprites and atmospheric overlays separate from the scene when they need to be reused.
+Start each art prompt with its subject, framing, story state and approved continuity references. Apply the shared runtime generation style and exclusions below, then the asset-role and scene-specific requirements. Natural proportions and recognizable materials are expressed through pixel art, never photographic rendering or a muted palette. Anime/manga influence is not categorically prohibited; it must still preserve the approved identity, proportions, world and the shared pixel-art direction. Keep chrome, sprites and atmospheric overlays separate from the scene when they need to be reused.
 
 The API reads the exact two sections below and this document's title version into generation requests. Keep each section a concise plain-text paragraph, with its heading unchanged. Do not place UI instructions, examples or Markdown lists inside them. Missing, empty or duplicate sections and an invalid versioned title are configuration errors, not permission to fall back to an older style.
 
 ## Runtime generation style
 
-High-color 32-bit-era 2D console adventure illustration with late-1990s influence; vivid, richly saturated local colors, strong readable color and value contrast, scene-appropriate colorful shadows, layered directional light, nuanced gradients, fine raster detail and crisp silhouettes. Preserve approved skin tones, material and clothing colors, recognizable forms, and story-specific lighting.
+Detailed 16-bit retro pixel art game scene, chunky square pixels at one consistent pixel size, hard clean edges with dark selective outlines, limited neon-twilight palette of deep indigo and violet shadows, magenta and coral sunset glow, cyan and electric-blue highlights and warm rim light, ordered dithering in skies and gradients, layered foreground silhouettes with a glowing background and a single clear focal point, cinematic composition. Preserve character identity, skin tones, canonical clothing and story-specific lighting.
 
 ## Runtime style exclusions
 
-photorealistic photography, glossy 3D render, plastic skin, low-resolution pixel art, visible pixel grids, pixelation, heavy dithering, RGB565 quantization, muddy desaturation, washed-out color grading, crushed shadow detail, clipped highlights, neon cyberpunk scenery, fashion-editorial posing, superhero costumes, fantasy armor, zombies, excessive gore, unexplained accessories or wardrobe changes, captions, speech balloons, logos, watermarks
+photorealistic photography, smooth digital painting, vector art, anime cel shading, glossy 3D render, plastic skin, anti-aliased smooth gradients, blurry or soft edges, mixed pixel sizes, noise or film grain, muddy gray or brown washes, washed-out color, blown-out highlights, cyberpunk megacity, sci-fi hardware, fashion-editorial posing, superhero costumes, fantasy armor, zombies, excessive gore, unexplained accessories or wardrobe changes, captions, speech balloons, user-interface frames, logos, watermarks
 
 ## Approval guidance
 
-Before approving an asset, review it in the game frame at desktop and mobile sizes. Check for vivid illustrated color, readable warm/cool and value separation, nuanced gradients, recognizable subjects and intact shadow detail. Reject a muddy neutral wash or an abstract/unreadable subject, not a character's canonically dark clothing. Lighting/atmosphere layers must remain lighting treatments, not unrelated objects. A physical in-world display may contain legible text only when the scene explicitly calls for it.
+Before approving an asset, review it in the game frame at desktop and mobile sizes. Check for crisp, consistently sized square pixels, the neon-twilight palette, readable warm/cool and value separation, dithered gradients, recognizable subjects and intact shadow detail. Reject smooth painterly or vector output, mixed pixel sizes, a muddy neutral wash or an abstract/unreadable subject, not a character's canonically dark clothing. Lighting/atmosphere layers must remain lighting treatments, not unrelated objects. A physical in-world display may contain legible text only when the scene explicitly calls for it.
 
 Check that the face, clue or action reads immediately, the layers agree on direction and scale, and character and location continuity match approved references. Use this direction for new assets and explicit versioned replacements. Preserve approved artwork and journal-pinned versions. These are visual-review requirements; technical format/alpha validation alone does not establish style compliance.

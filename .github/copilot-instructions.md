@@ -22,13 +22,13 @@ dotnet test tests/Fatewake.GameEngine.Tests/Fatewake.GameEngine.Tests.csproj
 dotnet test tests/Fatewake.GameEngine.Tests/Fatewake.GameEngine.Tests.csproj --filter "FullyQualifiedName~DayOneGameEngineTests.SomeTest"
 ```
 
-`Fatewake.IntegrationTests` requires PostgreSQL via the `FATEWAKE_TEST_CONNECTION` env var (e.g. `Host=localhost;Port=5432;Database=fatewake_tests;Username=postgres`). Without it, database-backed assertions are skipped; use a disposable database since tests delete/recreate it. CI (`.github/workflows/validate.yml`) runs a PostgreSQL 17 service automatically.
+`Fatewake.IntegrationTests` uses PostgreSQL via `FATEWAKE_TEST_CONNECTION` for general database-backed integration coverage and `FATEWAKE_ART_TEST_CONNECTION` for SQL prompt/artwork integration tests. Set the applicable variable to a disposable database; database-backed test cases skip when their variable is absent. CI (`.github/workflows/validate.yml`) runs a PostgreSQL 17 service automatically.
 
 Asset/artwork contract validation:
 ```bash
 dotnet run --project tools/Fatewake.AssetValidator/Fatewake.AssetValidator.csproj -- .
 ```
-This checks that every referenced artwork key has a prompt file (missing prompts fail the build); missing rendered images are allowed as placeholders. Runs as a separate CI job.
+This checks allowlisted scene/layer metadata and the versioned SQL prompt seed artifact, and rejects runtime prompt-Markdown fallback. Missing Day 1 seed coverage fails validation; legitimate later SQL prompt misses use durable generate-on-miss when enabled and report an explicit disabled state otherwise. Missing rendered images are allowed as placeholders. Runs as a separate CI job.
 
 `Directory.Build.props` sets `TreatWarningsAsErrors=true` and `net11.0` for all projects, so build warnings fail the build.
 
@@ -43,7 +43,7 @@ Solution (`Fatewake.slnx`) layout:
 - `src/Fatewake.Web` — Blazor Web App/PWA presentation.
 - `src/Fatewake.Infrastructure` — persistence (PostgreSQL) and external integrations.
 - `src/Fatewake.Worker` — background processing.
-- `tools/Fatewake.AssetValidator` — standalone CLI that scans source for artwork key references vs. prompts/assets.
+- `tools/Fatewake.AssetValidator` — standalone CLI that checks referenced artwork keys against server-owned scene metadata and the one-time SQL prompt seed artifact; operational prompts are stored in PostgreSQL.
 - `tests/` mirrors `src/` (`Fatewake.GameEngine.Tests`, `Fatewake.Web.Tests`, `Fatewake.IntegrationTests`).
 
 Dependency direction flows one way: GameEngine (deterministic core) ← Infrastructure/AI ← Api/orchestration ← Web. Keep game-rules/state resolution testable in isolation from persistence, AI, and transport concerns.
@@ -56,7 +56,7 @@ Local email/password registration and login are always available. Use ASP.NET Id
 
 Character appearance/visual assets are durable canonical state, not regenerated per use: Base Identity → Appearance Configuration → Equipment/Loadout → Condition/Injuries → Scene/Pose/Camera → Rendered Asset. Each normalized appearance combination gets a deterministic fingerprint; always do an exact approved-asset lookup by fingerprint before calling an AI generation provider. Approved assets remain reusable indefinitely (switching configurations back resolves the prior approved asset; character death does not invalidate reusable artwork).
 
-- **Permanent web-art delivery rule:** All AI-generated or AI-altered production images must pass through `ArtWorkJobFactory` or `IArtAssetIngestionService`. Keep the full-resolution archival PNG master immutable; create and validate WebP and optimized PNG delivery derivatives with matching dimensions and required alpha; serve WebP first with PNG fallback, never the master. Never publish raw ComfyUI/provider output directly to a web root. New scene art follows the high-color 32-bit-era 2D direction at 640×360 logical background dimensions: preserve nuanced gradients and fine detail, and do not RGB565-quantize or force nearest-neighbor pixelation. Use suitable high-quality resampling for delivery sizes. New generation/delivery paths must test both derivatives and their metadata. See `docs/ART-COMPOSITION.md`.
+- **Permanent web-art delivery rule:** All AI-generated or AI-altered production images must pass through `ArtWorkJobFactory` or `IArtAssetIngestionService`. Keep the full-resolution archival PNG master immutable; create and validate WebP and optimized PNG delivery derivatives with matching dimensions and required alpha; serve WebP first with PNG fallback, never the master. Never publish raw ComfyUI/provider output directly to a web root. New scene art follows the chunky 16-bit-style pixel-art direction with the neon-twilight palette (Style Bible v4) at 640×360 logical background dimensions: generate crisp square pixels, do not post-process masters into smooth gradients, and scale pixel art only by integer factors with nearest-neighbor sampling. Do not RGB565-quantize. New generation/delivery paths must test both derivatives and their metadata. See `docs/ART-COMPOSITION.md`.
 
 Full design docs live under `docs/` (GDD, WORLD, GAMEPLAY, WAKE-SYSTEM, AI-DESIGN, ARCHITECTURE, DATA-MODEL, TIMELINES-AND-CONVERGENCE) and `docs/decisions/DECISION-LOG.md` — these are the design source of truth; check them before making gameplay/architecture decisions that aren't obvious from code.
 

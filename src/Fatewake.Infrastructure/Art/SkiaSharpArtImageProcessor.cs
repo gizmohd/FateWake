@@ -45,7 +45,8 @@ public sealed class SkiaSharpArtImageProcessor : IArtImageProcessor
     {
         for (var y = 0; y < image.Height; y++)
             for (var x = 0; x < image.Width; x++)
-                if (image.GetPixel(x, y).Alpha < 255) return true;
+                if (image.GetPixel(x, y).Alpha < 255)
+                    return true;
         return false;
     }
 }

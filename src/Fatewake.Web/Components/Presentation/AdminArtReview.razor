@@ -1,21 +1,22 @@
 @using Fatewake.Web.Authentication
+@using Fatewake.Web.Presentation
 @inject AuthenticatedApiClient ApiClients
 @if (Allowed)
 {
     <details class="art-review-panel">
-        <summary>Review artwork · Admin</summary>
-        <p>Review the complete scene or one generated layer. Describe what is wrong and how it should look.</p>
+        <summary>Review artwork · Pathweaver art review · Admin</summary>
+        <p>Review the exact immutable image version. Prompt revisions are versioned; only an explicit replacement request changes serving bindings.</p>
         <div class="review-layer-grid">
             @foreach (var layer in Versions.Where(x => x.Value is not null))
             {
-                <button type="button" class="review-layer" @onclick="() => SelectLayer(layer.Key)">
+                <button type="button" class="review-layer" @onclick="() => SelectLayerAsync(layer.Key)">
                     <img src="@($"/art/{layer.Key}/{layer.Value}/webp")" alt="@layer.Key" />
                     <span>@layer.Key · v@layer.Value</span>
                 </button>
             }
         </div>
         <label>Review target
-            <select @bind="Target" @bind:after="TargetChanged">
+            <select @bind="Target" @bind:after="TargetChangedAsync">
                 <option value="">Complete composition</option>
                 @foreach (var layer in Versions.Where(x => x.Value is not null))
                 {
@@ -23,21 +24,63 @@
                 }
             </select>
         </label>
+        @if (!string.IsNullOrEmpty(Target) && Prompt is not null)
+        {
+            <section class="prompt-provenance">
+                <h3>Original generation submission · @Target v@Versions.GetValueOrDefault(Target)</h3>
+                @if (Prompt.OriginalSubmissionAvailable)
+                {
+                    <p><strong>@Prompt.OriginalProvider / @Prompt.OriginalModel</strong> · submitted @Prompt.OriginalSubmittedAt?.ToString("u")</p>
+                    <label>Exact positive request submitted
+                        <textarea readonly rows="5" value="@Prompt.OriginalResolvedPrompt"></textarea>
+                    </label>
+                    <label>Exact negative request submitted
+                        <textarea readonly rows="3" value="@Prompt.OriginalNegativePrompt"></textarea>
+                    </label>
+                    <small>Prompt revision: @(Prompt.OriginalPromptRevisionId?.ToString() ?? "legacy provenance unlinked") · source: @(Prompt.OriginalPromptSource ?? "unavailable") · provider job: @(Prompt.OriginalProviderJobId ?? "unavailable")</small>
+                }
+                else
+                {
+                    <p>Original prompt provenance is unavailable for this historical image version; no prompt is inferred or reconstructed.</p>
+                }
+                @if (Prompt.LatestRevisionId is not null)
+                {
+                    <label>Editable positive prompt for new revision
+                        <textarea @bind="PromptPositive" maxlength="8000" rows="4" />
+                    </label>
+                    <label>Editable negative prompt for new revision
+                        <textarea @bind="PromptNegative" maxlength="2000" rows="3" />
+                    </label>
+                    <p><strong>Enforced shared style</strong><br />@Prompt.EnforcedStyle</p>
+                    <p><strong>Enforced role, framing, continuity and exclusions</strong><br />@Prompt.Framing<br />@Prompt.EnforcedExclusions</p>
+                    <button type="button" disabled="@(Busy || string.IsNullOrWhiteSpace(PromptPositive))" @onclick="PreviewPromptAsync">Preview final provider request</button>
+                    @if (Preview is not null)
+                    {
+                        <label>Final positive request preview
+                            <textarea readonly rows="6" value="@Preview.PreviewResolvedPrompt"></textarea>
+                        </label>
+                        <label>Final negative request preview
+                            <textarea readonly rows="3" value="@Preview.PreviewNegativePrompt"></textarea>
+                        </label>
+                    }
+                    <button type="button" disabled="@(Busy || string.IsNullOrWhiteSpace(PromptPositive))" @onclick="() => SavePromptAsync(false)">Save new revision only</button>
+                    <p>Saving a revision does not regenerate art or change the currently served prompt.</p>
+                    <button type="button" class="danger" disabled="@(Busy || string.IsNullOrWhiteSpace(PromptPositive))" @onclick="() => SavePromptAsync(true)">Regenerate selected image (uses generation credits)</button>
+                    @if (Prompt.ReplacementStatus is not null)
+                    {
+                        <p role="status">Replacement: @Prompt.ReplacementStatus @(Prompt.ReplacementWorkJobId is { } job ? $"· job {job}" : "") @(Prompt.ReplacementVersion is { } version ? $"· v{version}" : "")</p>
+                    }
+                }
+            </section>
+        }
+        else if (!string.IsNullOrEmpty(Target))
+        {
+            <p>Loading exact prompt provenance…</p>
+        }
         <label>Critique
             <textarea @bind="Critique" maxlength="4000" rows="3" placeholder="For example: Michelle is a cropped portrait, but she should be supporting the injured man." />
         </label>
-        <label>Correction instructions
-            <textarea @bind="Correction" maxlength="4000" rows="3" placeholder="Describe the required subject, pose, framing, scale, or placement." />
-        </label>
-        @if (!string.IsNullOrEmpty(Target))
-        {
-            <label class="review-checkbox"><input type="checkbox" @bind="Regenerate" /> Generate a replacement for this layer (uses generation credits)</label>
-        }
-        else
-        {
-            <p>Composition critiques are saved for review. To regenerate artwork, select the individual layer that needs correction.</p>
-        }
-        <button type="button" disabled="@(Busy || string.IsNullOrWhiteSpace(Critique) || Regenerate && string.IsNullOrWhiteSpace(Correction))" @onclick="SaveAsync">@(Busy ? "Saving…" : "Save critique")</button>
+        <button type="button" disabled="@(Busy || string.IsNullOrWhiteSpace(Critique))" @onclick="SaveAsync">@(Busy ? "Saving…" : "Save critique only")</button>
         @if (Message is not null) { <p role="status">@Message</p> }
         @if (History.Length > 0)
         {
@@ -47,7 +90,6 @@
                 <article>
                     <strong>@(item.AssetKey ?? "Complete composition") @(item.Version is {} version ? $"· v{version}" : "")</strong>
                     <p>@item.Critique</p>
-                    @if (item.Correction is not null) { <p>Correction: @item.Correction</p> }
                     <small>@item.CreatedAt.ToString("u") · @(item.Regenerate ? "Replacement requested" : "Critique saved")</small>
                 </article>
             }
@@ -58,21 +100,25 @@
     [Parameter] public string SceneKey { get; set; } = "";
     [Parameter] public Dictionary<string, int?> Versions { get; set; } = [];
     [Parameter] public EventCallback ReplacementRequested { get; set; }
-    private bool Allowed, Busy, Regenerate;
+    private bool Allowed, Busy;
     private string? LoadedScene, Message;
-    private string Target = "", Critique = "", Correction = "";
+    private string Target = "", Critique = "", PromptPositive = "", PromptNegative = "";
+    private ArtPromptReviewSaveResult? Preview;
+    private ArtPromptReviewResponse? Prompt;
     private Review[] History = [];
     protected override async Task OnParametersSetAsync()
     {
         if (LoadedScene == SceneKey) return;
         LoadedScene = SceneKey;
-        Target = Critique = Correction = "";
-        Regenerate = Allowed = false;
+        Target = Critique = PromptPositive = PromptNegative = "";
+        Preview = null;
+        Prompt = null;
+        Allowed = false;
         Message = null;
         await LoadHistoryAsync();
     }
-    private void SelectLayer(string key) { Target = key; Regenerate = false; }
-    private void TargetChanged() { Regenerate = false; }
+    private async Task SelectLayerAsync(string key) { Target = key; await LoadPromptAsync(); }
+    private async Task TargetChangedAsync() { await LoadPromptAsync(); }
     private async Task LoadHistoryAsync()
     {
         try
@@ -94,17 +140,76 @@
             using var client = await ApiClients.CreateAsync();
             using var response = await client.PostAsJsonAsync("/api/art/reviews", new { SceneKey, AssetKey = asset,
                 Version = asset is null ? (int?)null : snapshot.GetValueOrDefault(asset), Versions = snapshot, Critique,
-                Correction = string.IsNullOrWhiteSpace(Correction) ? null : Correction, Regenerate });
+                Correction = (string?)null, Regenerate = false });
             if (!response.IsSuccessStatusCode)
             {
                 Message = response.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.Unauthorized
                     ? "Administrator access is required." : "The critique could not be saved. Refresh the scene and try again.";
                 return;
             }
-            Message = Regenerate ? "Critique saved. Replacement artwork is queued." : "Critique saved.";
+            Message = "Critique saved.";
             await LoadHistoryAsync();
-            if (Regenerate) await ReplacementRequested.InvokeAsync();
-            Critique = Correction = ""; Regenerate = false;
+            Critique = "";
+        }
+        catch (HttpRequestException) { Message = "The review service is unavailable. Try again."; }
+        finally { Busy = false; }
+    }
+    private async Task LoadPromptAsync()
+    {
+        Prompt = null;
+        Preview = null;
+        PromptPositive = PromptNegative = "";
+        if (string.IsNullOrEmpty(Target) || Versions.GetValueOrDefault(Target) is not { } version) return;
+        try
+        {
+            using var client = await ApiClients.CreateAsync();
+            using var response = await client.GetAsync($"/api/art/reviews/prompt?assetKey={Uri.EscapeDataString(Target)}&version={version}");
+            if (!response.IsSuccessStatusCode) { Message = "Prompt provenance could not be loaded."; return; }
+            Prompt = await response.Content.ReadFromJsonAsync<ArtPromptReviewResponse>();
+            PromptPositive = Prompt?.EditablePositivePrompt ?? "";
+            PromptNegative = Prompt?.EditableNegativePrompt ?? "";
+        }
+        catch (HttpRequestException) { Message = "The review service is unavailable. Try again."; }
+    }
+    private async Task PreviewPromptAsync()
+    {
+        if (Prompt?.LatestRevisionId is not { } expected || Versions.GetValueOrDefault(Target) is not { } version) return;
+        Busy = true;
+        try
+        {
+            using var client = await ApiClients.CreateAsync();
+            using var response = await client.PostAsJsonAsync("/api/art/reviews/prompt/preview",
+                new ArtPromptReviewRequest(SceneKey, Target, version, expected, PromptPositive, PromptNegative, false));
+            if (!response.IsSuccessStatusCode) { Message = "The prompt changed or preview could not be created. Reload the selected layer."; return; }
+            Preview = await response.Content.ReadFromJsonAsync<ArtPromptReviewSaveResult>();
+            Message = "Preview includes enforced server style, role, framing and continuity requirements.";
+        }
+        catch (HttpRequestException) { Message = "The review service is unavailable. Try again."; }
+        finally { Busy = false; }
+    }
+    private async Task SavePromptAsync(bool regenerate)
+    {
+        if (Prompt?.LatestRevisionId is not { } expected || Versions.GetValueOrDefault(Target) is not { } version) return;
+        Busy = true; Message = null;
+        try
+        {
+            using var client = await ApiClients.CreateAsync();
+            using var response = await client.PostAsJsonAsync("/api/art/reviews/prompt",
+                new ArtPromptReviewRequest(SceneKey, Target, version, expected, PromptPositive, PromptNegative, regenerate));
+            if (!response.IsSuccessStatusCode)
+            {
+                Message = response.StatusCode == System.Net.HttpStatusCode.Conflict
+                    ? "The prompt changed or generation is disabled. Reload the selected layer and try again."
+                    : response.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.Unauthorized
+                        ? "Administrator access is required." : "The prompt revision could not be saved.";
+                return;
+            }
+            var saved = await response.Content.ReadFromJsonAsync<ArtPromptReviewSaveResult>();
+            Message = regenerate ? "Revision saved; replacement for the selected version is queued." : "New prompt revision saved; serving bindings are unchanged.";
+            Preview = saved;
+            await LoadPromptAsync();
+            await LoadHistoryAsync();
+            if (regenerate) await ReplacementRequested.InvokeAsync();
         }
         catch (HttpRequestException) { Message = "The review service is unavailable. Try again."; }
         finally { Busy = false; }

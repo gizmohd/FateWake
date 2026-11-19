@@ -26,7 +26,10 @@ public sealed class ArtBinaryBackfillService(
     public async Task<int> BackfillAsync(CancellationToken ct = default)
     {
         using var operation = OperationTelemetry.Start("art.binary.backfill", log);
-        try { return await BackfillCoreAsync(ct); }
+        try
+        {
+            return await BackfillCoreAsync(ct);
+        }
         catch (OperationCanceledException ex) when (ct.IsCancellationRequested)
         {
             operation.Fail(ex);
@@ -70,7 +73,8 @@ public sealed class ArtBinaryBackfillService(
                 return (Key: group.Key, Hash: hashes[0]);
             })
             .ToArray();
-        if (keys.Length == 0) return 0;
+        if (keys.Length == 0)
+            return 0;
         var imported = 0;
         var missing = new List<string>();
         foreach (var reference in keys)
@@ -91,7 +95,8 @@ public sealed class ArtBinaryBackfillService(
             FileSystemArtBinaryStorage? source = null;
             foreach (var legacySource in legacyRoots)
             {
-                if (!await legacySource.ExistsAsync(reference.Key, ct)) continue;
+                if (!await legacySource.ExistsAsync(reference.Key, ct))
+                    continue;
                 source = legacySource;
                 break;
             }

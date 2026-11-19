@@ -32,9 +32,12 @@ public sealed class ArtAssetIngestionService(FatewakeDbContext db, IArtBinarySto
         var webp = await images.CreateWebPAsync(request.MasterPng, ct);
         var optimizedPng = await images.CreateOptimizedPngAsync(request.MasterPng, ct);
         var version = (await db.ArtAssets.Where(x => x.Key == request.Key).MaxAsync(x => (int?)x.Version, ct) ?? 0) + 1;
-        var id = Guid.NewGuid(); var now = DateTimeOffset.UtcNow;
+        var id = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
         var prefix = $"art/{request.Key}/v{version}";
-        var masterKey = $"{prefix}/master.png"; var webpKey = $"{prefix}/delivery.webp"; var pngKey = $"{prefix}/delivery.png";
+        var masterKey = $"{prefix}/master.png";
+        var webpKey = $"{prefix}/delivery.webp";
+        var pngKey = $"{prefix}/delivery.png";
 
         await PutAsync(masterKey, request.MasterPng, "image/png", ct);
         await PutAsync(webpKey, webp.Bytes, webp.ContentType, ct);
@@ -90,7 +93,10 @@ public sealed class ArtAssetIngestionService(FatewakeDbContext db, IArtBinarySto
     }
 
     private async Task PutAsync(string key, byte[] bytes, string contentType, CancellationToken ct)
-    { await using var stream = new MemoryStream(bytes, writable: false); await storage.PutAsync(key, stream, contentType, ct); }
+    {
+        await using var stream = new MemoryStream(bytes, writable: false);
+        await storage.PutAsync(key, stream, contentType, ct);
+    }
     private static ArtAssetDerivativeRecord Derivative(Guid id, ArtDerivativeKind kind, string key, EncodedArtImage image, DateTimeOffset now)
         => new()
         {

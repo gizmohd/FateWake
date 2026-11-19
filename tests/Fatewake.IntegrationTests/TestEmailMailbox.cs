@@ -33,8 +33,10 @@ public sealed class TestEmailMailbox : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        if (!Directory.Exists(DirectoryPath)) return;
-        foreach (var file in Directory.GetFiles(DirectoryPath, "*.txt")) File.Delete(file);
+        if (!Directory.Exists(DirectoryPath))
+            return;
+        foreach (var file in Directory.GetFiles(DirectoryPath, "*.txt"))
+            File.Delete(file);
         Directory.Delete(DirectoryPath);
     }
 }

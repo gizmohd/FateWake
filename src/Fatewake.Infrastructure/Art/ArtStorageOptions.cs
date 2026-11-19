@@ -10,5 +10,8 @@ public sealed class ArtStorageOptions
     public string Provider { get; set; } = "Postgres";
 
     /// <summary>Optional legacy filesystem root used only to read and backfill existing binaries.</summary>
-    public string? RootPath { get; set; }
+    public string? RootPath
+    {
+        get; set;
+    }
 }

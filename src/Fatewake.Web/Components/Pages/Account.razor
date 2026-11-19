@@ -3,7 +3,7 @@
 @inject AuthenticatedApiClient Api
 @inject Microsoft.Extensions.Logging.ILogger<Account> Logger
 
-<PageTitle>Account - Fatewake</PageTitle>
+<PageTitle>Account - @BrandIdentity.GameName</PageTitle>
 <main class="account-page">
     <h1>Account</h1>
     <AuthorizeView Roles="Admin"><Authorized><p><a href="/admin">Admin dashboard</a></p></Authorized></AuthorizeView>

@@ -9,7 +9,7 @@
 @inject NavigationManager Navigation
 @inject ILogger<AdminIdentity> Log
 
-<PageTitle>@Heading - Fatewake</PageTitle>
+<PageTitle>@Heading - @BrandIdentity.GameName</PageTitle>
 <main class="account-page">
     <nav aria-label="Administration sections">
         <a href="/admin">Generation &amp; AI usage</a>
@@ -100,7 +100,7 @@
         </form>
         @if (_protected)
         {
-            <p>The seeded Fatewake Web client cannot be deleted. The configured URLs below must remain registered:</p>
+            <p>The seeded Pathweaver Web client cannot be deleted. The configured URLs below must remain registered:</p>
             <ul>
                 <li>Redirect: <code>@_requiredRedirect</code></li>
                 <li>Post-logout: <code>@_requiredPostLogout</code></li>

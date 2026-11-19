@@ -1,4 +1,4 @@
 # ArtReviewRecord
 
-Administrator artwork review support. Review submissions retain account, scene/layer versions, critique, correction instructions and timestamp. Only authenticated accounts with the canonical persisted Admin role may access review routes. The first successful verified sign-in is Admin; all later accounts are User. Replacement requests use a new fingerprint and the durable artwork pipeline; complete-composition critiques do not regenerate individual layers.
+Durable review against exact scene/layer versions. Prompt review rows link the source approved asset, immutable SQL prompt revision, and durable selected-replacement work job; historic source records remain unchanged.
 

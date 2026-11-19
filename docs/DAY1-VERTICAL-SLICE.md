@@ -15,4 +15,4 @@ Beat order:
 
 The scene runtime owns presentation progression only. The GameEngine owns the outcome of the first choice.
 
-Every artwork key introduced by this slice must have a matching prompt in `art/prompts/`. Reusable recurring environments/characters must additionally follow their continuity/reference packs.
+Every allowlisted scene layer must have SQL prompt coverage or a valid generate-on-miss path. `art/prompt-seeds/day1-v1.json` imports the existing authored Day 1 prompts once; operational prompt revisions live in PostgreSQL. Reusable recurring environments/characters must additionally follow their continuity/reference packs.

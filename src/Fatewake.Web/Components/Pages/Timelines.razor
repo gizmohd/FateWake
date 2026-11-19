@@ -1,0 +1,215 @@
+@page "/timelines/{SurvivorId:guid}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using Fatewake.Web.Presentation
+@inject Fatewake.Web.Authentication.AuthenticatedApiClient ApiClient
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject ILogger<Timelines> Logger
+
+<PageTitle>Your Threads - @BrandIdentity.GameName</PageTitle>
+<SiteShell SurvivorId="SurvivorId">
+    <main class="play-episode">
+        <section class="play-frame play-message" aria-labelledby="timeline-title">
+            <h1 id="timeline-title">Your Threads</h1>
+            <p>Weave a new Thread at a reached checkpoint to make a different choice. Your original story is preserved, and you can return to either Thread.</p>
+            @if (_error is not null)
+            {
+                <p role="alert">@_error</p>
+            }
+            <button type="button" disabled="@_busy" @onclick="LoadAsync">Refresh Threads</button>
+        </section>
+        @if (_branches is null || _checkpoints is null)
+        {
+            <p role="status">Loading your Threads...</p>
+        }
+        else
+        {
+            <p class="play-frame play-message">Current Thread @ShortId(_branches.CurrentTimelineId): Chapter @_branches.CurrentSurvivorDay, @(_branches.CurrentTimeLabel ?? "story time unavailable").</p>
+            @if (!_branches.Eligible)
+            {
+                <p class="play-frame play-message" role="status">New Threads can be woven only from isolated personal stories. Shared-world history cannot be rewound.</p>
+            }
+            <section class="play-frame play-message" aria-labelledby="checkpoint-title">
+                <h2 id="checkpoint-title">Reached checkpoints</h2>
+                <p>These restore canonical state immediately before a decision or at the chapter opening, not an arbitrary clock time.</p>
+                @if (_checkpoints.Checkpoints.Length == 0)
+                {
+                    <p>No exact checkpoints were recorded for this part of your save. Continue to a supported checkpoint or start a fresh Chapter 1 Thread below.</p>
+                }
+                <ul>
+                    @foreach (var checkpoint in _checkpoints.Checkpoints)
+                    {
+                        <li>
+                            <strong>@checkpoint.Label</strong> - @checkpoint.TimeLabel
+                            <button type="button" disabled="@(_busy || !_branches.Eligible)"
+                                    @onclick="() => ForkAsync(checkpoint.Id)">Weave a Thread from this checkpoint</button>
+                        </li>
+                    }
+                </ul>
+                <nav aria-label="Checkpoint pages">
+                    <button type="button" disabled="@(_busy || _checkpointPage == 0)" @onclick="PreviousCheckpoints">Previous</button>
+                    <span>Page @(_checkpointPage + 1)</span>
+                    <button type="button" disabled="@(_busy || !_checkpoints.HasMore)" @onclick="NextCheckpoints">Next</button>
+                </nav>
+                <h3>Fresh start</h3>
+                <p>A fresh Chapter 1 Thread starts at the canonical opening. It is not a reconstruction of unrecorded past state. Your existing Threads remain intact.</p>
+                <button type="button" disabled="@(_busy || !_branches.Eligible)" @onclick="FreshAsync">Start a fresh Chapter 1 Thread</button>
+            </section>
+            <section class="play-frame play-message" aria-labelledby="branch-title">
+                <h2 id="branch-title">Preserved Threads</h2>
+                <ul>
+                    @foreach (var branch in _branches.Branches)
+                    {
+                        <li>
+                            <strong>@Label(branch)</strong> - @branch.CreatedAt.ToString("u")
+                            <div>Thread @ShortId(branch.TimelineId)</div>
+                            @if (branch.SurvivorDay is { } day)
+                            {
+                                <div>Reached Chapter @day, @(branch.TimeLabel ?? "story time unavailable")</div>
+                            }
+                            @if (branch.ParentTimelineId is { } parent)
+                            {
+                                <div>From Thread @ShortId(parent): @(branch.CheckpointLabel ?? "a fresh Chapter 1 opening")</div>
+                            }
+                            @if (branch.TimelineId == _branches.CurrentTimelineId)
+                            {
+                                <span aria-current="true">Current Thread</span>
+                            }
+                            else
+                            {
+                                <button type="button" disabled="@(_busy || !_branches.Eligible)"
+                                        @onclick="() => SelectAsync(branch.TimelineId)">Resume Thread</button>
+                            }
+                        </li>
+                    }
+                </ul>
+                <nav aria-label="Thread pages">
+                    <button type="button" disabled="@(_busy || _branchPage == 0)" @onclick="PreviousBranches">Previous</button>
+                    <span>Page @(_branchPage + 1)</span>
+                    <button type="button" disabled="@(_busy || !_branches.HasMore)" @onclick="NextBranches">Next</button>
+                </nav>
+            </section>
+        }
+    </main>
+</SiteShell>
+
+@code {
+    [Parameter] public Guid SurvivorId { get; set; }
+    private TimelineBranchPage? _branches;
+    private TimelineCheckpointPage? _checkpoints;
+    private string? _error;
+    private bool _busy;
+    private int _branchPage;
+    private int _checkpointPage;
+    private Guid _requestId;
+    private string? _intent;
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            using var client = await ApiClient.CreateAsync();
+            _branches = await client.GetFromJsonAsync<TimelineBranchPage>($"/api/timelines/{SurvivorId}?page={_branchPage}");
+            _checkpoints = await client.GetFromJsonAsync<TimelineCheckpointPage>($"/api/timelines/{SurvivorId}/checkpoints?page={_checkpointPage}");
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogWarning(ex, "Player timeline metadata could not be loaded");
+            _error = "Your Threads could not be loaded. Sign in to the account that owns this Pathweaver and refresh.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private Task FreshAsync() => ChangeAsync("fork", null, null);
+    private Task ForkAsync(Guid checkpoint) => ChangeAsync("fork", checkpoint, null);
+    private Task SelectAsync(Guid target) => ChangeAsync("select", null, target);
+
+    private async Task ChangeAsync(string operation, Guid? checkpoint, Guid? target)
+    {
+        if (_busy || _branches is null)
+            return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var message = operation == "select"
+                ? "Resume this Thread? Your current Thread and its progress will be preserved."
+                : checkpoint is null
+                    ? "Start a fresh Chapter 1 Thread? This is a new canonical opening, not a reconstruction of your past. Your current story will be preserved."
+                    : "Weave a Thread from this checkpoint? Your existing Thread will be preserved and your new Thread can make different choices.";
+            if (!await JS.InvokeAsync<bool>("confirm", message))
+                return;
+            var intent = $"{_branches.CurrentTimelineId}:{operation}:{checkpoint}:{target}";
+            if (_intent != intent)
+            {
+                _intent = intent;
+                _requestId = Guid.NewGuid();
+            }
+            using var client = await ApiClient.CreateAsync();
+            using var response = await client.PostAsJsonAsync($"/api/timelines/{SurvivorId}/{operation}", new
+            {
+                ExpectedTimelineId = _branches.CurrentTimelineId,
+                ExpectedVersion = _branches.Version,
+                RequestId = _requestId,
+                CheckpointId = checkpoint,
+                TargetTimelineId = target
+            });
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = response.StatusCode switch
+                {
+                    System.Net.HttpStatusCode.Conflict => "Your story or its eligibility changed. Refresh your Threads before trying again.",
+                    System.Net.HttpStatusCode.TooManyRequests => "Too many Thread changes. Please wait before trying again.",
+                    _ => "This Thread change could not be completed. Refresh and check your account access."
+                };
+                return;
+            }
+            Navigation.NavigateTo("/play", forceLoad: true);
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogWarning(ex, "Player timeline change could not be confirmed");
+            _error = "The change could not be confirmed. Refresh your Threads to check whether it completed before trying again.";
+        }
+        catch (JSException ex)
+        {
+            Logger.LogWarning(ex, "Player timeline confirmation was unavailable");
+            _error = "The confirmation could not be displayed. Reload this page.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private Task PreviousBranches() => PageBranches(-1);
+    private Task NextBranches() => PageBranches(1);
+    private Task PreviousCheckpoints() => PageCheckpoints(-1);
+    private Task NextCheckpoints() => PageCheckpoints(1);
+    private Task PageBranches(int delta)
+    {
+        _branchPage += delta;
+        return LoadAsync();
+    }
+    private Task PageCheckpoints(int delta)
+    {
+        _checkpointPage += delta;
+        return LoadAsync();
+    }
+    private static string Label(TimelineBranchSummary branch) => branch.Origin switch
+    {
+        "original" => "Original Thread",
+        "fresh-day1" => "Fresh Chapter 1 Thread",
+        _ => "Checkpoint Thread"
+    };
+    private static string ShortId(Guid timeline) => timeline.ToString("N")[..8];
+}

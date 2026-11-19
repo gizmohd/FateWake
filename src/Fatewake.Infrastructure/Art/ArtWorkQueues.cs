@@ -7,4 +7,5 @@ public static class ArtWorkQueues
     public const string Encode = "art.encode";
     public const string Validate = "art.validate";
     public const string Finalize = "art.finalize";
+    public const string Prompt = "art.prompt-author";
 }

@@ -3,6 +3,7 @@ using System.Net.Mail;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Fatewake.Observability;
+using Fatewake.Story;
 
 namespace Fatewake.Infrastructure.Authentication;
 
@@ -12,13 +13,13 @@ public sealed class VerificationEmailSender(IOptions<EmailDeliveryOptions> optio
 {
     /// <summary>Sends or writes a verification message; transport/storage failures propagate without fallback.</summary>
     public Task SendAsync(string email, string token, CancellationToken ct) =>
-        DeliverAsync(email, "/verify-email", token, "Verify your Fatewake email",
-            "Confirm your email address to finish signing in to Fatewake", "24 hours", ct);
+        DeliverAsync(email, "/verify-email", token, $"Verify your {BrandIdentity.GameName} email",
+            $"Confirm your email address to finish signing in to {BrandIdentity.GameName}", "24 hours", ct);
 
     /// <summary>Sends a purpose-bound administrator-requested challenge without returning the proof to the administrator.</summary>
     public Task SendAccountActionAsync(string email, string token, bool requiresPassword, CancellationToken ct) =>
         DeliverAsync(email, requiresPassword ? "/account-access?password=true" : "/account-access", token,
-            "Confirm a Fatewake account change", "Confirm the requested change to your Fatewake account", "one hour", ct);
+            $"Confirm a {BrandIdentity.GameName} account change", $"Confirm the requested change to your {BrandIdentity.GameName} account", "one hour", ct);
 
     private async Task DeliverAsync(string email, string pathAndQuery, string token, string subject, string instruction,
         string lifetime, CancellationToken ct)
@@ -33,6 +34,7 @@ public sealed class VerificationEmailSender(IOptions<EmailDeliveryOptions> optio
             if (!string.IsNullOrWhiteSpace(settings.Username))
                 client.Credentials = new NetworkCredential(settings.Username, settings.Password);
             using var message = new MailMessage(settings.FromAddress, email, subject, body);
+            message.From = new MailAddress(settings.FromAddress, BrandIdentity.GameName);
             await client.SendMailAsync(message, ct);
             log.LogInformation("Verification email delivered via SMTP");
             return;
@@ -47,10 +49,11 @@ public sealed class VerificationEmailSender(IOptions<EmailDeliveryOptions> optio
             Share = FileShare.None,
             Options = FileOptions.Asynchronous
         };
-        if (!OperatingSystem.IsWindows()) fileOptions.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        if (!OperatingSystem.IsWindows())
+            fileOptions.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
         await using var stream = new FileStream(path, fileOptions);
         await using var writer = new StreamWriter(stream);
-        await writer.WriteAsync($"To: {email}\nFrom: {settings.FromAddress}\nSubject: {subject}\n\n{body}".AsMemory(), ct);
+        await writer.WriteAsync($"To: {email}\nFrom: {BrandIdentity.GameName} <{settings.FromAddress}>\nSubject: {subject}\n\n{body}".AsMemory(), ct);
         log.LogInformation("Verification email saved to the configured emails directory (SMTP disabled)");
     }
 }

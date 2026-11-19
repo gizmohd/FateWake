@@ -18,7 +18,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="../../art/STYLE-BIBLE.md" Link="SceneArt/STYLE-BIBLE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="../../art/prompts/*.md" Exclude="../../art/prompts/char-maya-day1-supporting.md" Link="SceneArt/prompts/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../art/prompt-seeds/day1-v1.json" Link="SceneArtSeeds/day1-v1.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../art/characters/*.md" Link="SceneArt/characters/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../art/locations/*.md" Link="SceneArt/locations/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>

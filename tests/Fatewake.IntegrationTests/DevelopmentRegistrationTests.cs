@@ -21,7 +21,8 @@ public sealed class DevelopmentRegistrationTests
     public async Task Automatic_verification_is_only_enabled_in_Development(string environment, bool automatic)
     {
         var connection = System.Environment.GetEnvironmentVariable("FATEWAKE_REGISTRATION_TEST_CONNECTION");
-        if (string.IsNullOrWhiteSpace(connection)) Assert.Skip("An isolated registration database is required.");
+        if (string.IsNullOrWhiteSpace(connection))
+            Assert.Skip("An isolated registration database is required.");
         var ct = TestContext.Current.CancellationToken;
         await using var db = new FatewakeDbContext(new DbContextOptionsBuilder<FatewakeDbContext>().UseNpgsql(connection).Options);
         await db.Database.MigrateAsync(ct);
@@ -112,14 +113,16 @@ public sealed class DevelopmentRegistrationTests
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = activity =>
             {
-                if (activity.OperationName == "auth.complete_profile" && activity.ParentSpanId == parent.SpanId) spans.Add(activity);
+                if (activity.OperationName == "auth.complete_profile" && activity.ParentSpanId == parent.SpanId)
+                    spans.Add(activity);
             }
         };
         ActivitySource.AddActivityListener(activities);
         using var metrics = new MeterListener();
         metrics.InstrumentPublished = (instrument, listener) =>
         {
-            if (instrument.Meter.Name == OperationTelemetry.SourceName) listener.EnableMeasurementEvents(instrument);
+            if (instrument.Meter.Name == OperationTelemetry.SourceName)
+                listener.EnableMeasurementEvents(instrument);
         };
         metrics.SetMeasurementEventCallback<double>((instrument, _, tags, _) =>
         {

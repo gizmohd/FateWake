@@ -1,106 +1,233 @@
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
+using Fatewake.Infrastructure.Story;
 using Fatewake.Observability;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Fatewake.Infrastructure.Persistence;
 
-/// <summary>Creates or resumes guest/account-owned survivors and persists presentation progress.</summary>
-/// <param name="db">Scoped canonical PostgreSQL persistence context.</param>
-/// <param name="log">Typed logger; optional for isolated persistence tests.</param>
-/// <see href="../../../docs/code/src/Fatewake.Infrastructure/Persistence/SessionStore.md">SessionStore documentation</see>
+/// <summary>Resumes the selected branch and atomically records reached presentation history and checkpoints.</summary>
+/// <see href="../../../docs/code/src/Fatewake.Infrastructure/Persistence/SessionStore.md">Documentation</see>
 public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? log = null) : ISessionStore
 {
-    /// <inheritdoc />
+    /// <summary>Resumes only the selected account-owned branch and records reached history/checkpoints in the same transaction.</summary>
     public async Task<SessionState> StartOrResumeAsync(Guid? survivorId, string broadRegion, CancellationToken ct = default, Guid? accountId = null)
     {
         using var operation = OperationTelemetry.Start("session.start_or_resume", log);
-        await using var transaction = accountId is not null ? await db.Database.BeginTransactionAsync(ct) : null;
-        if (accountId is { } owner)
+        try
         {
-            var account = await db.Accounts.FromSqlInterpolated($"""SELECT * FROM account WHERE "Id" = {owner} FOR UPDATE""").SingleAsync(ct);
-            if (account.Status != AccountStatus.Active) throw new UnauthorizedAccessException("The account is not active.");
-        }
-        if (survivorId is null && accountId is not null)
-            survivorId = await db.Survivors.Where(x => x.AccountId == accountId && x.Status == SurvivorStatus.Active)
-                .OrderBy(x => x.CreatedAt).Select(x => (Guid?)x.Id).FirstOrDefaultAsync(ct);
-        if (survivorId is { } id)
-        {
-            var existing = await db.Survivors.SingleOrDefaultAsync(x => x.Id == id && x.AccountId == accountId, ct);
-            if (existing is not null)
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            if (accountId is { } owner)
             {
-                var existingEpisode = await db.EventInstances.Where(x => x.SurvivorId == id && x.Status == EventInstanceStatus.Active).OrderBy(x => x.SurvivorDay).FirstAsync(ct);
-                return ToState(existing, existingEpisode);
+                var account = await db.Accounts.FromSqlInterpolated($"""SELECT * FROM account WHERE "Id" = {owner} FOR UPDATE""").SingleAsync(ct);
+                if (account.Status != AccountStatus.Active)
+                    throw new UnauthorizedAccessException("The account is not active.");
             }
+            if (survivorId is null && accountId is not null)
+                survivorId = await db.Survivors.Where(row => row.AccountId == accountId)
+                    .OrderBy(row => row.CreatedAt).Select(row => (Guid?)row.Id).FirstOrDefaultAsync(ct);
+            var states = new TimelineStateStore(db);
+            SurvivorRecord survivor;
+            EventInstanceRecord episode;
+            if (survivorId is { } id && await db.Survivors.AnyAsync(row => row.Id == id && row.AccountId == accountId, ct))
+            {
+                survivor = await states.LockAsync(id, null, ct);
+                episode = await db.EventInstances.SingleAsync(row => row.SurvivorId == id &&
+                    row.TimelineId == survivor.TimelineId && row.Status == EventInstanceStatus.Active, ct);
+                await db.Entry(episode).ReloadAsync(ct);
+            }
+            else
+            {
+                var now = DateTimeOffset.UtcNow;
+                var realm = await db.Realms.SingleAsync(row => row.Key == "the-silence", ct);
+                var timeline = new TimelineRecord
+                {
+                    Id = Guid.NewGuid(),
+                    RealmId = realm.Id,
+                    ProgressionState = "personal",
+                    ConvergenceState = "isolated",
+                    WorldClockPolicy = "activity",
+                    CurrentSurvivorDay = 1,
+                    CreatedAt = now
+                };
+                survivor = new()
+                {
+                    Id = Guid.NewGuid(),
+                    AccountId = accountId,
+                    TimelineId = timeline.Id,
+                    DisplayName = Fatewake.Story.BrandIdentity.PlayerName,
+                    IdentityMode = "undetermined",
+                    BroadRegion = broadRegion,
+                    SurvivorDay = 1,
+                    Status = SurvivorStatus.Active,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                episode = new()
+                {
+                    Id = Guid.NewGuid(),
+                    TimelineId = timeline.Id,
+                    SurvivorId = survivor.Id,
+                    EventKey = "day-001-injured-stranger",
+                    Status = EventInstanceStatus.Active,
+                    SurvivorDay = 1,
+                    StartedAt = now,
+                    State = JsonSerializer.Serialize(new
+                    {
+                        sceneKey = StartSceneKey,
+                        beatKey = StartBeatKey
+                    })
+                };
+                db.Add(timeline);
+                db.Add(survivor);
+                db.Add(episode);
+                await db.SaveChangesAsync(ct);
+                await states.LockAsync(survivor.Id, timeline.Id, ct);
+            }
+            var branch = await states.EnsureAsync(survivor, ct);
+            survivor.SurvivorDay = branch.SurvivorDay;
+            survivor.Status = branch.Status;
+            var state = ToState(survivor, episode);
+            await new StoryJournalService(db).RecordProgressAsync(state, ct);
+            await states.CaptureAsync(survivor, episode, ct);
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            return state;
         }
-        var realm = await db.Realms.SingleAsync(x => x.Key == "the-silence", ct); var now = DateTimeOffset.UtcNow;
-        var timeline = new TimelineRecord { Id = Guid.NewGuid(), RealmId = realm.Id, ProgressionState = "personal", ConvergenceState = "isolated", WorldClockPolicy = "activity", CurrentSurvivorDay = 1, CreatedAt = now };
-        var survivor = new SurvivorRecord { Id = Guid.NewGuid(), AccountId = accountId, TimelineId = timeline.Id, DisplayName = "Survivor", IdentityMode = "undetermined", BroadRegion = broadRegion, SurvivorDay = 1, Status = SurvivorStatus.Active, CreatedAt = now, UpdatedAt = now };
-        var episode = new EventInstanceRecord { Id = Guid.NewGuid(), TimelineId = timeline.Id, SurvivorId = survivor.Id, EventKey = "day-001-injured-stranger", Status = EventInstanceStatus.Active, SurvivorDay = 1, StartedAt = now, State = JsonSerializer.Serialize(new { sceneKey = StartSceneKey, beatKey = StartBeatKey }) };
-        db.Timelines.Add(timeline); db.Survivors.Add(survivor); db.EventInstances.Add(episode); await db.SaveChangesAsync(ct);
-        if (transaction is not null) await transaction.CommitAsync(ct);
-        return ToState(survivor, episode);
+        catch (Exception ex)
+        {
+            operation.Fail(ex);
+            throw;
+        }
     }
 
-    /// <inheritdoc />
+    /// <summary>Advances a reached beat under the selected-branch lock; invalid progression never creates a checkpoint.</summary>
     public async Task<SessionState?> SavePresentationProgressAsync(Guid survivorId, Guid eventInstanceId, string sceneKey, string beatKey, CancellationToken ct = default)
     {
         using var operation = OperationTelemetry.Start("session.save_progress", log);
-        var survivor = await db.Survivors.SingleOrDefaultAsync(x => x.Id == survivorId, ct);
-        var episode = await db.EventInstances.SingleOrDefaultAsync(x => x.Id == eventInstanceId && x.SurvivorId == survivorId, ct);
-        if (survivor is null || episode is null) return null;
-        var state = ReadState(episode.State);
-        // A presentation client cannot use the journal to reveal unseen future beats.
-        var scene = Fatewake.Story.DayOneScenes.Opening;
-        var target = scene.Beats.ToList().FindIndex(x => x.Key == beatKey);
-        var current = scene.Beats.ToList().FindIndex(x => x.Key == state.beat);
-        if (sceneKey != scene.Key || target < 0 || target > current + 1 ||
-            (target > scene.IndexOf("first-choice") && string.IsNullOrWhiteSpace(state.outcome))) return null;
-
-        episode.State = JsonSerializer.Serialize(new { lastOutcome = state.outcome, narrativeFacts = state.facts, sceneKey, beatKey });
-        episode.Version++; await db.SaveChangesAsync(ct); return ToState(survivor, episode);
+        try
+        {
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            var states = new TimelineStateStore(db);
+            var survivor = await states.LockAsync(survivorId, null, ct);
+            var episode = await db.EventInstances.SingleOrDefaultAsync(row => row.Id == eventInstanceId &&
+                row.SurvivorId == survivorId && row.TimelineId == survivor.TimelineId, ct)
+                ?? throw new TimelineConflictException("Your active timeline changed. Reload to continue.");
+            await db.Entry(episode).ReloadAsync(ct);
+            var state = ReadState(episode.State);
+            var scene = Fatewake.Story.DayOneScenes.Opening;
+            var target = scene.Beats.ToList().FindIndex(row => row.Key == beatKey);
+            var current = scene.Beats.ToList().FindIndex(row => row.Key == state.beat);
+            if (sceneKey != scene.Key || target < 0 || target > current + 1 ||
+                (target > scene.IndexOf("first-choice") && string.IsNullOrWhiteSpace(state.outcome)))
+            {
+                log?.LogWarning("Presentation progress rejected because its scene or beat was not reached");
+                return null;
+            }
+            episode.State = JsonSerializer.Serialize(new
+            {
+                lastOutcome = state.outcome,
+                narrativeFacts = state.facts,
+                sceneKey,
+                beatKey
+            });
+            episode.Version++;
+            await db.SaveChangesAsync(ct);
+            var result = ToState(survivor, episode);
+            await new StoryJournalService(db).RecordProgressAsync(result, ct);
+            await states.CaptureAsync(survivor, episode, ct);
+            await tx.CommitAsync(ct);
+            return result;
+        }
+        catch (TimelineConflictException)
+        {
+            log?.LogWarning("Presentation progress rejected because the active Thread changed");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            operation.Fail(ex);
+            throw;
+        }
     }
 
-    /// <inheritdoc />
+    /// <summary>Destructively resets development-only chapter state, refusing to invalidate preserved descendant branches.</summary>
     public async Task<SessionState?> ResetChapterAsync(Guid survivorId, Guid eventInstanceId, CancellationToken ct = default)
     {
         using var operation = OperationTelemetry.Start("session.reset_chapter", log);
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var survivor = await db.Survivors.SingleOrDefaultAsync(x => x.Id == survivorId, ct);
-        var episode = await db.EventInstances.SingleOrDefaultAsync(x => x.Id == eventInstanceId && x.SurvivorId == survivorId && x.Status == EventInstanceStatus.Active, ct);
-        if (survivor is null || episode is null) return null;
-        var attempts = db.ActionAttempts.Where(x => x.EventInstanceId == eventInstanceId && x.SurvivorId == survivorId);
-        var events = db.GameEvents.Where(e => e.SurvivorId == survivorId && attempts.Any(a => a.IdempotencyKey == e.CorrelationId));
-        await db.Set<StoryPanelRecord>().Where(p => p.EventInstanceId == eventInstanceId || events.Any(e => e.Id == p.SourceEventId)).ExecuteDeleteAsync(ct);
-        var wakes = await db.Wakes.Where(w => events.Any(e => e.Id == w.OriginEventId)).ExecuteDeleteAsync(ct);
-        var gameEvents = await events.ExecuteDeleteAsync(ct);
-        await db.ActionResolutions.Where(r => attempts.Any(a => a.Id == r.ActionAttemptId)).ExecuteDeleteAsync(ct);
-        var actions = await attempts.ExecuteDeleteAsync(ct);
-        episode.State = JsonSerializer.Serialize(new { sceneKey = StartSceneKey, beatKey = StartBeatKey });
-        episode.Version++; await db.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
-        log?.LogInformation("Development chapter reset for survivor {SurvivorId} discarded {Actions} actions, {Events} events, and {Wakes} wakes", survivorId, actions, gameEvents, wakes);
-        return ToState(survivor, episode);
-    }
-
-    private const string StartSceneKey = "day1-0617-0643", StartBeatKey = "phone-0617";
-
-    private static SessionState ToState(SurvivorRecord survivor, EventInstanceRecord episode)
-    {
-        var s = ReadState(episode.State);
-        return new(survivor.Id, survivor.TimelineId, episode.Id, survivor.SurvivorDay, episode.EventKey, episode.Status.ToString().ToLowerInvariant(), s.outcome, s.facts, s.scene, s.beat);
-    }
-
-    private static (string? outcome, IReadOnlyDictionary<string, string> facts, string scene, string beat) ReadState(string? json)
-    {
-        string? outcome = null; IReadOnlyDictionary<string, string> facts = new Dictionary<string, string>(); var scene = StartSceneKey; var beat = StartBeatKey;
-        if (!string.IsNullOrWhiteSpace(json) && json != "{}")
+        try
         {
-            using var doc = JsonDocument.Parse(json); var r = doc.RootElement;
-            if (r.TryGetProperty("lastOutcome", out var o)) outcome = o.GetString();
-            if (r.TryGetProperty("narrativeFacts", out var f)) facts = JsonSerializer.Deserialize<Dictionary<string, string>>(f.GetRawText()) ?? new();
-            if (r.TryGetProperty("sceneKey", out var s) && !string.IsNullOrWhiteSpace(s.GetString())) scene = s.GetString()!;
-            if (r.TryGetProperty("beatKey", out var b) && !string.IsNullOrWhiteSpace(b.GetString())) beat = b.GetString()!;
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            var survivor = await new TimelineStateStore(db).LockAsync(survivorId, null, ct);
+            var episode = await db.EventInstances.SingleOrDefaultAsync(row => row.Id == eventInstanceId &&
+                row.SurvivorId == survivorId && row.TimelineId == survivor.TimelineId, ct);
+            if (episode is null)
+            {
+                log?.LogWarning("Development chapter reset rejected because the active episode changed");
+                return null;
+            }
+            await db.Entry(episode).ReloadAsync(ct);
+            if (await db.Set<TimelineBranchRecord>().AnyAsync(row => row.ParentTimelineId == survivor.TimelineId, ct))
+                throw new TimelineConflictException("This chapter has durable checkpoints or branches. Start a fresh Day 1 branch instead.");
+            await db.Set<TimelineCheckpointRecord>().Where(row => row.TimelineId == survivor.TimelineId &&
+                row.EventInstanceId == eventInstanceId).ExecuteDeleteAsync(ct);
+            var attempts = db.ActionAttempts.Where(row => row.EventInstanceId == eventInstanceId && row.SurvivorId == survivorId);
+            var events = db.GameEvents.Where(row => row.TimelineId == survivor.TimelineId &&
+                attempts.Any(attempt => attempt.IdempotencyKey == row.CorrelationId));
+            await db.Set<StoryPanelRecord>().Where(row => row.EventInstanceId == eventInstanceId ||
+                events.Any(source => source.Id == row.SourceEventId)).ExecuteDeleteAsync(ct);
+            await db.Wakes.Where(row => events.Any(source => source.Id == row.OriginEventId)).ExecuteDeleteAsync(ct);
+            await events.ExecuteDeleteAsync(ct);
+            await db.ActionResolutions.Where(row => attempts.Any(attempt => attempt.Id == row.ActionAttemptId)).ExecuteDeleteAsync(ct);
+            await attempts.ExecuteDeleteAsync(ct);
+            var branch = await db.Set<SurvivorTimelineStateRecord>().SingleAsync(row => row.SurvivorId == survivorId &&
+                row.TimelineId == survivor.TimelineId, ct);
+            branch.Facts = "{}";
+            branch.Version++;
+            episode.State = JsonSerializer.Serialize(new
+            {
+                sceneKey = StartSceneKey,
+                beatKey = StartBeatKey
+            });
+            episode.Version++;
+            await db.SaveChangesAsync(ct);
+            await new StoryJournalService(db).RecordProgressAsync(ToState(survivor, episode), ct);
+            await new TimelineStateStore(db).CaptureAsync(survivor, episode, ct);
+            await tx.CommitAsync(ct);
+            log?.LogInformation("Development chapter reset completed for survivor {SurvivorId}", survivorId);
+            return ToState(survivor, episode);
         }
-        return (outcome, facts, scene, beat);
+        catch (TimelineConflictException)
+        {
+            log?.LogWarning("Development chapter reset rejected because preserved Thread history would be invalidated");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            operation.Fail(ex);
+            throw;
+        }
+    }
+
+    private const string StartSceneKey = "day1-0617-0643";
+    private const string StartBeatKey = "phone-0617";
+
+    internal static SessionState ToState(SurvivorRecord survivor, EventInstanceRecord episode)
+    {
+        var state = ReadState(episode.State);
+        return new(survivor.Id, episode.TimelineId, episode.Id, episode.SurvivorDay, episode.EventKey,
+            episode.Status.ToString().ToLowerInvariant(), state.outcome, state.facts, state.scene, state.beat, episode.Version);
+    }
+
+    private static (string? outcome, IReadOnlyDictionary<string, string> facts, string scene, string beat) ReadState(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        return (
+            root.TryGetProperty("lastOutcome", out var outcome) ? outcome.GetString() : null,
+            root.TryGetProperty("narrativeFacts", out var facts)
+                ? facts.Deserialize<Dictionary<string, string>>() ?? [] : new Dictionary<string, string>(),
+            root.TryGetProperty("sceneKey", out var scene) ? scene.GetString() ?? StartSceneKey : StartSceneKey,
+            root.TryGetProperty("beatKey", out var beat) ? beat.GetString() ?? StartBeatKey : StartBeatKey);
     }
 }

@@ -43,12 +43,15 @@ public sealed class ObservabilityTests
         using var metrics = new MeterListener();
         metrics.InstrumentPublished = (instrument, listener) =>
         {
-            if (instrument.Meter.Name == OperationTelemetry.SourceName) listener.EnableMeasurementEvents(instrument);
+            if (instrument.Meter.Name == OperationTelemetry.SourceName)
+                listener.EnableMeasurementEvents(instrument);
         };
         metrics.SetMeasurementEventCallback<double>((instrument, value, tags, _) =>
         {
-            if (instrument.Name != "fatewake.operation.duration") return;
-            if (!tags.ToArray().Any(tag => tag.Key == "operation" && Equals(tag.Value, "test.operation"))) return;
+            if (instrument.Name != "fatewake.operation.duration")
+                return;
+            if (!tags.ToArray().Any(tag => tag.Key == "operation" && Equals(tag.Value, "test.operation")))
+                return;
             Assert.All(tags.ToArray(), tag => Assert.Contains(tag.Key, new[] { "operation", "outcome" }));
             durations.Add(value);
         });
@@ -88,7 +91,8 @@ public sealed class ObservabilityTests
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = activity =>
             {
-                if (activity.TagObjects.Any(tag => tag.Value?.ToString()?.Contains("/probe") == true)) requests.Add(activity);
+                if (activity.TagObjects.Any(tag => tag.Value?.ToString()?.Contains("/probe") == true))
+                    requests.Add(activity);
             }
         };
         ActivitySource.AddActivityListener(requestListener);

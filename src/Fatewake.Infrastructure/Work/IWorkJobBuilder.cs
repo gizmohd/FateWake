@@ -5,4 +5,8 @@ public interface IWorkJobBuilder
 {
     /// <summary>Creates or returns an existing durable job for the supplied idempotency key.</summary>
     Task<CreatedWorkJob> CreateAsync(WorkJobDefinition definition, CancellationToken ct = default);
+
+    /// <summary>Commits related durable state in the same transaction as the job and its idempotency decision.</summary>
+    Task<CreatedWorkJob> CreateAsync(WorkJobDefinition definition,
+        Func<Guid, CancellationToken, Task> transactionWork, CancellationToken ct = default);
 }

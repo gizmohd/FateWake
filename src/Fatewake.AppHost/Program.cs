@@ -56,6 +56,7 @@ IResourceBuilder<ProjectResource> worker = builder.AddProject("worker", Path.Com
 
 api.WithForwardedSection(builder, "ArtGeneration");
 api.WithForwardedSection(builder, "ArtStorage");
+api.WithForwardedSection(builder, "ArtPromptAuthoring");
 api.WithForwardedSection(builder, "Administration");
 api.WithForwardedSection(builder, "OpenIddict");
 api.WithForwardedSection(builder, "OpenIddictWeb");
@@ -63,6 +64,10 @@ api.WithForwardedSection(builder, "DataProtection");
 
 worker.WithForwardedSection(builder, "ArtGeneration");
 worker.WithForwardedSection(builder, "ArtStorage");
+worker.WithForwardedSection(builder, "ArtPromptAuthoring");
+worker.WithForwardedSection(builder, "Embedding");
+worker.WithForwardedSection(builder, "SceneAuthoring");
+worker.WithForwardedSection(builder, "Work");
 if (comfyUi is not null)
 {
     api.WithLocalComfyUi(comfyUi);
@@ -84,7 +89,8 @@ foreach (string? provider in new[] { "Google", "Microsoft" })
     foreach (string? setting in new[] { "Enabled", "ClientId", "ClientSecret", "TenantId" })
     {
         string key = $"Authentication:{provider}:{setting}";
-        if (builder.Configuration[key] is not { } value) continue;
+        if (builder.Configuration[key] is not { } value)
+            continue;
         api.WithEnvironment(key.Replace(":", "__"), value);
         web.WithEnvironment(key.Replace(":", "__"), value);
     }

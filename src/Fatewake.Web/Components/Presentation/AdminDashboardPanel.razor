@@ -5,10 +5,10 @@
 @implements IAsyncDisposable
 @inject Fatewake.Web.Authentication.AuthenticatedApiClient Api
 @inject ILogger<AdminDashboardPanel> Logger
-<PageTitle>Admin dashboard — Fatewake</PageTitle>
+<PageTitle>Admin dashboard — @BrandIdentity.GameName</PageTitle>
 <main class="admin-dashboard">
     <nav><a href="/play">Return to story</a> · <a href="/account">Account</a></nav>
-    <header><div class="eyebrow">FATEWAKE · ADMINISTRATION</div><h1>Generation &amp; AI usage</h1><p>Image pipeline status and provider-reported usage across the application.</p></header>
+    <header><div class="eyebrow">PATHWEAVER · ADMINISTRATION</div><h1>Generation &amp; AI usage</h1><p>Image pipeline status and provider-reported usage across the application.</p></header>
     @if (_denied) { <p role="alert">This dashboard requires Admin access. <a href="/login">Sign in</a> with an Admin account.</p> }
     else
     {

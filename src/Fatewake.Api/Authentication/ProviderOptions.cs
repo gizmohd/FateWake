@@ -5,13 +5,22 @@ namespace Fatewake.Api.Authentication;
 public class ProviderOptions
 {
     /// <summary>Registers provider sign-in only when explicitly enabled.</summary>
-    public bool Enabled { get; init; }
+    public bool Enabled
+    {
+        get; init;
+    }
 
     /// <summary>Public client identifier registered with the provider.</summary>
-    public string? ClientId { get; init; }
+    public string? ClientId
+    {
+        get; init;
+    }
 
     /// <summary>Client secret registered with the provider.</summary>
-    public string? ClientSecret { get; init; }
+    public string? ClientSecret
+    {
+        get; init;
+    }
 
     /// <summary>Microsoft tenant GUID or consumers for personal accounts; ignored by Google.</summary>
     public string TenantId { get; init; } = "consumers";

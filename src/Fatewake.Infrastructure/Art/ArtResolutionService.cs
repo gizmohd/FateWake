@@ -18,9 +18,11 @@ public sealed class ArtResolutionService(IArtAssetStore assets, ILogger<ArtResol
     {
         using var operation = OperationTelemetry.Start("art.resolve", log);
         var exact = await assets.FindApprovedByFingerprintAsync(visualFingerprint, ct);
-        if (exact is not null) return new(false, exact, null);
+        if (exact is not null)
+            return new(false, exact, null);
         var keyed = await assets.FindApprovedAsync(key, version, ct);
-        if (keyed is not null && keyed.Key == key) return new(false, keyed, null);
+        if (keyed is not null && keyed.Key == key)
+            return new(false, keyed, null);
         return new(true, null, new(key, version, visualFingerprint));
     }
 }

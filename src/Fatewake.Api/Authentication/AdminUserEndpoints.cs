@@ -41,10 +41,12 @@ public sealed class AdminUserEndpoints(FatewakeDbContext db, VerificationEmailSe
 
     private async Task<IResult> ReadAsync(Guid? id, string? search, int page, CancellationToken ct)
     {
-        if (page is < 1 or > 10000 || search?.Length > 100) return Results.BadRequest();
+        if (page is < 1 or > 10000 || search?.Length > 100)
+            return Results.BadRequest();
         using var operation = OperationTelemetry.Start("admin.user_read", log);
         var query = db.Accounts.AsNoTracking();
-        if (id is not null) query = query.Where(row => row.Id == id);
+        if (id is not null)
+            query = query.Where(row => row.Id == id);
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim().ToLowerInvariant();
@@ -63,18 +65,29 @@ public sealed class AdminUserEndpoints(FatewakeDbContext db, VerificationEmailSe
                 verified = db.AccountEmails.Any(e => e.AccountId == row.Id && e.Verified),
                 hasPassword = db.LocalCredentials.Any(c => c.AccountId == row.Id)
             }).ToListAsync(ct);
-        return id is null ? Results.Ok(new { total, rows }) : rows.Count == 0 ? Results.NotFound() : Results.Ok(rows[0]);
+        return id is null ? Results.Ok(new
+        {
+            total,
+            rows
+        }) : rows.Count == 0 ? Results.NotFound() : Results.Ok(rows[0]);
     }
 
     private async Task<IResult> InviteAsync(HttpContext context, AdminUserRequest request, CancellationToken ct)
     {
         if (!EmailAddressNormalizer.TryNormalize(request.Email, out var normalized) || request.DisplayName?.Length > 100 ||
-            request.Role is not ("Admin" or "User")) return Results.BadRequest(new { error = "Provide a valid email address, name and role." });
+            request.Role is not ("Admin" or "User"))
+            return Results.BadRequest(new
+            {
+                error = "Provide a valid email address, name and role."
+            });
         using var operation = OperationTelemetry.Start("admin.user_invite", log);
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         await LockEmailAsync(normalized, ct);
         if (await db.AccountEmails.AnyAsync(x => x.NormalizedEmail == normalized, ct))
-            return Results.Conflict(new { error = "That email already belongs to an account." });
+            return Results.Conflict(new
+            {
+                error = "That email already belongs to an account."
+            });
         var now = DateTimeOffset.UtcNow;
         var account = new AccountRecord
         {
@@ -86,8 +99,17 @@ public sealed class AdminUserEndpoints(FatewakeDbContext db, VerificationEmailSe
             UpdatedAt = now
         };
         db.Accounts.Add(account);
-        db.AccountEmails.Add(new() { AccountId = account.Id, NormalizedEmail = normalized });
-        db.Set<AccountRoleRecord>().Add(new() { AccountId = account.Id, Role = request.Role, AssignedAt = now });
+        db.AccountEmails.Add(new()
+        {
+            AccountId = account.Id,
+            NormalizedEmail = normalized
+        });
+        db.Set<AccountRoleRecord>().Add(new()
+        {
+            AccountId = account.Id,
+            Role = request.Role,
+            AssignedAt = now
+        });
         await db.SaveChangesAsync(ct);
         var token = await AddProofAsync(account.Id, "invite", account.PrimaryEmail, normalized, ct);
         await AuditAsync(context, account.Id, "user.invite", ct);
@@ -102,14 +124,27 @@ public sealed class AdminUserEndpoints(FatewakeDbContext db, VerificationEmailSe
         await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(861017234)", ct);
         if (request.Email is not null)
         {
-            if (!EmailAddressNormalizer.TryNormalize(request.Email, out var emailKey)) return Results.BadRequest(new { error = "Invalid email address." });
+            if (!EmailAddressNormalizer.TryNormalize(request.Email, out var emailKey))
+                return Results.BadRequest(new
+                {
+                    error = "Invalid email address."
+                });
             await LockEmailAsync(emailKey, ct);
         }
         var account = await LockAccountAsync(id, ct);
-        if (account is null) return Results.NotFound();
-        if (account.UpdatedAt != request.Version) return Results.Conflict(new { error = "The account was updated. Reload the details." });
+        if (account is null)
+            return Results.NotFound();
+        if (account.UpdatedAt != request.Version)
+            return Results.Conflict(new
+            {
+                error = "The account was updated. Reload the details."
+            });
         var deletion = confirmed is not null;
-        if (deletion && confirmed != id) return Results.BadRequest(new { error = "Confirm the exact account ID." });
+        if (deletion && confirmed != id)
+            return Results.BadRequest(new
+            {
+                error = "Confirm the exact account ID."
+            });
         var assignedRole = await db.Set<AccountRoleRecord>().SingleOrDefaultAsync(x => x.AccountId == id, ct);
         var role = deletion ? assignedRole?.Role ?? "User" : request.Role;
         var status = request.Status switch
@@ -128,13 +163,20 @@ public sealed class AdminUserEndpoints(FatewakeDbContext db, VerificationEmailSe
                 AccountStatus.Invited => account.Status != AccountStatus.Disabled || verified,
                 _ => true
             }))
-            return Results.BadRequest(new { error = "Invalid role, name or account status change." });
+            return Results.BadRequest(new
+            {
+                error = "Invalid role, name or account status change."
+            });
         if (assignedRole?.Role == "Admin" && (role != "Admin" || status != AccountStatus.Active) && account.Status == AccountStatus.Active)
         {
             var otherAdmin = await db.Accounts.AnyAsync(x => x.Id != id && x.Status == AccountStatus.Active &&
                 db.AccountEmails.Any(e => e.AccountId == x.Id && e.Verified) &&
                 db.Set<AccountRoleRecord>().Any(r => r.AccountId == x.Id && r.Role == "Admin"), ct);
-            if (Actor(context) == id || !otherAdmin) return Results.Conflict(new { error = "You cannot remove your own access or the last active administrator." });
+            if (Actor(context) == id || !otherAdmin)
+                return Results.Conflict(new
+                {
+                    error = "You cannot remove your own access or the last active administrator."
+                });
         }
 
         string? token = null;
@@ -143,15 +185,27 @@ public sealed class AdminUserEndpoints(FatewakeDbContext db, VerificationEmailSe
         {
             account.DisplayName = request.DisplayName?.Trim();
             if (assignedRole is null)
-                db.Set<AccountRoleRecord>().Add(new() { AccountId = id, Role = role, AssignedAt = DateTimeOffset.UtcNow });
-            else assignedRole.Role = role;
+                db.Set<AccountRoleRecord>().Add(new()
+                {
+                    AccountId = id,
+                    Role = role,
+                    AssignedAt = DateTimeOffset.UtcNow
+                });
+            else
+                assignedRole.Role = role;
             if (!string.Equals(account.PrimaryEmail, request.Email?.Trim(), StringComparison.OrdinalIgnoreCase))
             {
                 if (status != AccountStatus.Active || account.Status != AccountStatus.Active ||
                     !EmailAddressNormalizer.TryNormalize(request.Email, out var normalized))
-                    return Results.BadRequest(new { error = "Only active accounts can change their email address." });
+                    return Results.BadRequest(new
+                    {
+                        error = "Only active accounts can change their email address."
+                    });
                 if (await db.AccountEmails.AnyAsync(x => x.NormalizedEmail == normalized, ct))
-                    return Results.Conflict(new { error = "That email already belongs to an account." });
+                    return Results.Conflict(new
+                    {
+                        error = "That email already belongs to an account."
+                    });
                 destination = request.Email!.Trim();
                 token = await AddProofAsync(id, "email", destination, normalized, ct);
             }
@@ -174,11 +228,15 @@ public sealed class AdminUserEndpoints(FatewakeDbContext db, VerificationEmailSe
         using var operation = OperationTelemetry.Start("admin.user_send_proof", log);
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         var account = await LockAccountAsync(id, ct);
-        if (account is null) return Results.NotFound();
+        if (account is null)
+            return Results.NotFound();
         var email = await db.AccountEmails.SingleOrDefaultAsync(x => x.AccountId == id, ct);
         if (account.Status != (invitation ? AccountStatus.Invited : AccountStatus.Active) || email is null ||
             email.Verified == invitation || account.PrimaryEmail is null)
-            return Results.Conflict(new { error = "The account is not eligible for this email." });
+            return Results.Conflict(new
+            {
+                error = "The account is not eligible for this email."
+            });
         var token = await AddProofAsync(id, invitation ? "invite" : "reset", account.PrimaryEmail, email.NormalizedEmail, ct);
         await AuditAsync(context, id, invitation ? "user.resend_invitation" : "user.reset_requested", ct);
         await tx.CommitAsync(ct);
@@ -188,31 +246,44 @@ public sealed class AdminUserEndpoints(FatewakeDbContext db, VerificationEmailSe
     private async Task<IResult> CompleteAsync(string? token, string? password, CancellationToken ct)
     {
         using var operation = OperationTelemetry.Start("admin.user_complete_proof", log);
-        var invalid = Results.BadRequest(new { error = "The link is invalid, expired or already used, or the password does not meet requirements." });
-        if (token is not { Length: 64 } || !token.All(char.IsAsciiHexDigit)) return invalid;
+        var invalid = Results.BadRequest(new
+        {
+            error = "The link is invalid, expired or already used, or the password does not meet requirements."
+        });
+        if (token is not { Length: 64 } || !token.All(char.IsAsciiHexDigit))
+            return invalid;
         var hash = Hash(token);
         var proof = await FindProofAsync(hash, ct);
-        if (proof is null || (proof.Purpose is "invite" or "reset" && password is not { Length: >= 12 and <= 128 })) return invalid;
+        if (proof is null || (proof.Purpose is "invite" or "reset" && password is not { Length: >= 12 and <= 128 }))
+            return invalid;
         await using var tx = await db.Database.BeginTransactionAsync(ct);
-        if (proof.Purpose is "invite" or "email") await LockEmailAsync(proof.NormalizedEmail, ct);
+        if (proof.Purpose is "invite" or "email")
+            await LockEmailAsync(proof.NormalizedEmail, ct);
         var account = await LockAccountAsync(proof.AccountId, ct);
         if (account is null || account.Status != (proof.Purpose == "invite" ? AccountStatus.Invited : AccountStatus.Active) ||
-            await FindProofAsync(hash, ct) is null) return invalid;
+            await FindProofAsync(hash, ct) is null)
+            return invalid;
         var email = await db.AccountEmails.SingleOrDefaultAsync(x => x.AccountId == account.Id, ct);
-        if (email is null || email.Verified == (proof.Purpose == "invite")) return invalid;
+        if (email is null || email.Verified == (proof.Purpose == "invite"))
+            return invalid;
         var credential = await db.LocalCredentials.FromSqlInterpolated(
             $"""SELECT * FROM local_credential WHERE "AccountId" = {account.Id} FOR UPDATE""").SingleOrDefaultAsync(ct);
         if (proof.Purpose == "email")
         {
             if (await db.AccountEmails.AnyAsync(x => x.NormalizedEmail == proof.NormalizedEmail, ct))
-                return Results.Conflict(new { error = "That email already belongs to an account." });
+                return Results.Conflict(new
+                {
+                    error = "That email already belongs to an account."
+                });
             email.NormalizedEmail = proof.NormalizedEmail;
             account.PrimaryEmail = proof.Email;
-            if (credential is not null) credential.NormalizedEmail = proof.NormalizedEmail;
+            if (credential is not null)
+                credential.NormalizedEmail = proof.NormalizedEmail;
         }
         else
         {
-            if (proof.NormalizedEmail != email.NormalizedEmail) return invalid;
+            if (proof.NormalizedEmail != email.NormalizedEmail)
+                return invalid;
             if (credential is null)
             {
                 credential = new LocalCredentialRecord { AccountId = account.Id, NormalizedEmail = email.NormalizedEmail, PasswordHash = "" };
@@ -236,11 +307,13 @@ public sealed class AdminUserEndpoints(FatewakeDbContext db, VerificationEmailSe
     private async Task<IResult> RequestPasswordResetAsync(string? email, CancellationToken ct)
     {
         using var operation = OperationTelemetry.Start("auth.request_password_reset", log);
-        if (!EmailAddressNormalizer.TryNormalize(email, out var normalized)) return Results.Accepted();
+        if (!EmailAddressNormalizer.TryNormalize(email, out var normalized))
+            return Results.Accepted();
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         var id = await db.AccountEmails.Where(x => x.NormalizedEmail == normalized && x.Verified)
             .Select(x => (Guid?)x.AccountId).SingleOrDefaultAsync(ct);
-        if (id is null) return Results.Accepted();
+        if (id is null)
+            return Results.Accepted();
         var account = await LockAccountAsync(id.Value, ct);
         if (account?.Status != AccountStatus.Active || account.PrimaryEmail is null ||
             !await db.AccountEmails.AnyAsync(x => x.AccountId == account.Id && x.NormalizedEmail == normalized && x.Verified, ct) ||
@@ -251,7 +324,8 @@ public sealed class AdminUserEndpoints(FatewakeDbContext db, VerificationEmailSe
             SELECT EXISTS (SELECT 1 FROM identity_admin_proof
                 WHERE account_id = {account.Id} AND purpose = 'reset' AND expires_at > {threshold}) AS "Value"
             """).SingleAsync(ct);
-        if (recentlyRequested) return Results.Accepted();
+        if (recentlyRequested)
+            return Results.Accepted();
         var reset = await AddProofAsync(account.Id, "reset", account.PrimaryEmail, normalized, ct);
         await tx.CommitAsync(ct);
         try
@@ -310,7 +384,10 @@ public sealed class AdminUserEndpoints(FatewakeDbContext db, VerificationEmailSe
         {
             operation.Fail(ex);
             log.LogError("Account action email delivery failed with {ErrorType}", ex.GetType().Name);
-            return Results.Json(new { error = "The change was saved, but email delivery failed. Retry the email action." }, statusCode: 503);
+            return Results.Json(new
+            {
+                error = "The change was saved, but email delivery failed. Retry the email action."
+            }, statusCode: 503);
         }
     }
 

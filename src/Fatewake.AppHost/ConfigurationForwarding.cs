@@ -20,7 +20,8 @@ public static class ConfigurationForwarding
     {
         foreach (var (key, value) in builder.Configuration.GetSection(section).AsEnumerable())
         {
-            if (string.IsNullOrEmpty(value)) continue;
+            if (string.IsNullOrEmpty(value))
+                continue;
             var variable = key.Replace(":", "__");
             if (IsSecret(key))
                 resource.WithEnvironment(variable, GetOrAddSecretParameter(builder, key));

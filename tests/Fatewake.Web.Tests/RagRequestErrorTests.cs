@@ -8,6 +8,19 @@ namespace Fatewake.Web.Tests;
 /// <see href="../../docs/code/tests/Fatewake.Web.Tests/RagRequestErrorTests.md">Documentation</see>
 public sealed class RagRequestErrorTests
 {
+    /// <summary>Derives lowercase dash-separated keys from titles and drops unsupported characters.</summary>
+    [Theory]
+    [InlineData("The Wayfinder Legacy — Volume One", "the-wayfinder-legacy-volume-one")]
+    [InlineData("  Spaced   Out  Title ", "spaced-out-title")]
+    [InlineData("Day 1: Eli's Story!", "day-1-elis-story")]
+    public void Slug_follows_title(string title, string expected) =>
+        Assert.Equal(expected, RagKeySlug.FromTitle(title, 200));
+
+    /// <summary>Respects the field length without leaving a trailing dash.</summary>
+    [Fact]
+    public void Slug_is_truncated_without_trailing_dash() =>
+        Assert.Equal("abc", RagKeySlug.FromTitle("abc def", 4));
+
     /// <summary>Explains authorization and request-size failures even when middleware returns no body.</summary>
     [Theory]
     [InlineData(HttpStatusCode.Unauthorized, "rag.sign_in_required", true)]

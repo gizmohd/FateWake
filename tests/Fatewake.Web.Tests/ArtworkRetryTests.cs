@@ -74,7 +74,10 @@ public sealed class ArtworkRetryTests
         private int requests;
 
         public HttpClient CreateClient(string name) =>
-            new(this, disposeHandler: false) { BaseAddress = new Uri("http://test") };
+            new(this, disposeHandler: false)
+            {
+                BaseAddress = new Uri("http://test")
+            };
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
@@ -114,13 +117,16 @@ public sealed class ArtworkRetryTests
                 if (frame.FrameType == RenderTreeFrameType.Markup &&
                     frame.MarkupContent.Contains("src=\"/images/art-generating.svg\"", StringComparison.Ordinal))
                     return ("/images/art-generating.svg", 0);
-                if (frame is not { FrameType: RenderTreeFrameType.Element, ElementName: "img" }) continue;
+                if (frame is not { FrameType: RenderTreeFrameType.Element, ElementName: "img" })
+                    continue;
                 string? url = null;
                 ulong handler = 0;
                 for (var j = i + 1; j < frames.Count && frames.Array[j].FrameType == RenderTreeFrameType.Attribute; j++)
                 {
-                    if (frames.Array[j].AttributeName == "src") url = frames.Array[j].AttributeValue as string;
-                    if (frames.Array[j].AttributeName == "onerror") handler = frames.Array[j].AttributeEventHandlerId;
+                    if (frames.Array[j].AttributeName == "src")
+                        url = frames.Array[j].AttributeValue as string;
+                    if (frames.Array[j].AttributeName == "onerror")
+                        handler = frames.Array[j].AttributeEventHandlerId;
                 }
                 return (url, handler);
             }

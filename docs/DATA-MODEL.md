@@ -1,4 +1,4 @@
-# Fatewake Domain and PostgreSQL Model
+# Pathweaver Domain and PostgreSQL Model
 
 ## Design Principle
 
@@ -25,6 +25,24 @@ The RAG model separates corpus provenance from generated claims and canonical tr
 PostgreSQL full-text search is always available. pgvector supplies semantic retrieval using 1024-dimensional embeddings when the configured embedding model produces that shape. Retrieval must apply review, visibility and spoiler filters before prompt assembly. Generated or candidate claims cannot directly mutate game state.
 
 ## Identity and Timeline
+
+Public terms are **Pathweaver** for a player and **Thread** for a timeline. Existing `survivor`/`timeline` tables, IDs and API fields retain their technical names. The stable survivor row owns account identity and points to the selected Thread; canonical mutable branch facts live in branch-owned state.
+
+### timeline_branch
+
+One timeline belongs to a stable survivor lineage, with root/parent timeline references, an optional reached checkpoint, explicit `original`/`checkpoint`/`fresh-day1` origin and a retry request ID. A unique survivor/request key prevents duplicate forks. Restrictive foreign keys preserve ancestor provenance.
+
+### timeline_checkpoint
+
+Immutable reached chapter-opening or pre-decision snapshot: survivor/timeline/event IDs, stable checkpoint key, public scene/time label, JSONB snapshot, canonical JSON SHA-256 integrity hash and creation time. The envelope pins schema/rules/content versions and freezes canonical facts, personal Wake projections, reached panels/disclosure/art pins and identity references. JSONB property reordering does not change the integrity hash. Raw snapshots are never player API DTOs.
+
+### survivor_timeline_state
+
+Composite survivor/timeline identity, canonical facts JSONB, day/status and optimistic version. The legacy survivor day/status fields are a transactionally synchronized active-selection projection, not a second independently writable rules source. Base player identity remains stable between Threads; currently implemented gameplay has no separate mutable equipment/injury projection to invent or reconstruct.
+
+Forking creates new branch-local episodes and mutable projections without replaying ancestor action events. Frozen panel copies retain original causal references while isolating later revelations and artwork changes. Normal history/notice/progress reads and writes are scoped to the selected Thread. Existing snapshots are not inferred from reconstructed prose.
+
+Existing multi-player timelines retain all their state but do not acquire a misleading single-owner personal branch. Eligibility also checks that only one survivor occupies the timeline, even if legacy world-scope flags still say personal/isolated.
 
 ### account_profile
 

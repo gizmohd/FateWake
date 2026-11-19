@@ -8,12 +8,12 @@
 @inject IJSRuntime JS
 @inject Microsoft.Extensions.Hosting.IHostEnvironment Environment
 
-<PageTitle>Fatewake — The Silence</PageTitle>
+<PageTitle>@BrandIdentity.GameName — The Silence</PageTitle>
 <SiteShell SurvivorId="_session?.SurvivorId">
     <Chapter>
         <div class="play-chapter">
             <h1>@Scene.Title</h1>
-            <span>Survivor Day @(_session?.SurvivorDay ?? Scene.SurvivorDay)</span>
+            <span>Chapter @(_session?.SurvivorDay ?? Scene.SurvivorDay)</span>
         </div>
     </Chapter>
 
@@ -118,25 +118,30 @@
 @if (_session is not null) { <StoryToasts @key="_session.SurvivorId" SurvivorId="_session.SurvivorId" /> }
 
 @code {
-    private static SceneDefinition Scene=>DayOneScenes.Opening;
-    private BeatDefinition Beat=>Scene.Beats[Math.Clamp(_beatIndex,0,Scene.Beats.Count-1)];
+    private static SceneDefinition Scene => DayOneScenes.Opening;
+    private BeatDefinition Beat => Scene.Beats[Math.Clamp(_beatIndex, 0, Scene.Beats.Count - 1)];
     private bool AtChapterEnd => _beatIndex == Scene.Beats.Count - 1;
     private string? SpeakerPortrait =>
         Beat.Dialogue?.Speaker == "MICHELLE SUMMERS" && _artwork?.ArtworkKey == Beat.ArtworkKey &&
         _artwork.Versions.GetValueOrDefault("char-michelle-day1-supporting") is > 0 and var version
             ? $"/art/char-michelle-day1-supporting/{version}/webp"
             : null;
-    private bool _ready,_showOther,_submitting; private int _beatIndex; private string _freeform="",_resolutionText="";
+    private bool _ready, _showOther, _submitting;
+    private int _beatIndex;
+    private string _freeform = "", _resolutionText = "";
     private string? _selectedActionType;
-    private SessionDto? _session; private Guid? _inflightKey;
+    private SessionDto? _session;
+    private Guid? _inflightKey;
     private string? _error, _actionMessage;
     private ArtworkSnapshot? _artwork;
     private async Task RememberArtwork(ArtworkSnapshot artwork)
     {
         _artwork = artwork;
-        if (_session is null || artwork.ArtworkKey != Beat.ArtworkKey) return;
+        if (_session is null || artwork.ArtworkKey != Beat.ArtworkKey)
+            return;
         var versions = artwork.Versions.Where(x => x.Value is > 0).ToDictionary(x => x.Key, x => x.Value);
-        if (versions.Count == 0) return;
+        if (versions.Count == 0)
+            return;
         try
         {
             using var client = await ApiClient.CreateAsync();
@@ -144,7 +149,10 @@
                 new { _session.EventInstanceId, BeatKey = Beat.Key, Versions = versions });
             response.EnsureSuccessStatusCode();
         }
-        catch (HttpRequestException ex) { Logger.LogWarning(ex, "Displayed artwork could not be journaled"); }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogWarning(ex, "Displayed artwork could not be journaled");
+        }
     }
 
     private string? DisplayedNarration => Beat.Kind == BeatKind.Consequence && !string.IsNullOrWhiteSpace(_resolutionText) ? _resolutionText : Beat.Narration;
@@ -154,43 +162,65 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if(!firstRender)return;
+        if (!firstRender)
+            return;
         try
         {
-        Guid? survivorId=null;
-        var user=await ApiClient.GetCurrentUserAsync();
-        if(user.Identity?.IsAuthenticated!=true)
+            Guid? survivorId = null;
+            var user = await ApiClient.GetCurrentUserAsync();
+            if (user.Identity?.IsAuthenticated != true)
+            {
+                var saved = await JS.InvokeAsync<string?>("localStorage.getItem", "fatewake.survivorId");
+                if (Guid.TryParse(saved, out var parsed))
+                    survivorId = parsed;
+            }
+            using var client = await ApiClient.CreateAsync();
+            using var response = await StartSessionAsync(client, survivorId);
+            response.EnsureSuccessStatusCode();
+            _session = await response.Content.ReadFromJsonAsync<SessionDto>();
+            if (_session is not null)
+            {
+                if (user.Identity?.IsAuthenticated != true)
+                    await JS.InvokeVoidAsync("localStorage.setItem", "fatewake.survivorId", _session.SurvivorId.ToString());
+                _beatIndex = Scene.IndexOf(_session.BeatKey);
+                if (!string.IsNullOrWhiteSpace(_session.LastOutcome))
+                    _resolutionText = DayOneOutcomes.Text(_session.LastOutcome, _session.NarrativeFacts);
+            }
+            _ready = true;
+            StateHasChanged();
+        }
+        catch (HttpRequestException ex)
         {
-            var saved=await JS.InvokeAsync<string?>("localStorage.getItem","fatewake.survivorId");
-            if(Guid.TryParse(saved,out var parsed))survivorId=parsed;
+            Logger.LogWarning(ex, "Session loading failed");
+            _error = "Unable to load your session.";
+            StateHasChanged();
         }
-        using var client=await ApiClient.CreateAsync();
-        using var response=await StartSessionAsync(client,survivorId);
-        response.EnsureSuccessStatusCode();
-        _session=await response.Content.ReadFromJsonAsync<SessionDto>();
-        if(_session is not null)
-        {
-            if(user.Identity?.IsAuthenticated!=true)
-                await JS.InvokeVoidAsync("localStorage.setItem","fatewake.survivorId",_session.SurvivorId.ToString());
-            _beatIndex=Scene.IndexOf(_session.BeatKey);
-            if(!string.IsNullOrWhiteSpace(_session.LastOutcome))_resolutionText=DayOneOutcomes.Text(_session.LastOutcome, _session.NarrativeFacts);
-        }
-        _ready=true;StateHasChanged();
-        }
-        catch(HttpRequestException ex){Logger.LogWarning(ex,"Session loading failed");_error="Unable to load your session.";StateHasChanged();}
     }
 
     private async Task NextBeat()
     {
-        if(_submitting || AtChapterEnd)return;
-        _submitting=true;
+        if (_submitting || AtChapterEnd)
+            return;
+        _submitting = true;
         try
         {
-            if (Beat.Key == "choice-wake") _selectedActionType = null;
-            _beatIndex++;_showOther=false;await SaveProgressAsync();
+            if (Beat.Key == "choice-wake")
+                _selectedActionType = null;
+            _beatIndex++;
+            _showOther = false;
+            await SaveProgressAsync();
         }
-        catch(HttpRequestException ex){Logger.LogWarning(ex,"Presentation progress could not be saved");_error="Unable to save your progress. Your session may have expired.";}
-        finally{_submitting=false;}
+        catch (HttpRequestException ex)
+        {
+            Logger.LogWarning(ex, "Presentation progress could not be saved");
+            _error = ex.StatusCode == System.Net.HttpStatusCode.Conflict
+                ? "Your active Thread changed. Reload to continue without changing another Thread."
+                : "Unable to save your progress. Your session may have expired.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
     }
 
     private static async Task<HttpResponseMessage> StartSessionAsync(HttpClient client,Guid? survivorId)
@@ -208,26 +238,49 @@
 
     private async Task ResetChapter()
     {
-        if(_submitting||_session is null||!Environment.IsDevelopment())return;
-        _submitting=true;
+        if (_submitting || _session is null || !Environment.IsDevelopment())
+            return;
+        _submitting = true;
         try
         {
-            if(!await JS.InvokeAsync<bool>("confirm","Reset this chapter? Your choices in it will be discarded."))return;
+            if (!await JS.InvokeAsync<bool>("confirm", "Reset this chapter? Your choices in it will be discarded."))
+                return;
             using var client=await ApiClient.CreateAsync();
             using var response=await client.PostAsJsonAsync("/api/debug/session/reset-chapter",new{_session.SurvivorId,_session.EventInstanceId});
             response.EnsureSuccessStatusCode();
             _session=await response.Content.ReadFromJsonAsync<SessionDto>()??_session;
-            _beatIndex=Scene.IndexOf(_session.BeatKey);_resolutionText="";_freeform="";_showOther=false;_inflightKey=null;_error=null;
+            _beatIndex = Scene.IndexOf(_session.BeatKey);
+            _resolutionText = "";
+            _freeform = "";
+            _showOther = false;
+            _inflightKey = null;
+            _error = null;
         }
-        catch(HttpRequestException ex){Logger.LogWarning(ex,"Development chapter reset failed");_error="Unable to reset the chapter.";}
-        catch(JSException ex){Logger.LogWarning(ex,"Chapter reset confirmation could not be displayed");_error="Unable to confirm the chapter reset.";}
-        finally{_submitting=false;}
+        catch (HttpRequestException ex)
+        {
+            Logger.LogWarning(ex, "Development chapter reset failed");
+            _error = ex.StatusCode == System.Net.HttpStatusCode.Conflict
+                ? "This chapter has preserved Threads. Start a fresh Chapter 1 Thread instead."
+                : "Unable to reset the chapter.";
+        }
+        catch (JSException ex)
+        {
+            Logger.LogWarning(ex, "Chapter reset confirmation could not be displayed");
+            _error = "Unable to confirm the chapter reset.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
     }
 
     private async Task Act(string actionType,string? rawInput=null)
     {
-        if(_submitting||_session is null)return;
-        _submitting=true;_actionMessage=null;_inflightKey??=Guid.NewGuid();
+        if (_submitting || _session is null)
+            return;
+        _submitting = true;
+        _actionMessage = null;
+        _inflightKey ??= Guid.NewGuid();
         try
         {
             using var client=await ApiClient.CreateAsync();
@@ -238,8 +291,11 @@
             var result=await response.Content.ReadFromJsonAsync<ResolutionDto>();
             if(result?.Accepted==true)
             {
-                _resolutionText=DayOneOutcomes.Text(result.OutcomeKey,result.NarrativeFacts);_inflightKey=null;_selectedActionType=actionType;
-                _beatIndex=Scene.IndexOf("choice-wake");await SaveProgressAsync();
+                _resolutionText = DayOneOutcomes.Text(result.OutcomeKey, result.NarrativeFacts);
+                _inflightKey = null;
+                _selectedActionType = actionType;
+                _beatIndex = Scene.IndexOf("choice-wake");
+                await SaveProgressAsync();
             }
             else
             {
@@ -247,17 +303,28 @@
                 _actionMessage="That action could not be resolved. Try describing how you help Michelle, call from the doorway, stay inside, or check the radio. Your choice has not been submitted.";
             }
         }
-        catch(HttpRequestException ex){Logger.LogWarning(ex,"Player action could not be saved");_error="Unable to save your choice. Your session may have expired.";}
-        finally{_submitting=false;}
+        catch (HttpRequestException ex)
+        {
+            Logger.LogWarning(ex, "Player action could not be saved");
+            _error = ex.StatusCode == System.Net.HttpStatusCode.Conflict
+                ? "This Thread changed or this decision is already resolved. Reload, or weave a new Thread to choose differently."
+                : "Unable to save your choice. Your session may have expired.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
     }
 
     private async Task SaveProgressAsync()
     {
-        if(_session is null)return;
+        if (_session is null)
+            return;
         using var client=await ApiClient.CreateAsync();
         using var response=await client.PostAsJsonAsync("/api/session/progress",new{_session.SurvivorId,_session.EventInstanceId,SceneKey=Scene.Key,BeatKey=Beat.Key});
         response.EnsureSuccessStatusCode();
-        if (_artwork is not null) await RememberArtwork(_artwork);
+        if (_artwork is not null)
+            await RememberArtwork(_artwork);
     }
 
     private sealed record SessionDto(Guid SurvivorId,Guid TimelineId,Guid EventInstanceId,int SurvivorDay,string EventKey,string Status,string? LastOutcome,Dictionary<string,string> NarrativeFacts,string SceneKey,string BeatKey);

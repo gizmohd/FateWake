@@ -17,15 +17,21 @@ public sealed class ArtImageProcessorTests(ITestOutputHelper output)
         var ct = TestContext.Current.CancellationToken;
         var master = CreateFixture(hasAlpha: true);
         var inspected = processor.InspectPng(master);
-        Assert.Equal(32, inspected.Width); Assert.Equal(24, inspected.Height); Assert.True(inspected.HasAlpha);
+        Assert.Equal(32, inspected.Width);
+        Assert.Equal(24, inspected.Height);
+        Assert.True(inspected.HasAlpha);
 
         var webp = await processor.CreateWebPAsync(master, ct);
         var png = await processor.CreateOptimizedPngAsync(master, ct);
 
-        Assert.Equal("image/webp", webp.ContentType); Assert.Equal("image/png", png.ContentType);
-        Assert.Equal(inspected, webp.Info); Assert.Equal(inspected, png.Info);
-        Assert.NotEmpty(webp.Bytes); Assert.NotEmpty(png.Bytes);
-        AssertDecodes(webp.Bytes, 32, 24); AssertDecodes(png.Bytes, 32, 24);
+        Assert.Equal("image/webp", webp.ContentType);
+        Assert.Equal("image/png", png.ContentType);
+        Assert.Equal(inspected, webp.Info);
+        Assert.Equal(inspected, png.Info);
+        Assert.NotEmpty(webp.Bytes);
+        Assert.NotEmpty(png.Bytes);
+        AssertDecodes(webp.Bytes, 32, 24);
+        AssertDecodes(png.Bytes, 32, 24);
         output.WriteLine($"{processor.GetType().Name}: master={master.Length:N0} webp={webp.Bytes.Length:N0} png={png.Bytes.Length:N0}");
         output.WriteLine($"  {webp.EncoderMetadata}; {png.EncoderMetadata}");
     }
@@ -54,6 +60,7 @@ public sealed class ArtImageProcessorTests(ITestOutputHelper output)
     {
         using var image = SKBitmap.Decode(bytes);
         Assert.NotNull(image);
-        Assert.Equal(width, image.Width); Assert.Equal(height, image.Height);
+        Assert.Equal(width, image.Width);
+        Assert.Equal(height, image.Height);
     }
 }

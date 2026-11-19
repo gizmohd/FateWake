@@ -25,10 +25,15 @@ public sealed class DurableWorkWorker(IServiceScopeFactory scopes, IOptions<Work
         {
             try
             {
-                using var scope = scopes.CreateScope(); var store = scope.ServiceProvider.GetRequiredService<IWorkStore>();
+                using var scope = scopes.CreateScope();
+                var store = scope.ServiceProvider.GetRequiredService<IWorkStore>();
                 await store.PromoteReadyStepsAsync(ct);
                 var lease = await store.ClaimAsync(queue, workerId, options.Value.LeaseDuration, ct);
-                if (lease is null) { await wakeup.WaitAsync(queue, options.Value.PollInterval, ct); continue; }
+                if (lease is null)
+                {
+                    await wakeup.WaitAsync(queue, options.Value.PollInterval, ct);
+                    continue;
+                }
                 using var operation = OperationTelemetry.Start("work.execute", log);
                 using var logScope = log.BeginScope(new Dictionary<string, object> { ["JobId"] = lease.JobId, ["StepId"] = lease.StepId, ["Queue"] = queue });
                 var handler = scope.ServiceProvider.GetServices<IWorkStepHandler>().SingleOrDefault(x => x.StepType == lease.StepType);
@@ -44,7 +49,10 @@ public sealed class DurableWorkWorker(IServiceScopeFactory scopes, IOptions<Work
                     using var executionCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                     var heartbeat = HeartbeatAsync(lease, options.Value.LeaseDuration, executionCts, executionCts.Token);
                     string? output;
-                    try { output = await handler.ExecuteAsync(new WorkStepExecutionContext(lease.JobId, lease.StepId, lease.Input, lease.Attempt), executionCts.Token); }
+                    try
+                    {
+                        output = await handler.ExecuteAsync(new WorkStepExecutionContext(lease.JobId, lease.StepId, lease.Input, lease.Attempt), executionCts.Token);
+                    }
                     finally { executionCts.Cancel(); try { await heartbeat; } catch (OperationCanceledException) { } }
                     await store.CompleteAsync(lease.StepId, lease.LeaseToken, output, ct);
                 }

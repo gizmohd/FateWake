@@ -19,6 +19,7 @@ public static class SceneArtEndpoints
     {
         var log = app.Logger;
         app.MapPost("/api/art/scene/resolve", async (SceneArtRequest request, SceneArtCatalog catalog,
+            SceneArtPromptService prompts,
             IArtAssetStore assets, IArtBinaryStorage storage, IArtWorkJobFactory jobs, FatewakeDbContext db,
             HttpContext context, CancellationToken ct) =>
         {
@@ -26,28 +27,77 @@ public static class SceneArtEndpoints
             try
             {
                 if (request.Keys is null || request.Keys.Length is < 1 or > 24 || request.Keys.Any(key => !catalog.Contains(key)))
-                    return Results.BadRequest(new { error = "Unknown or invalid scene asset keys." });
-                if (request.SelectedActionType is not null &&
-                    !DayOneScenes.Opening.Beats.SelectMany(x => x.Interactions)
-                        .Any(x => x.ActionType == request.SelectedActionType))
-                    return Results.BadRequest(new { error = "Unknown selected scene action." });
+                    return Results.BadRequest(new
+                    {
+                        error = "Unknown or invalid scene asset keys."
+                    });
+                if (request.SelectedActionType is not null && !SceneArtContextPolicy.IsKnownAction(request.SelectedActionType))
+                    return Results.BadRequest(new
+                    {
+                        error = "Unknown selected scene action."
+                    });
+                if (request.SelectedActionType is not null && request.SurvivorId is null)
+                    return Results.BadRequest(new
+                    {
+                        error = "A reached survivor scene is required to prioritize a selected action."
+                    });
                 if (context.Request.Headers.ContainsKey("Authorization") && context.User.Identity?.IsAuthenticated != true)
                     return Results.Unauthorized();
                 Guid? accountId = Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var owner) ? owner : null;
-                if (request.SurvivorId is { } survivor &&
-                    !await db.Survivors.AnyAsync(x => x.Id == survivor && x.AccountId == accountId, ct))
-                    return Results.NotFound();
+                var needsReachedState = request.SelectedActionType is not null ||
+                    request.Keys.Any(SceneArtContextPolicy.RequiresReachedOutcome);
+                string? activeBeat = null;
+                string? lastOutcome = null;
+                if (request.SurvivorId is { } survivor)
+                {
+                    if (needsReachedState)
+                    {
+                        var reached = await ReadReachedStateAsync(db, survivor, accountId, ct);
+                        if (!reached.Owned)
+                            return Results.NotFound();
+                        activeBeat = reached.BeatKey;
+                        lastOutcome = reached.LastOutcome;
+                        if (request.SelectedActionType is not null &&
+                            !SceneArtContextPolicy.IsSelectedActionReached(request.SelectedActionType, activeBeat, lastOutcome))
+                            return Results.BadRequest(new
+                            {
+                                error = "The selected action is not available at the survivor's reached scene."
+                            });
+                    }
+                    else if (!await db.Survivors.AnyAsync(x => x.Id == survivor && x.AccountId == accountId, ct))
+                        return Results.NotFound();
+                }
 
                 var results = new List<SceneArtResult>();
                 foreach (var key in request.Keys.Distinct(StringComparer.Ordinal))
                 {
-                    var work = (await SceneArtRevision.CreateAsync(catalog, db, key, ct)) with
+                    string? reachedVisualContext = null;
+                    if (SceneArtContextPolicy.RequiresReachedOutcome(key))
                     {
-                        AccountId = accountId,
-                        SurvivorId = request.SurvivorId,
-                        Priority = request.SelectedActionType is null ? 0 : 100
-                    };
+                        if (activeBeat != "choice-wake" || string.IsNullOrWhiteSpace(lastOutcome))
+                        {
+                            results.Add(new(key, "not-reached"));
+                            continue;
+                        }
+                        if (!SceneArtContextPolicy.TryGetReachedVisualContext(lastOutcome, out var safeContext))
+                        {
+                            results.Add(new(key, "failed"));
+                            continue;
+                        }
+                        reachedVisualContext = safeContext;
+                    }
+                    var prompt = await prompts.ResolveAsync(key, accountId, request.SurvivorId,
+                        request.SelectedActionType is null ? 0 : 100, ct, reachedVisualContext);
+                    if (prompt.Status != "ready" || prompt.WorkRequest is null)
+                    {
+                        results.Add(new(key, prompt.Status, JobId: prompt.JobId));
+                        continue;
+                    }
+                    var work = prompt.WorkRequest;
                     var resolution = await assets.FindApprovedByFingerprintAsync(work.VisualFingerprint, ct, work.IsPrivate ? accountId : null);
+                    if (resolution is null && work.LegacyVisualFingerprint is { Length: > 0 } legacyFingerprint)
+                        resolution = await assets.FindApprovedByFingerprintAsync(legacyFingerprint, ct,
+                            work.IsPrivate ? accountId : null);
                     while (resolution is { } asset && !await HasCompleteBinariesAsync(asset, storage, ct))
                     {
                         work = CreateRecoveryRequest(work, asset.Id);
@@ -105,12 +155,14 @@ public static class SceneArtEndpoints
         app.MapGet("/api/art/{key}/{version:int}/{format}", async (string key, int version, string format,
             FatewakeDbContext db, IArtBinaryStorage storage, HttpContext context, CancellationToken ct) =>
         {
-            if (version < 1 || format is not ("png" or "webp")) return Results.NotFound();
+            if (version < 1 || format is not ("png" or "webp"))
+                return Results.NotFound();
             var asset = await db.ArtAssets.AsNoTracking()
                 .Where(x => x.Key == key && x.Version == version && x.Status == ArtAssetStatus.Approved)
                 .Select(x => new { x.Id, x.OwnerAccountId })
                 .FirstOrDefaultAsync(ct);
-            if (asset is null) return Results.NotFound();
+            if (asset is null)
+                return Results.NotFound();
             if (asset.OwnerAccountId is Guid owner &&
                 (!Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var caller) || caller != owner))
                 return Results.NotFound();
@@ -120,7 +172,8 @@ public static class SceneArtEndpoints
                 .Where(x => x.ArtAssetId == asset.Id && x.Kind == derivativeKind)
                 .Select(x => new { x.StorageKey, x.ContentType, x.ContentHash, x.ByteSize, x.CreatedAt })
                 .FirstOrDefaultAsync(ct);
-            if (derivative is null || !await storage.ExistsAsync(derivative.StorageKey, ct)) return Results.NotFound();
+            if (derivative is null || !await storage.ExistsAsync(derivative.StorageKey, ct))
+                return Results.NotFound();
 
             var etag = $"\"{derivative.ContentHash}\"";
             context.Response.ContentLength = derivative.ByteSize;
@@ -128,13 +181,44 @@ public static class SceneArtEndpoints
             context.Response.Headers.CacheControl = asset.OwnerAccountId is null
                 ? "public,max-age=31536000,immutable"
                 : "private,max-age=3600,immutable";
-            if (asset.OwnerAccountId is not null) context.Response.Headers.Vary = "Authorization";
+            if (asset.OwnerAccountId is not null)
+                context.Response.Headers.Vary = "Authorization";
             context.Response.Headers.LastModified = derivative.CreatedAt.ToUniversalTime().ToString("R");
             if (MatchesIfNoneMatch(context.Request.Headers["If-None-Match"], etag))
                 return Results.StatusCode(StatusCodes.Status304NotModified);
 
             return Results.Stream(await storage.OpenReadAsync(derivative.StorageKey, ct), derivative.ContentType);
         });
+    }
+
+    private static async Task<(bool Owned, string? BeatKey, string? LastOutcome)> ReadReachedStateAsync(
+        FatewakeDbContext db, Guid survivorId, Guid? accountId, CancellationToken ct)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var survivor = await db.Survivors
+            .FromSqlInterpolated($"""SELECT * FROM survivor WHERE "Id" = {survivorId} FOR UPDATE""")
+            .SingleOrDefaultAsync(ct);
+        if (survivor is null || survivor.AccountId != accountId)
+            return (false, null, null);
+        await db.Entry(survivor).ReloadAsync(ct);
+        var episode = await db.EventInstances.AsNoTracking().SingleOrDefaultAsync(row =>
+            row.SurvivorId == survivor.Id && row.TimelineId == survivor.TimelineId &&
+            row.Status == EventInstanceStatus.Active, ct);
+        if (episode is null || episode.SurvivorDay != 1 || episode.EventKey != "day-001-injured-stranger")
+        {
+            await transaction.CommitAsync(ct);
+            return (true, null, null);
+        }
+        using var state = System.Text.Json.JsonDocument.Parse(episode.State);
+        var root = state.RootElement;
+        var sceneKey = root.TryGetProperty("sceneKey", out var scene) ? scene.GetString() : null;
+        var beatKey = root.TryGetProperty("beatKey", out var beat) ? beat.GetString() : null;
+        var outcome = root.TryGetProperty("lastOutcome", out var last) && last.ValueKind == System.Text.Json.JsonValueKind.String
+            ? last.GetString() : null;
+        await transaction.CommitAsync(ct);
+        return sceneKey == DayOneScenes.Opening.Key
+            ? (true, beatKey, outcome)
+            : (true, null, null);
     }
 
     private static async Task<bool> HasCompleteBinariesAsync(ArtAssetMatch asset, IArtBinaryStorage storage, CancellationToken ct)
@@ -148,7 +232,11 @@ public static class SceneArtEndpoints
     {
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
             $"{request.VisualFingerprint}\nmissing-binary-recovery\n{missingAssetId:N}"))).ToLowerInvariant();
-        return request with { VisualFingerprint = fingerprint };
+        return request with
+        {
+            VisualFingerprint = fingerprint,
+            LegacyVisualFingerprint = null
+        };
     }
 
     private static bool MatchesIfNoneMatch(IEnumerable<string> values, string etag)
@@ -157,8 +245,10 @@ public static class SceneArtEndpoints
             foreach (var candidate in value.Split(','))
             {
                 var normalized = candidate.Trim();
-                if (normalized.StartsWith("W/", StringComparison.OrdinalIgnoreCase)) normalized = normalized[2..].Trim();
-                if (normalized == "*" || string.Equals(normalized, etag, StringComparison.Ordinal)) return true;
+                if (normalized.StartsWith("W/", StringComparison.OrdinalIgnoreCase))
+                    normalized = normalized[2..].Trim();
+                if (normalized == "*" || string.Equals(normalized, etag, StringComparison.Ordinal))
+                    return true;
             }
         return false;
     }

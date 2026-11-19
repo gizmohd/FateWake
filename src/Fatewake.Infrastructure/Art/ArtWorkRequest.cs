@@ -6,7 +6,8 @@ public sealed record ArtWorkRequest(
  string? CharacterKey = null, string? LocationKey = null, int Priority = 0,
  string? NegativeInstructions = null, string? PromptTemplateId = null, string? PromptTemplateVersion = null, string? StyleBibleVersion = null,
  IReadOnlyList<ArtReferenceImage>? ReferenceImages = null, Guid? AccountId = null, Guid? SurvivorId = null, bool IsPrivate = false,
- bool ForceProviderRegeneration = false)
+ bool ForceProviderRegeneration = false, Guid? PromptRevisionId = null, int? PromptRevisionNumber = null,
+ string? LegacyVisualFingerprint = null)
 {
     /// <summary>Provider operation used for monitoring and accounting filters.</summary>
     public string Operation => (ReferenceImages?.Count ?? 0) > 0 ? "image.edit" : "image.generate";

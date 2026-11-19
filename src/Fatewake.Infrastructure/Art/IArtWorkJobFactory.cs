@@ -5,4 +5,6 @@ namespace Fatewake.Infrastructure.Art;
 public interface IArtWorkJobFactory
 {
     Task<CreatedWorkJob> CreateAsync(ArtWorkRequest request, CancellationToken ct = default);
+    /// <summary>Creates image work and commits related prompt revision state in the same PostgreSQL transaction.</summary>
+    Task<CreatedWorkJob> CreateAsync(ArtWorkRequest request, Func<Guid, CancellationToken, Task> transactionWork, CancellationToken ct = default);
 }

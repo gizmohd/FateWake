@@ -65,7 +65,8 @@ public sealed class DayOnePersistenceTests
         var credential = new LocalCredentialRecord { AccountId = accountId, NormalizedEmail = "LEGACY@EXAMPLE.COM", PasswordHash = "" };
         credential.PasswordHash = hasher.HashPassword(credential, password);
         var oldHash = credential.PasswordHash;
-        db.Accounts.Add(account); db.LocalCredentials.Add(credential);
+        db.Accounts.Add(account);
+        db.LocalCredentials.Add(credential);
         await db.SaveChangesAsync(ct);
         await DatabaseInitializer.InitializeAsync(db, ct);
         Assert.False((await db.AccountEmails.SingleAsync(ct)).Verified);
@@ -144,7 +145,9 @@ public sealed class DayOnePersistenceTests
         Assert.Contains("Continue with " + provider, html);
         var antiforgery = WebUtility.HtmlDecode(Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value);
         using var challenged = await browser.PostAsync("/auth/external/" + provider.ToLowerInvariant(), new FormUrlEncodedContent(new Dictionary<string, string>
-        { ["__RequestVerificationToken"] = antiforgery }), ct);
+        {
+            ["__RequestVerificationToken"] = antiforgery
+        }), ct);
         Assert.Equal(HttpStatusCode.Redirect, challenged.StatusCode);
         var query = challenged.Headers.Location!.Query.TrimStart('?').Split('&').Select(x => x.Split('=', 2))
             .ToDictionary(x => x[0], x => Uri.UnescapeDataString(x[1]));
@@ -153,7 +156,10 @@ public sealed class DayOnePersistenceTests
         backchannel.Nonce = query["nonce"];
         backchannel.CodeChallenge = query["code_challenge"];
         using var callback = await browser.PostAsync("/signin-" + provider.ToLowerInvariant(), new FormUrlEncodedContent(new Dictionary<string, string>
-        { ["state"] = query["state"], ["code"] = "test-code" }), ct);
+        {
+            ["state"] = query["state"],
+            ["code"] = "test-code"
+        }), ct);
         Assert.True(callback.Headers.Location?.OriginalString == (provider == "Google" ? "/complete-profile" : "/check-email"),
             providerFailure?.ToString() ?? callback.Headers.Location?.OriginalString);
         if (provider == "Microsoft")
@@ -163,7 +169,10 @@ public sealed class DayOnePersistenceTests
             var proofHtml = await browser.GetStringAsync("/verify-email?token=" + token, ct);
             var proofAntiforgery = WebUtility.HtmlDecode(Regex.Match(proofHtml, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value);
             using var proof = await browser.PostAsync("/auth/verify-email", new FormUrlEncodedContent(new Dictionary<string, string>
-            { ["__RequestVerificationToken"] = proofAntiforgery, ["token"] = token }), ct);
+            {
+                ["__RequestVerificationToken"] = proofAntiforgery,
+                ["token"] = token
+            }), ct);
             Assert.Equal("/complete-profile", proof.Headers.Location?.OriginalString);
         }
         using var missingProfileCsrf = await browser.PostAsync("/auth/complete-profile",
@@ -218,7 +227,8 @@ public sealed class DayOnePersistenceTests
         {
             builder.UseEnvironment("Development").UseSetting("ConnectionStrings:fatewake", cs)
                 .UseSetting("Email:Directory", mailbox.DirectoryPath);
-            if (!autoVerify) builder.ConfigureServices(services =>
+            if (!autoVerify)
+                builder.ConfigureServices(services =>
                 services.AddScoped(provider => new VerifiedAccountService(
                     provider.GetRequiredService<FatewakeDbContext>(), provider.GetRequiredService<VerificationEmailSender>(),
                     provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<VerifiedAccountService>>(),
@@ -273,11 +283,23 @@ public sealed class DayOnePersistenceTests
             using var page = await browser.GetAsync(proofPage, ct);
             Assert.True(page.Headers.CacheControl?.NoStore);
             Assert.Equal("no-referrer", Assert.Single(page.Headers.GetValues("Referrer-Policy")));
-            using var invalid = await Form(proofPage, "/auth/verify-email", new() { ["token"] = token, ["password"] = "wrong" });
+            using var invalid = await Form(proofPage, "/auth/verify-email", new()
+            {
+                ["token"] = token,
+                ["password"] = "wrong"
+            });
             Assert.Equal("/verify-email?error=invalid", invalid.Headers.Location?.OriginalString);
-            using var confirmed = await Form(proofPage, "/auth/verify-email", new() { ["token"] = token, ["password"] = password });
+            using var confirmed = await Form(proofPage, "/auth/verify-email", new()
+            {
+                ["token"] = token,
+                ["password"] = password
+            });
             AssertSession(confirmed);
-            using var replayed = await Form(proofPage, "/auth/verify-email", new() { ["token"] = token, ["password"] = password });
+            using var replayed = await Form(proofPage, "/auth/verify-email", new()
+            {
+                ["token"] = token,
+                ["password"] = password
+            });
             Assert.Equal("/verify-email?error=invalid", replayed.Headers.Location?.OriginalString);
         }
         Assert.Contains("web@example.com", await browser.GetStringAsync("/account", ct));
@@ -288,7 +310,10 @@ public sealed class DayOnePersistenceTests
         var external = await verification.ExternalAsync(new("Microsoft", "web-external", "external-web@example.com", false, null, null), ct);
         Assert.True(external.VerificationRequired);
         var externalToken = mailbox.Token("external-web@example.com");
-        using var verifiedExternal = await Form("/verify-email?token=" + externalToken, "/auth/verify-email", new() { ["token"] = externalToken });
+        using var verifiedExternal = await Form("/verify-email?token=" + externalToken, "/auth/verify-email", new()
+        {
+            ["token"] = externalToken
+        });
         Assert.Equal("/complete-profile", verifiedExternal.Headers.Location?.OriginalString);
         using var completedProfile = await Form("/complete-profile", "/auth/complete-profile", new()
         {
@@ -299,12 +324,23 @@ public sealed class DayOnePersistenceTests
         });
         Assert.Equal("/set-password", completedProfile.Headers.Location?.OriginalString);
         using var missingPasswordCsrf = await browser.PostAsync("/auth/set-password", new FormUrlEncodedContent(new Dictionary<string, string>
-        { ["password"] = password, ["confirmPassword"] = password }), ct);
+        {
+            ["password"] = password,
+            ["confirmPassword"] = password
+        }), ct);
         Assert.Equal(HttpStatusCode.BadRequest, missingPasswordCsrf.StatusCode);
-        using var configured = await Form("/set-password", "/auth/set-password", new() { ["password"] = password, ["confirmPassword"] = password });
+        using var configured = await Form("/set-password", "/auth/set-password", new()
+        {
+            ["password"] = password,
+            ["confirmPassword"] = password
+        });
         Assert.Equal("/account?password=added", configured.Headers.Location?.OriginalString);
         using var secondLogout = await Form("/account", "/auth/logout", new());
-        using var localLogin = await Form("/login", "/auth/login", new() { ["email"] = "external-web@example.com", ["password"] = password });
+        using var localLogin = await Form("/login", "/auth/login", new()
+        {
+            ["email"] = "external-web@example.com",
+            ["password"] = password
+        });
         AssertSession(localLogin);
         Assert.Contains("external-web@example.com", await browser.GetStringAsync("/account", ct));
 
@@ -360,12 +396,20 @@ public sealed class DayOnePersistenceTests
         foreach (var invalid in new[] { IdToken(tokenIssuer: "https://evil.example.com"), IdToken(tokenAudience: "other-client"), IdToken(expired: true), "invalid" })
         {
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", invalid);
-            using var rejected = await Authorize(client, new() { ["account_action"] = "external", ["provider"] = "Google" }, ct);
+            using var rejected = await Authorize(client, new()
+            {
+                ["account_action"] = "external",
+                ["provider"] = "Google"
+            }, ct);
             Assert.Equal(HttpStatusCode.Unauthorized, rejected.StatusCode);
         }
         var valid = IdToken();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", valid);
-        using var exchanged = await Authorize(client, new() { ["account_action"] = "external", ["provider"] = "Google" }, ct);
+        using var exchanged = await Authorize(client, new()
+        {
+            ["account_action"] = "external",
+            ["provider"] = "Google"
+        }, ct);
         var apiToken = await Redeem(client, exchanged, ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiToken);
         var info = await client.GetFromJsonAsync<JsonElement>("/api/auth/me", ct);
@@ -385,7 +429,11 @@ public sealed class DayOnePersistenceTests
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", localToken);
         Assert.Equal(id, (await client.GetFromJsonAsync<JsonElement>("/api/auth/me", ct)).GetProperty("accountId").GetGuid());
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", valid);
-        using var microsoft = await Authorize(client, new() { ["account_action"] = "external", ["provider"] = "Microsoft" }, ct);
+        using var microsoft = await Authorize(client, new()
+        {
+            ["account_action"] = "external",
+            ["provider"] = "Microsoft"
+        }, ct);
         Assert.Equal(HttpStatusCode.Accepted, microsoft.StatusCode);
         client.DefaultRequestHeaders.Authorization = null;
         using var proof = await Authorize(client, new()
@@ -434,7 +482,10 @@ public sealed class DayOnePersistenceTests
         Assert.False(await db.ExternalIdentities.AnyAsync(x => x.Provider == "Microsoft", ct));
         var microsoftProof = mailbox.Token("local@example.com");
         Assert.Equal(local.AccountId, (await verification.VerifyAsync(microsoftProof, ct)).AccountId);
-        Assert.Equal(local.AccountId, (await verification.ExternalAsync(microsoft with { Email = "changed@example.com" }, ct)).AccountId);
+        Assert.Equal(local.AccountId, (await verification.ExternalAsync(microsoft with
+        {
+            Email = "changed@example.com"
+        }, ct)).AccountId);
         Assert.Equal(2, await db.ExternalIdentities.CountAsync(ct));
         var external = await verification.ExternalAsync(new("Google", "google-new", "external@example.com", true, "External", null), ct);
         Assert.NotNull(external.AccountId);
@@ -518,14 +569,23 @@ public sealed class DayOnePersistenceTests
         Assert.False(identity.GetProperty("requiresProfile").GetBoolean());
         Assert.False(identity.TryGetProperty("firstName", out _));
         Assert.False(identity.TryGetProperty("city", out _));
-        using var started = await client.PostAsJsonAsync("/api/session/start", new { SurvivorId = (Guid?)null }, ct);
+        using var started = await client.PostAsJsonAsync("/api/session/start", new
+        {
+            SurvivorId = (Guid?)null
+        }, ct);
         Assert.Equal(HttpStatusCode.OK, started.StatusCode);
         var session = await started.Content.ReadFromJsonAsync<SessionState>(ct);
         Assert.NotNull(session);
-        using var resumed = await client.PostAsJsonAsync("/api/session/start", new { SurvivorId = (Guid?)null }, ct);
+        using var resumed = await client.PostAsJsonAsync("/api/session/start", new
+        {
+            SurvivorId = (Guid?)null
+        }, ct);
         Assert.Equal(session.SurvivorId, (await resumed.Content.ReadFromJsonAsync<SessionState>(ct))!.SurvivorId);
         client.DefaultRequestHeaders.Authorization = null;
-        using var forbiddenGuest = await client.PostAsJsonAsync("/api/session/start", new { session.SurvivorId }, ct);
+        using var forbiddenGuest = await client.PostAsJsonAsync("/api/session/start", new
+        {
+            session.SurvivorId
+        }, ct);
         Assert.Equal(HttpStatusCode.NotFound, forbiddenGuest.StatusCode);
         using var secondRegistration = await client.PostAsJsonAsync("/api/auth/register", Registration("second@example.com", password), ct);
         Assert.Equal(HttpStatusCode.NoContent, secondRegistration.StatusCode);
@@ -549,9 +609,18 @@ public sealed class DayOnePersistenceTests
         Assert.Equal("Bristol", firstProfile.City);
         var secondAccountId = await db.Accounts.Where(row => row.PrimaryEmail == "second@example.com").Select(row => row.Id).SingleAsync(ct);
         Assert.Equal("Morgan", (await db.AccountProfiles.AsNoTracking().SingleAsync(row => row.AccountId == secondAccountId, ct)).FirstName);
-        using var forbiddenStart = await client.PostAsJsonAsync("/api/session/start", new { session.SurvivorId }, ct);
+        using var forbiddenStart = await client.PostAsJsonAsync("/api/session/start", new
+        {
+            session.SurvivorId
+        }, ct);
         Assert.Equal(HttpStatusCode.NotFound, forbiddenStart.StatusCode);
-        var progress = new { session.SurvivorId, session.EventInstanceId, session.SceneKey, session.BeatKey };
+        var progress = new
+        {
+            session.SurvivorId,
+            session.EventInstanceId,
+            session.SceneKey,
+            session.BeatKey
+        };
         using var forbiddenProgress = await client.PostAsJsonAsync("/api/session/progress", progress, ct);
         Assert.Equal(HttpStatusCode.NotFound, forbiddenProgress.StatusCode);
         var action = new
@@ -565,7 +634,10 @@ public sealed class DayOnePersistenceTests
         using var forbiddenAction = await client.PostAsJsonAsync("/api/day1/resolve", action, ct);
         Assert.Equal(HttpStatusCode.NotFound, forbiddenAction.StatusCode);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "invalid");
-        using var invalidBearer = await client.PostAsJsonAsync("/api/session/start", new { SurvivorId = (Guid?)null }, ct);
+        using var invalidBearer = await client.PostAsJsonAsync("/api/session/start", new
+        {
+            SurvivorId = (Guid?)null
+        }, ct);
         Assert.Equal(HttpStatusCode.Unauthorized, invalidBearer.StatusCode);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         using var progressSaved = await client.PostAsJsonAsync("/api/session/progress", progress, ct);
@@ -602,9 +674,18 @@ public sealed class DayOnePersistenceTests
         var adminDetails = await admin.GetFromJsonAsync<JsonElement>($"/api/admin/accounts/{adminId}", ct);
         using var selfDelete = await admin.DeleteAsync(UserDelete(adminId, adminDetails), ct);
         Assert.Equal(HttpStatusCode.Conflict, selfDelete.StatusCode);
-        using var invite = await admin.PostAsJsonAsync("/api/admin/accounts", new { email, role = "User", displayName = "Invitee" }, ct);
+        using var invite = await admin.PostAsJsonAsync("/api/admin/accounts", new
+        {
+            email,
+            role = "User",
+            displayName = "Invitee"
+        }, ct);
         Assert.Equal(HttpStatusCode.Accepted, invite.StatusCode);
-        using var duplicate = await admin.PostAsJsonAsync("/api/admin/accounts", new { email = email.ToUpperInvariant(), role = "User" }, ct);
+        using var duplicate = await admin.PostAsJsonAsync("/api/admin/accounts", new
+        {
+            email = email.ToUpperInvariant(),
+            role = "User"
+        }, ct);
         Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
         var proof = mailbox.Token(email);
         var list = await admin.GetFromJsonAsync<JsonElement>("/api/admin/accounts?search=Invitee", ct);
@@ -612,22 +693,40 @@ public sealed class DayOnePersistenceTests
         var id = invited.GetProperty("id").GetGuid();
         Assert.Equal("Invited", invited.GetProperty("status").GetString());
         Assert.DoesNotContain(proof, list.GetRawText());
-        using var activated = await player.PostAsJsonAsync("/api/auth/account-access", new { token = proof, password }, ct);
+        using var activated = await player.PostAsJsonAsync("/api/auth/account-access", new
+        {
+            token = proof,
+            password
+        }, ct);
         Assert.Equal(HttpStatusCode.NoContent, activated.StatusCode);
-        using var replayed = await player.PostAsJsonAsync("/api/auth/account-access", new { token = proof, password }, ct);
+        using var replayed = await player.PostAsJsonAsync("/api/auth/account-access", new
+        {
+            token = proof,
+            password
+        }, ct);
         Assert.Equal(HttpStatusCode.BadRequest, replayed.StatusCode);
         await LoginAs(player, email, password, ct);
         using var forbidden = await player.GetAsync("/api/admin/accounts", ct);
         Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
-        using var started = await player.PostAsJsonAsync("/api/session/start", new { SurvivorId = (Guid?)null }, ct);
+        using var started = await player.PostAsJsonAsync("/api/session/start", new
+        {
+            SurvivorId = (Guid?)null
+        }, ct);
         Assert.Equal(HttpStatusCode.OK, started.StatusCode);
         var session = Assert.IsType<SessionState>(await started.Content.ReadFromJsonAsync<SessionState>(ct));
 
         using var reset = await admin.PostAsync($"/api/admin/accounts/{id}/password-reset", null, ct);
         Assert.Equal(HttpStatusCode.Accepted, reset.StatusCode);
-        using var changed = await player.PostAsJsonAsync("/api/auth/account-access", new { token = mailbox.Token(email), password = replacement }, ct);
+        using var changed = await player.PostAsJsonAsync("/api/auth/account-access", new
+        {
+            token = mailbox.Token(email),
+            password = replacement
+        }, ct);
         Assert.Equal(HttpStatusCode.NoContent, changed.StatusCode);
-        using var invalidated = await player.PostAsJsonAsync("/api/session/start", new { SurvivorId = (Guid?)null }, ct);
+        using var invalidated = await player.PostAsJsonAsync("/api/session/start", new
+        {
+            SurvivorId = (Guid?)null
+        }, ct);
         Assert.Equal(HttpStatusCode.Unauthorized, invalidated.StatusCode);
         await LoginAs(player, email, replacement, ct);
 
@@ -650,7 +749,10 @@ public sealed class DayOnePersistenceTests
         using var oldToken = await player.GetAsync("/api/auth/me", ct);
         Assert.Equal(HttpStatusCode.Unauthorized, oldToken.StatusCode);
         await LoginAs(player, email, replacement, ct);
-        using var resumed = await player.PostAsJsonAsync("/api/session/start", new { session.SurvivorId }, ct);
+        using var resumed = await player.PostAsJsonAsync("/api/session/start", new
+        {
+            session.SurvivorId
+        }, ct);
         Assert.Equal(HttpStatusCode.OK, resumed.StatusCode);
         Assert.Equal(id, (await db.Survivors.SingleAsync(x => x.Id == session.SurvivorId, ct)).AccountId);
         const string newEmail = "new-address@example.test";
@@ -665,7 +767,10 @@ public sealed class DayOnePersistenceTests
         }, ct);
         Assert.Equal(HttpStatusCode.Accepted, addressChange.StatusCode);
         Assert.Equal(email, (await player.GetFromJsonAsync<JsonElement>("/api/auth/me", ct)).GetProperty("email").GetString());
-        using var verifiedAddress = await player.PostAsJsonAsync("/api/auth/account-access", new { token = mailbox.Token(newEmail) }, ct);
+        using var verifiedAddress = await player.PostAsJsonAsync("/api/auth/account-access", new
+        {
+            token = mailbox.Token(newEmail)
+        }, ct);
         Assert.Equal(HttpStatusCode.NoContent, verifiedAddress.StatusCode);
         using var previousIdentity = await player.GetAsync("/api/auth/me", ct);
         Assert.Equal(HttpStatusCode.Unauthorized, previousIdentity.StatusCode);
@@ -728,12 +833,21 @@ public sealed class DayOnePersistenceTests
 
         using var noCsrf = await browser.PostAsync("/auth/forgot-password", new FormUrlEncodedContent([]), ct);
         Assert.Equal(HttpStatusCode.BadRequest, noCsrf.StatusCode);
-        using var nonexistent = await Submit("/forgot-password", "/auth/forgot-password", new() { ["email"] = "missing@example.test" });
-        using var requested = await Submit("/forgot-password", "/auth/forgot-password", new() { ["email"] = email });
+        using var nonexistent = await Submit("/forgot-password", "/auth/forgot-password", new()
+        {
+            ["email"] = "missing@example.test"
+        });
+        using var requested = await Submit("/forgot-password", "/auth/forgot-password", new()
+        {
+            ["email"] = email
+        });
         Assert.Equal("/forgot-password?sent=true", requested.Headers.Location?.OriginalString);
         Assert.Equal(requested.Headers.Location, nonexistent.Headers.Location);
         var reset = mailbox.Token(email);
-        using var throttled = await Submit("/forgot-password", "/auth/forgot-password", new() { ["email"] = email.ToUpperInvariant() });
+        using var throttled = await Submit("/forgot-password", "/auth/forgot-password", new()
+        {
+            ["email"] = email.ToUpperInvariant()
+        });
         Assert.Equal(requested.Headers.Location, throttled.Headers.Location);
         Assert.Single(Directory.GetFiles(mailbox.DirectoryPath, "*.txt"));
         var resetPage = "/account-access?password=true&token=" + reset;
@@ -744,10 +858,17 @@ public sealed class DayOnePersistenceTests
         Assert.Equal("/login?changed=true", completed.Headers.Location?.OriginalString);
         using var replayed = await Submit(resetPage, "/auth/account-access", proofFields);
         Assert.Equal("/account-access?error=invalid", replayed.Headers.Location?.OriginalString);
-        using var next = await Submit("/forgot-password", "/auth/forgot-password", new() { ["email"] = email });
+        using var next = await Submit("/forgot-password", "/auth/forgot-password", new()
+        {
+            ["email"] = email
+        });
         Assert.Equal(requested.Headers.Location, next.Headers.Location);
         await db.Database.ExecuteSqlRawAsync("UPDATE identity_admin_proof SET expires_at = CURRENT_TIMESTAMP - interval '1 second'", ct);
-        using var expired = await player.PostAsJsonAsync("/api/auth/account-access", new { token = mailbox.Token(email), password }, ct);
+        using var expired = await player.PostAsJsonAsync("/api/auth/account-access", new
+        {
+            token = mailbox.Token(email),
+            password
+        }, ct);
         Assert.Equal(HttpStatusCode.BadRequest, expired.StatusCode);
         using var oldSession = await player.GetAsync("/api/auth/me", ct);
         Assert.Equal(HttpStatusCode.Unauthorized, oldSession.StatusCode);
@@ -809,7 +930,7 @@ public sealed class DayOnePersistenceTests
         const string additionalLogout = "https://fatewake.test/";
         var requiredCallback = seeded.GetProperty("requiredRedirectUri").GetString()!;
         var requiredLogout = seeded.GetProperty("requiredPostLogoutUri").GetString()!;
-        object SeededSettings(string[] urls, string name = "Fatewake Web") => new
+        object SeededSettings(string[] urls, string name = "Pathweaver Web") => new
         {
             clientId = "fatewake-web",
             clientType = "public",
@@ -841,10 +962,17 @@ public sealed class DayOnePersistenceTests
         var newSecret = (await rotate.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("secret").GetString()!;
         Assert.NotEqual(secret, newSecret);
 
-        using var authorized = await Authorize(admin, new() { ["account_action"] = "consent" }, ct, clientId, callback);
+        using var authorized = await Authorize(admin, new()
+        {
+            ["account_action"] = "consent"
+        }, ct, clientId, callback);
         using var wrongSecret = await Exchange(admin, authorized, CodeVerifier, ct, clientId, callback, secret);
         Assert.Equal(HttpStatusCode.Unauthorized, wrongSecret.StatusCode);
-        using var fresh = await Authorize(admin, new() { ["account_action"] = "consent", ["scope"] = "openid fatewake-api offline_access" }, ct, clientId, callback);
+        using var fresh = await Authorize(admin, new()
+        {
+            ["account_action"] = "consent",
+            ["scope"] = "openid fatewake-api offline_access"
+        }, ct, clientId, callback);
         using var token = await Exchange(admin, fresh, CodeVerifier, ct, clientId, callback, newSecret);
         Assert.Equal(HttpStatusCode.OK, token.StatusCode);
         using var thirdParty = CreateAuthorizationClient(factory);
@@ -931,7 +1059,12 @@ public sealed class DayOnePersistenceTests
         factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new("https://localhost") });
 
     private static Dictionary<string, string> LoginProof(string email, string password) =>
-        new() { ["account_action"] = "login", ["email"] = email, ["password"] = password };
+        new()
+        {
+            ["account_action"] = "login",
+            ["email"] = email,
+            ["password"] = password
+        };
 
     private static async Task<HttpResponseMessage> Authorize(HttpClient client, Dictionary<string, string> form, CancellationToken ct,
         string clientId = "fatewake-web", string callback = Callback)
@@ -964,7 +1097,8 @@ public sealed class DayOnePersistenceTests
             ["code_verifier"] = verifier,
             ["redirect_uri"] = callback
         };
-        if (secret is not null) fields["client_secret"] = secret;
+        if (secret is not null)
+            fields["client_secret"] = secret;
         using var content = new FormUrlEncodedContent(fields);
         return await client.PostAsync("/connect/token", content, ct);
     }
@@ -1061,7 +1195,8 @@ public sealed class DayOnePersistenceTests
     public async Task Durable_work_schema_supports_claims_artifacts_and_rollback()
     {
         var cs = Environment.GetEnvironmentVariable("FATEWAKE_TEST_CONNECTION");
-        if (string.IsNullOrWhiteSpace(cs)) return;
+        if (string.IsNullOrWhiteSpace(cs))
+            return;
         var ct = TestContext.Current.CancellationToken;
         var options = new DbContextOptionsBuilder<FatewakeDbContext>().UseNpgsql(cs).Options;
         await using var db = new FatewakeDbContext(options);
@@ -1098,14 +1233,18 @@ public sealed class DayOnePersistenceTests
         // Uses PostgreSQL via FATEWAKE_TEST_CONNECTION; deliberately not EF InMemory,
         // because JSONB, transactions and row locking are part of the behavior under test.
         var cs = Environment.GetEnvironmentVariable("FATEWAKE_TEST_CONNECTION");
-        if (string.IsNullOrWhiteSpace(cs)) return;
+        if (string.IsNullOrWhiteSpace(cs))
+            return;
         var ct = TestContext.Current.CancellationToken;
         var options = new DbContextOptionsBuilder<FatewakeDbContext>().UseNpgsql(cs).Options;
         await using var db = new FatewakeDbContext(options);
         await db.Database.EnsureDeletedAsync(ct);
         await DatabaseInitializer.InitializeAsync(db, ct);
         var realm = await db.Realms.SingleAsync(ct);
-        var timelineId = Guid.NewGuid(); var survivorId = Guid.NewGuid(); var eventId = Guid.NewGuid(); var now = DateTimeOffset.UtcNow;
+        var timelineId = Guid.NewGuid();
+        var survivorId = Guid.NewGuid();
+        var eventId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
         db.Timelines.Add(new TimelineRecord { Id = timelineId, RealmId = realm.Id, ProgressionState = "personal", ConvergenceState = "isolated", WorldClockPolicy = "activity", CreatedAt = now });
         db.Survivors.Add(new SurvivorRecord { Id = survivorId, TimelineId = timelineId, DisplayName = "Test Survivor", IdentityMode = "fictional", BroadRegion = "test", Status = SurvivorStatus.Active, CreatedAt = now, UpdatedAt = now });
         db.EventInstances.Add(new EventInstanceRecord { Id = eventId, TimelineId = timelineId, SurvivorId = survivorId, EventKey = "day-001-injured-stranger", Status = EventInstanceStatus.Active, SurvivorDay = 1, StartedAt = now });
@@ -1113,7 +1252,9 @@ public sealed class DayOnePersistenceTests
         var action = new CandidateAction("help_injured_stranger", new Dictionary<string, string>());
         var result = new DayOneGameEngine().Resolve(new GameSnapshot(survivorId, timelineId, 1, "day-001-injured-stranger", new Dictionary<string, string>()), action);
         await new ResolutionStore(db).PersistAsync(eventId, survivorId, timelineId, Guid.NewGuid(), action, result, ct);
-        Assert.Single(await db.ActionResolutions.ToListAsync(ct)); Assert.Single(await db.GameEvents.ToListAsync(ct)); Assert.Single(await db.Wakes.ToListAsync(ct));
+        Assert.Single(await db.ActionResolutions.ToListAsync(ct));
+        Assert.Single(await db.GameEvents.ToListAsync(ct));
+        Assert.Single(await db.Wakes.ToListAsync(ct));
     }
 
     /// <summary>Development chapter reset discards only the active chapter's actions, events, and Wakes, then rewinds to the first beat.</summary>
@@ -1158,7 +1299,8 @@ public sealed class DayOnePersistenceTests
     public async Task Status_migration_preserves_existing_data_and_can_roll_back()
     {
         var cs = Environment.GetEnvironmentVariable("FATEWAKE_TEST_CONNECTION");
-        if (string.IsNullOrWhiteSpace(cs)) return;
+        if (string.IsNullOrWhiteSpace(cs))
+            return;
         var ct = TestContext.Current.CancellationToken;
         var options = new DbContextOptionsBuilder<FatewakeDbContext>().UseNpgsql(cs).Options;
         await using var db = new FatewakeDbContext(options);
@@ -1230,7 +1372,8 @@ UNION ALL SELECT "State" FROM wake
     public async Task Status_migration_rejects_unsupported_values_without_losing_data()
     {
         var cs = Environment.GetEnvironmentVariable("FATEWAKE_TEST_CONNECTION");
-        if (string.IsNullOrWhiteSpace(cs)) return;
+        if (string.IsNullOrWhiteSpace(cs))
+            return;
         var ct = TestContext.Current.CancellationToken;
         var options = new DbContextOptionsBuilder<FatewakeDbContext>().UseNpgsql(cs).Options;
         await using var db = new FatewakeDbContext(options);

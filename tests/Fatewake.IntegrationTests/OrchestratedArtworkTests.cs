@@ -72,7 +72,8 @@ public sealed class OrchestratedArtworkTests
             await db.ArtGenerations.Where(x => x.ArtAssetId == asset.AssetId).ExecuteDeleteAsync(ct);
             await db.ArtAssets.Where(x => x.Id == asset.AssetId).ExecuteDeleteAsync(ct);
             var fixtureDirectory = Path.Combine(root, "art", key);
-            if (Directory.Exists(fixtureDirectory)) Directory.Delete(fixtureDirectory, recursive: true);
+            if (Directory.Exists(fixtureDirectory))
+                Directory.Delete(fixtureDirectory, recursive: true);
         }
     }
 }

@@ -19,7 +19,8 @@ public sealed class SkiaArtImageProcessor : IArtImageProcessor
     {
         using var data = SKData.CreateCopy(png.Span);
         using var codec = SKCodec.Create(data) ?? throw new InvalidDataException("Image data is not decodable.");
-        if (codec.EncodedFormat != SKEncodedImageFormat.Png) throw new InvalidDataException("Master artwork must be PNG.");
+        if (codec.EncodedFormat != SKEncodedImageFormat.Png)
+            throw new InvalidDataException("Master artwork must be PNG.");
         ValidateSize(codec.Info.Width, codec.Info.Height);
         using var bitmap = SKBitmap.Decode(codec) ?? throw new InvalidDataException("Master PNG could not be decoded.");
         return new(codec.Info.Width, codec.Info.Height, HasAlpha(bitmap));
@@ -33,7 +34,8 @@ public sealed class SkiaArtImageProcessor : IArtImageProcessor
         ct.ThrowIfCancellationRequested();
         using var data = SKData.CreateCopy(source.Span);
         using var codec = SKCodec.Create(data) ?? throw new InvalidDataException("Image data is not decodable.");
-        if (codec.EncodedFormat != SKEncodedImageFormat.Png) throw new InvalidDataException("Master artwork must be PNG.");
+        if (codec.EncodedFormat != SKEncodedImageFormat.Png)
+            throw new InvalidDataException("Master artwork must be PNG.");
         ValidateSize(codec.Info.Width, codec.Info.Height);
         using var bitmap = SKBitmap.Decode(codec) ?? throw new InvalidDataException("Master PNG could not be decoded.");
         ct.ThrowIfCancellationRequested();
@@ -52,7 +54,8 @@ public sealed class SkiaArtImageProcessor : IArtImageProcessor
     {
         for (var y = 0; y < image.Height; y++)
             for (var x = 0; x < image.Width; x++)
-                if (image.GetPixel(x, y).Alpha < 255) return true;
+                if (image.GetPixel(x, y).Alpha < 255)
+                    return true;
         return false;
     }
 }

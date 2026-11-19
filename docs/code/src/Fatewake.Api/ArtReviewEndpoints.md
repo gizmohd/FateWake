@@ -1,4 +1,4 @@
 # ArtReviewEndpoints
 
-Administrator artwork review support. Review submissions retain account, scene/layer versions, critique, correction instructions and timestamp. Only authenticated accounts with the canonical persisted Admin role may access review routes. The first successful verified sign-in is Admin; all later accounts are User. Replacement requests use a new fingerprint and the durable artwork pipeline; complete-composition critiques do not regenerate individual layers.
+Administrator-only prompt review shows the exact recorded positive/negative image submission and provider provenance for the selected immutable asset version. Historic missing submissions are visibly unavailable rather than reconstructed. New positive/negative edits create immutable SQL revisions with optimistic conflict checks. Save-only revisions update the draft head but do not change serving bindings; explicit selected regeneration pins a revision and durable replacement request. The prior approved asset remains available until validated replacement finalization; only the newest requested revision can become the current prompt binding.
 

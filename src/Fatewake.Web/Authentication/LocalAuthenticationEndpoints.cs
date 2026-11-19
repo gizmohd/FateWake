@@ -22,10 +22,12 @@ public static class LocalAuthenticationEndpoints
             ILoggerFactory logs) => AuthenticateAsync(context, antiforgery, clients, logs, true)).RequireRateLimiting("local-auth");
         foreach (var provider in new[] { "Google", "Microsoft" })
         {
-            if (!app.Configuration.GetValue<bool>("Authentication:" + provider + ":Enabled")) continue;
+            if (!app.Configuration.GetValue<bool>("Authentication:" + provider + ":Enabled"))
+                continue;
             app.MapPost("/auth/external/" + provider.ToLowerInvariant(), async (HttpContext context, IAntiforgery antiforgery, ILoggerFactory logs) =>
             {
-                if (!await ValidateFormAsync(context, antiforgery, logs)) return Results.BadRequest("Invalid form token.");
+                if (!await ValidateFormAsync(context, antiforgery, logs))
+                    return Results.BadRequest("Invalid form token.");
                 return Results.Challenge(new AuthenticationProperties { RedirectUri = "/play" }, [provider]);
             }).RequireRateLimiting("local-auth");
         }
@@ -44,7 +46,8 @@ public static class LocalAuthenticationEndpoints
             AccountFormAsync(context, antiforgery, clients, logs, "complete-profile", "/complete-profile")).RequireAuthorization().RequireRateLimiting("local-auth");
         app.MapPost("/auth/logout", async (HttpContext context, IAntiforgery antiforgery, ILoggerFactory logs) =>
         {
-            if (!await ValidateFormAsync(context, antiforgery, logs)) return Results.BadRequest("Invalid form token. Reload the account page.");
+            if (!await ValidateFormAsync(context, antiforgery, logs))
+                return Results.BadRequest("Invalid form token. Reload the account page.");
             await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return Results.LocalRedirect("/");
         });
@@ -57,7 +60,8 @@ public static class LocalAuthenticationEndpoints
         using var operation = OperationTelemetry.Start("web.application_consent", log);
         context.Response.Headers.CacheControl = "no-store";
         context.Response.Headers["Referrer-Policy"] = "no-referrer";
-        if (!await ValidateFormAsync(context, antiforgery, logs)) return Results.BadRequest("Invalid form token.");
+        if (!await ValidateFormAsync(context, antiforgery, logs))
+            return Results.BadRequest("Invalid form token.");
         var ct = context.RequestAborted;
         var form = await context.Request.ReadFormAsync(ct);
         var fields = new Dictionary<string, string>
@@ -68,10 +72,12 @@ public static class LocalAuthenticationEndpoints
             ["code_challenge_method"] = "S256"
         };
         foreach (var key in new[] { "client_id", "redirect_uri", "state", "scope", "code_challenge", "nonce", "prompt" })
-            if (form[key].ToString() is { Length: > 0 } value) fields[key] = value;
+            if (form[key].ToString() is { Length: > 0 } value)
+                fields[key] = value;
         if (!fields.TryGetValue("redirect_uri", out var redirect) || !Uri.TryCreate(redirect, UriKind.Absolute, out var callback) ||
             callback.Scheme is not ("https" or "http") || callback.Query.Length != 0 || callback.Fragment.Length != 0 ||
-            !fields.TryGetValue("state", out var state)) return Results.BadRequest("Invalid authorization request.");
+            !fields.TryGetValue("state", out var state))
+            return Results.BadRequest("Invalid authorization request.");
         try
         {
             using var client = clients.CreateForUser(context.User, "fatewake-auth");
@@ -103,7 +109,8 @@ public static class LocalAuthenticationEndpoints
         AuthenticatedApiClient clients, ILoggerFactory logs, bool register)
     {
         using var operationTelemetry = OperationTelemetry.Start("web.account_form");
-        if (!await ValidateFormAsync(context, antiforgery, logs)) return Results.BadRequest("Invalid form token. Reload the login page.");
+        if (!await ValidateFormAsync(context, antiforgery, logs))
+            return Results.BadRequest("Invalid form token. Reload the login page.");
         var form = await context.Request.ReadFormAsync(context.RequestAborted);
         var page = register ? "/register" : "/login";
         if (register && form["password"] != form["confirmPassword"])
@@ -124,8 +131,10 @@ public static class LocalAuthenticationEndpoints
                     City = form["city"].ToString(),
                     State = form["state"].ToString()
                 }, context.RequestAborted);
-                if (response.StatusCode == HttpStatusCode.Accepted) return Results.LocalRedirect("/check-email");
-                if (response.StatusCode == HttpStatusCode.BadRequest) return Results.LocalRedirect(page + "?error=credentials");
+                if (response.StatusCode == HttpStatusCode.Accepted)
+                    return Results.LocalRedirect("/check-email");
+                if (response.StatusCode == HttpStatusCode.BadRequest)
+                    return Results.LocalRedirect(page + "?error=credentials");
                 response.EnsureSuccessStatusCode();
                 page = "/login";
             }
@@ -161,7 +170,8 @@ public static class LocalAuthenticationEndpoints
         using var operationTelemetry = OperationTelemetry.Start("web.account_action");
         context.Response.Headers.CacheControl = "no-store";
         context.Response.Headers["Referrer-Policy"] = "no-referrer";
-        if (!await ValidateFormAsync(context, antiforgery, logs)) return Results.BadRequest("Invalid form token. Reload the page.");
+        if (!await ValidateFormAsync(context, antiforgery, logs))
+            return Results.BadRequest("Invalid form token. Reload the page.");
         var form = await context.Request.ReadFormAsync(context.RequestAborted);
         if (operation is "set-password" or "account-access" && form["password"] != form["confirmPassword"])
             return Results.LocalRedirect(page + "?error=mismatch");
@@ -210,7 +220,8 @@ public static class LocalAuthenticationEndpoints
                 await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
                 return Results.LocalRedirect("/login?changed=true");
             }
-            if (operation == "forgot-password") return Results.LocalRedirect("/forgot-password?sent=true");
+            if (operation == "forgot-password")
+                return Results.LocalRedirect("/forgot-password?sent=true");
             return Results.LocalRedirect(operation == "set-password" ? "/account?password=added" : "/check-email?sent=true");
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)

@@ -15,7 +15,8 @@ public static class ExternalSignInExtensions
         foreach (var provider in new[] { "Google", "Microsoft" })
         {
             var section = configuration.GetSection("Authentication:" + provider);
-            if (!section.GetValue<bool>("Enabled")) continue;
+            if (!section.GetValue<bool>("Enabled"))
+                continue;
             if (string.IsNullOrWhiteSpace(section["ClientId"]) || string.IsNullOrWhiteSpace(section["ClientSecret"]))
                 throw new InvalidOperationException($"{provider} requires ClientId and ClientSecret.");
             var authority = "https://accounts.google.com";
@@ -23,7 +24,8 @@ public static class ExternalSignInExtensions
             {
                 var tenant = section["TenantId"];
                 tenant = string.IsNullOrWhiteSpace(tenant) || tenant == "consumers" ? "9188040d-6c67-4c5b-b112-36a304b66dad" : tenant;
-                if (!Guid.TryParse(tenant, out var tenantId)) throw new InvalidOperationException("Microsoft TenantId must be a tenant GUID or consumers.");
+                if (!Guid.TryParse(tenant, out var tenantId))
+                    throw new InvalidOperationException("Microsoft TenantId must be a tenant GUID or consumers.");
                 authority = $"https://login.microsoftonline.com/{tenantId}/v2.0";
             }
             authentication.AddOpenIdConnect(provider, options =>
@@ -47,7 +49,8 @@ public static class ExternalSignInExtensions
                     {
                         context.HandleResponse();
                         var idToken = context.Properties?.GetTokenValue("id_token");
-                        if (string.IsNullOrWhiteSpace(idToken)) throw new InvalidDataException("The provider returned no ID token.");
+                        if (string.IsNullOrWhiteSpace(idToken))
+                            throw new InvalidDataException("The provider returned no ID token.");
                         using var client = context.HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>().CreateClient("fatewake-auth");
                         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", idToken);
                         try

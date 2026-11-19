@@ -39,7 +39,10 @@ public sealed class FallbackComfyUiArtMasterGenerator(
             Provider = "OpenAI",
             Model = options.FallbackModel
         };
-        var fallbackInvocation = invocation with { Request = fallbackRequest };
+        var fallbackInvocation = invocation with
+        {
+            Request = fallbackRequest
+        };
         var generated = await openAi.GenerateAsync(fallbackInvocation, ct);
 
         if (invocation.WorkJobId is { } workJobId)
@@ -53,6 +56,8 @@ public sealed class FallbackComfyUiArtMasterGenerator(
                 $"ComfyUI unavailable; OpenAI fallback used: {reason}",
                 ct);
         }
-        return generated with { };
+        return generated with
+        {
+        };
     }
 }

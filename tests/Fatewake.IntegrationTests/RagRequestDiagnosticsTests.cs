@@ -53,7 +53,8 @@ public sealed class RagRequestDiagnosticsTests
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = activity =>
             {
-                if (activity.OperationName == "rag.request") completed = activity;
+                if (activity.OperationName == "rag.request")
+                    completed = activity;
             }
         };
         ActivitySource.AddActivityListener(listener);

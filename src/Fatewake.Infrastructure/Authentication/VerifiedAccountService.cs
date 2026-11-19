@@ -27,13 +27,24 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
         if (environment?.IsDevelopment() == true)
         {
             var account = NewAccount(email.Trim(), null, profile);
-            db.AccountEmails.Add(new() { AccountId = account.Id, NormalizedEmail = normalized, Verified = true });
-            db.LocalCredentials.Add(new() { AccountId = account.Id, NormalizedEmail = normalized, PasswordHash = passwordHash });
+            db.AccountEmails.Add(new()
+            {
+                AccountId = account.Id,
+                NormalizedEmail = normalized,
+                Verified = true
+            });
+            db.LocalCredentials.Add(new()
+            {
+                AccountId = account.Id,
+                NormalizedEmail = normalized,
+                PasswordHash = passwordHash
+            });
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             return new(account.Id, account.PrimaryEmail, null);
         }
-        if (await RecentlySentAsync(normalized, null, null, ct)) return new(null, null, "A verification email was recently sent. Wait a minute before registering again.");
+        if (await RecentlySentAsync(normalized, null, null, ct))
+            return new(null, null, "A verification email was recently sent. Wait a minute before registering again.");
         var token = AddChallenge(email.Trim(), normalized, passwordHash, null, profile);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
@@ -56,7 +67,8 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
             if (existingEmail?.Verified == true)
             {
                 var account = await db.Accounts.SingleAsync(x => x.Id == identity.AccountId, ct);
-                if (account.Status != AccountStatus.Active) return new(null, null, "Account is unavailable.");
+                if (account.Status != AccountStatus.Active)
+                    return new(null, null, "Account is unavailable.");
                 identity.LastLoginAt = DateTimeOffset.UtcNow;
                 await db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
@@ -69,7 +81,8 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
         // Microsoft email/preferred_username is not evidence of mailbox ownership.
         if (login.Provider != "Google" || login.EmailVerified != true)
         {
-            if (await RecentlySentAsync(normalized, login.Provider, login.Subject, ct)) return new(null, login.Email, null, true);
+            if (await RecentlySentAsync(normalized, login.Provider, login.Subject, ct))
+                return new(null, login.Email, null, true);
             var token = AddChallenge(login.Email!.Trim(), normalized, null, login);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
@@ -77,7 +90,8 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
             return new(null, login.Email.Trim(), null, true);
         }
         var result = await ResolveVerifiedExternalAsync(login, normalized, ct);
-        if (result.AccountId is null) return result;
+        if (result.AccountId is null)
+            return result;
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return result;
@@ -87,22 +101,26 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
     public async Task ResendAsync(string? email, CancellationToken ct)
     {
         using var operation = OperationTelemetry.Start("auth.resend_verification", log);
-        if (!EmailAddressNormalizer.TryNormalize(email, out var normalized)) return;
+        if (!EmailAddressNormalizer.TryNormalize(email, out var normalized))
+            return;
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         await LockEmailAsync(normalized, ct);
         var now = DateTimeOffset.UtcNow;
         var previous = await db.EmailVerifications.Where(x => x.NormalizedEmail == normalized && x.ConsumedAt == null)
             .OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(ct);
-        if (previous is not null && previous.CreatedAt > now.AddMinutes(-1)) return;
+        if (previous is not null && previous.CreatedAt > now.AddMinutes(-1))
+            return;
         var owner = await db.AccountEmails.SingleOrDefaultAsync(x => x.NormalizedEmail == normalized, ct);
-        if (owner?.Verified == true && previous?.Provider is null) return;
+        if (owner?.Verified == true && previous?.Provider is null)
+            return;
         string? hash = previous?.PasswordHash;
         ExternalLogin? external = previous?.Provider is { } provider && previous.Subject is { } subject
             ? new(provider, subject, previous.Email, false, previous.DisplayName, null) : null;
         var destination = previous?.Email;
         if (destination is null && owner is not null)
             destination = (await db.Accounts.SingleAsync(x => x.Id == owner.AccountId, ct)).PrimaryEmail;
-        if (destination is null) return;
+        if (destination is null)
+            return;
         var details = previous is null ? null : new AccountProfileDetails(previous.FirstName, previous.LastName, previous.City, previous.State);
         var token = AddChallenge(destination, normalized, hash, external, details);
         await db.SaveChangesAsync(ct);
@@ -115,10 +133,12 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
     {
         using var operation = OperationTelemetry.Start("auth.verify_email", log);
         const string invalid = "The verification link is invalid, expired, or already used.";
-        if (token is null || token.Length != 64) return new(null, null, invalid);
+        if (token is null || token.Length != 64)
+            return new(null, null, invalid);
         var hash = HashToken(token);
         var candidate = await db.EmailVerifications.AsNoTracking().SingleOrDefaultAsync(x => x.TokenHash == hash, ct);
-        if (candidate is null) return new(null, null, invalid);
+        if (candidate is null)
+            return new(null, null, invalid);
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         if (candidate.Provider is { } provider && candidate.Subject is { } subject)
             await LockIdentityAsync(provider, subject, ct);
@@ -137,28 +157,41 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
             var owner = await db.AccountEmails.SingleOrDefaultAsync(x => x.NormalizedEmail == proof.NormalizedEmail, ct);
             if (owner is null)
             {
-                if (proof.PasswordHash is null) return new(null, null, invalid);
+                if (proof.PasswordHash is null)
+                    return new(null, null, invalid);
                 var credential = new LocalCredentialRecord { NormalizedEmail = proof.NormalizedEmail, PasswordHash = proof.PasswordHash };
                 if (password is null || password.Length is < 1 or > 128 ||
                     passwords.VerifyHashedPassword(credential, proof.PasswordHash, password) == PasswordVerificationResult.Failed)
                     return new(null, null, "Re-enter the password you chose when registering.");
                 var profile = new AccountProfileDetails(proof.FirstName, proof.LastName, proof.City, proof.State).Normalize();
                 var account = NewAccount(proof.Email, null, profile);
-                owner = new() { AccountId = account.Id, NormalizedEmail = proof.NormalizedEmail, Verified = true };
+                owner = new()
+                {
+                    AccountId = account.Id,
+                    NormalizedEmail = proof.NormalizedEmail,
+                    Verified = true
+                };
                 db.AccountEmails.Add(owner);
-                db.LocalCredentials.Add(new() { AccountId = account.Id, NormalizedEmail = proof.NormalizedEmail, PasswordHash = proof.PasswordHash });
+                db.LocalCredentials.Add(new()
+                {
+                    AccountId = account.Id,
+                    NormalizedEmail = proof.NormalizedEmail,
+                    PasswordHash = proof.PasswordHash
+                });
                 result = new(account.Id, account.PrimaryEmail, null);
             }
             else
             {
                 // A pending registration must never overwrite a subsequently created account.
-                if (owner.Verified || proof.PasswordHash is not null) return new(null, null, invalid);
+                if (owner.Verified || proof.PasswordHash is not null)
+                    return new(null, null, invalid);
                 owner.Verified = true;
                 var account = await db.Accounts.SingleAsync(x => x.Id == owner.AccountId, ct);
                 result = account.Status == AccountStatus.Active ? new(account.Id, account.PrimaryEmail, null) : new(null, null, "Account is unavailable.");
             }
         }
-        if (result.AccountId is null) return result;
+        if (result.AccountId is null)
+            return result;
         proof.ConsumedAt = DateTimeOffset.UtcNow;
         proof.PasswordHash = null;
         proof.FirstName = proof.LastName = proof.City = proof.State = null;
@@ -182,12 +215,14 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
         if (owner is not null)
         {
             account = await db.Accounts.SingleAsync(x => x.Id == owner.AccountId, ct);
-            if (account.Status != AccountStatus.Active) return new(null, null, "Account is unavailable.");
+            if (account.Status != AccountStatus.Active)
+                return new(null, null, "Account is unavailable.");
             if (!owner.Verified)
             {
                 // Never retain an unverified pre-registration password when the real mailbox owner arrives.
                 var unverifiedPassword = await db.LocalCredentials.SingleOrDefaultAsync(x => x.AccountId == owner.AccountId, ct);
-                if (unverifiedPassword is not null) db.LocalCredentials.Remove(unverifiedPassword);
+                if (unverifiedPassword is not null)
+                    db.LocalCredentials.Remove(unverifiedPassword);
                 owner.Verified = true;
             }
         }
@@ -197,10 +232,16 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
                 : await db.Accounts.SingleAsync(x => x.Id == identity.AccountId, ct);
             if (await db.AccountEmails.AnyAsync(x => x.AccountId == account.Id, ct))
                 return new(null, null, "This provider identity has a different account email.");
-            db.AccountEmails.Add(new() { AccountId = account.Id, NormalizedEmail = normalized, Verified = true });
+            db.AccountEmails.Add(new()
+            {
+                AccountId = account.Id,
+                NormalizedEmail = normalized,
+                Verified = true
+            });
             account.PrimaryEmail = login.Email!.Trim();
         }
-        if (account.Status != AccountStatus.Active) return new(null, null, "Account is unavailable.");
+        if (account.Status != AccountStatus.Active)
+            return new(null, null, "Account is unavailable.");
         var now = DateTimeOffset.UtcNow;
         if (identity is null)
             db.ExternalIdentities.Add(new()

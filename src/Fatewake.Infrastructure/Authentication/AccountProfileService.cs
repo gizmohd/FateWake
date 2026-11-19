@@ -15,17 +15,22 @@ public sealed class AccountProfileService(FatewakeDbContext db, ILogger<AccountP
     {
         using var operation = OperationTelemetry.Start("auth.complete_profile", log);
         var normalized = details.Normalize();
-        if (normalized is null) return AccountProfileDetails.ValidationError;
+        if (normalized is null)
+            return AccountProfileDetails.ValidationError;
         try
         {
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
             var account = await db.Accounts.FromSqlInterpolated(
                 $"""SELECT * FROM account WHERE "Id" = {accountId} FOR UPDATE""").SingleOrDefaultAsync(ct);
-            if (account?.Status != AccountStatus.Active) return "This account is unavailable.";
+            if (account?.Status != AccountStatus.Active)
+                return "This account is unavailable.";
             var profile = await db.AccountProfiles.SingleOrDefaultAsync(row => row.AccountId == accountId, ct);
             if (profile is null)
             {
-                profile = new() { AccountId = accountId };
+                profile = new()
+                {
+                    AccountId = accountId
+                };
                 db.AccountProfiles.Add(profile);
             }
             profile.FirstName = normalized.FirstName;

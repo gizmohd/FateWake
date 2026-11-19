@@ -1,7 +1,7 @@
 @page "/authorize-application"
 @using Microsoft.AspNetCore.Components.Authorization
 
-<PageTitle>Authorize application - Fatewake</PageTitle>
+<PageTitle>Authorize application - @BrandIdentity.GameName</PageTitle>
 <main class="account-page">
     <h1>Authorize an application</h1>
     @if (Error is not null)
@@ -10,7 +10,7 @@
     }
     @if (ClientId is not null && RedirectUri is not null)
     {
-        <p>Application <strong>@ClientId</strong> is requesting access to your Fatewake account and gameplay data. It will receive the authorization code at <strong>@RedirectUri</strong>.</p>
+        <p>Application <strong>@ClientId</strong> is requesting access to your @BrandIdentity.GameName account and gameplay data. It will receive the authorization code at <strong>@RedirectUri</strong>.</p>
         <AuthorizeView>
             <Authorized>
                 <form method="post" action="/auth/application-consent">

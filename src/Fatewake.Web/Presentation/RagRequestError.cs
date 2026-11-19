@@ -36,13 +36,20 @@ public sealed record RagRequestError(string Operation, string Message, string De
         var bytes = new byte[16 * 1024 + 1];
         var length = await stream.ReadAtLeastAsync(bytes, bytes.Length, throwOnEndOfStream: false, ct);
         if (length == bytes.Length)
-            return result with { Detail = detail + " The diagnostic response exceeded the safe display limit." };
-        if (length == 0) return result;
+            return result with
+            {
+                Detail = detail + " The diagnostic response exceeded the safe display limit."
+            };
+        if (length == 0)
+            return result;
         try
         {
             using var json = JsonDocument.Parse(bytes.AsMemory(0, length));
             if (json.RootElement.ValueKind != JsonValueKind.Object)
-                return result with { Detail = detail + " The API returned an unexpected diagnostic format." };
+                return result with
+                {
+                    Detail = detail + " The API returned an unexpected diagnostic format."
+                };
             static string? Field(JsonElement root, string name, int maximum) =>
                 root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String &&
                 value.GetString() is { } text && text.Length <= maximum ? text : null;
@@ -55,7 +62,10 @@ public sealed record RagRequestError(string Operation, string Message, string De
         }
         catch (JsonException)
         {
-            return result with { Detail = detail + " The API returned malformed JSON diagnostics." };
+            return result with
+            {
+                Detail = detail + " The API returned malformed JSON diagnostics."
+            };
         }
     }
 }

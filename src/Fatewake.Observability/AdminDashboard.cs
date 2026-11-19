@@ -5,23 +5,50 @@ public sealed class AdminDashboardFilter
     /// <summary>Time window: today, 7d, 30d, all, or custom.</summary>
     public string Range { get; set; } = "7d";
     /// <summary>Inclusive custom start instant.</summary>
-    public DateTimeOffset? From { get; set; }
+    public DateTimeOffset? From
+    {
+        get; set;
+    }
     /// <summary>Exclusive custom end instant.</summary>
-    public DateTimeOffset? To { get; set; }
+    public DateTimeOffset? To
+    {
+        get; set;
+    }
     /// <summary>Optional provider identity.</summary>
-    public string? Provider { get; set; }
+    public string? Provider
+    {
+        get; set;
+    }
     /// <summary>Optional exact model identity.</summary>
-    public string? Model { get; set; }
+    public string? Model
+    {
+        get; set;
+    }
     /// <summary>Optional operation identity.</summary>
-    public string? Operation { get; set; }
+    public string? Operation
+    {
+        get; set;
+    }
     /// <summary>Optional durable job status.</summary>
-    public string? JobStatus { get; set; }
+    public string? JobStatus
+    {
+        get; set;
+    }
     /// <summary>Optional AI attempt outcome.</summary>
-    public string? Outcome { get; set; }
+    public string? Outcome
+    {
+        get; set;
+    }
     /// <summary>Optional attributed account filter.</summary>
-    public Guid? AccountId { get; set; }
+    public Guid? AccountId
+    {
+        get; set;
+    }
     /// <summary>Include only guest or unattributed activity.</summary>
-    public bool Unattributed { get; set; }
+    public bool Unattributed
+    {
+        get; set;
+    }
     /// <summary>IANA timezone for calendar boundaries.</summary>
     public string TimeZone { get; set; } = "America/New_York";
     /// <summary>One-based result page.</summary>
@@ -35,7 +62,10 @@ public sealed class AdminDashboardFilter
     /// <summary>Calendar expansion level.</summary>
     public string Level { get; set; } = "year";
     /// <summary>Calendar key whose children are requested.</summary>
-    public string? Parent { get; set; }
+    public string? Parent
+    {
+        get; set;
+    }
 }
 /// <summary>Reported counters; null totals indicate no available measurement.</summary>
 public sealed record AiMetrics(int Calls, int Succeeded, int Failed, int Started, int Cancelled, int TimedOut, int DuplicateReports,

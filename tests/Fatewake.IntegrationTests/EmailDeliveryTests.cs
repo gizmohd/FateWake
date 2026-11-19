@@ -21,7 +21,7 @@ public sealed class EmailDeliveryTests
         Assert.Equal(token, mailbox.Token("player@example.com"));
         var file = Assert.Single(Directory.GetFiles(mailbox.DirectoryPath, "*.txt"));
         var contents = await File.ReadAllTextAsync(file, TestContext.Current.CancellationToken);
-        Assert.Contains("Subject: Verify your Fatewake email", contents);
+        Assert.Contains("Subject: Verify your Pathweaver email", contents);
         Assert.Contains("expires in 24 hours", contents);
         if (!OperatingSystem.IsWindows())
             Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(file));
@@ -46,16 +46,24 @@ public sealed class EmailDeliveryTests
             var body = new StringBuilder();
             while (await reader.ReadLineAsync(ct) is { } line)
             {
-                if (line.StartsWith("EHLO") || line.StartsWith("HELO")) await writer.WriteLineAsync("250 localhost");
-                else if (line.StartsWith("MAIL FROM") || line.StartsWith("RCPT TO")) await writer.WriteLineAsync("250 OK");
+                if (line.StartsWith("EHLO") || line.StartsWith("HELO"))
+                    await writer.WriteLineAsync("250 localhost");
+                else if (line.StartsWith("MAIL FROM") || line.StartsWith("RCPT TO"))
+                    await writer.WriteLineAsync("250 OK");
                 else if (line == "DATA")
                 {
                     await writer.WriteLineAsync("354 Send data");
-                    while (await reader.ReadLineAsync(ct) is { } data && data != ".") body.AppendLine(data);
+                    while (await reader.ReadLineAsync(ct) is { } data && data != ".")
+                        body.AppendLine(data);
                     await writer.WriteLineAsync("250 queued");
                 }
-                else if (line == "QUIT") { await writer.WriteLineAsync("221 bye"); break; }
-                else throw new InvalidOperationException("Unexpected SMTP command.");
+                else if (line == "QUIT")
+                {
+                    await writer.WriteLineAsync("221 bye");
+                    break;
+                }
+                else
+                    throw new InvalidOperationException("Unexpected SMTP command.");
             }
             return body.ToString();
         }, ct);
@@ -70,7 +78,7 @@ public sealed class EmailDeliveryTests
         await sender.SendAsync("player@example.com", new string('B', 64), ct);
         var message = await received.WaitAsync(TimeSpan.FromSeconds(15), ct);
         Assert.Contains("To: player@example.com", message);
-        Assert.Contains("Verify your Fatewake email", message);
+        Assert.Contains("Verify your Pathweaver email", message);
         Assert.Contains("/verify-email?token=", message);
         Assert.False(Directory.Exists(mailbox.DirectoryPath));
         listener.Stop();
