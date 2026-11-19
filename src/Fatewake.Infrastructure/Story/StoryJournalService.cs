@@ -11,28 +11,24 @@ namespace Fatewake.Infrastructure.Story;
 public sealed class StoryJournalService(FatewakeDbContext db, ILogger<StoryJournalService>? log = null)
 {
     /// <summary>Records an accepted authoritative decision even if the client disconnects before advancing.</summary>
-    public async Task RecordOutcomeAsync(Guid survivorId, Guid eventInstanceId, Fatewake.GameEngine.ActionResolution outcome, CancellationToken ct = default)
-    {
-        var episode = await db.EventInstances.SingleAsync(x => x.Id == eventInstanceId && x.SurvivorId == survivorId, ct);
-        var state = new SessionState(survivorId, episode.TimelineId, eventInstanceId, episode.SurvivorDay, episode.EventKey,
-            "active", outcome.OutcomeKey, outcome.NarrativeFacts, DayOneScenes.Opening.Key, "choice-wake");
-        await RecordBeatAsync(state, DayOneScenes.Opening.Beat("choice-wake"), false, ct);
-    }
+    public Task RecordOutcomeAsync(SessionState state, CancellationToken ct = default) =>
+        RecordBeatAsync(state, (state.Arrival?.Opening() ?? DayOneScenes.Opening).Beat("choice-wake"), false, ct);
     /// <summary>Recovers already-reached legacy beats once, then records the current beat.</summary>
     public async Task RecordProgressAsync(SessionState state, CancellationToken ct = default)
     {
-        if (state.SceneKey != DayOneScenes.Opening.Key)
+        var opening = state.Arrival?.Opening() ?? DayOneScenes.Opening;
+        if (state.SceneKey != opening.Key)
             return;
-        var beat = DayOneScenes.Opening.Beats.FirstOrDefault(x => x.Key == state.BeatKey);
+        var beat = opening.Beats.FirstOrDefault(x => x.Key == state.BeatKey);
         if (beat is null)
             return;
-        var index = DayOneScenes.Opening.IndexOf(beat.Key);
+        var index = opening.IndexOf(beat.Key);
         if (index > 0)
-            foreach (var prior in DayOneScenes.Opening.Beats.Take(index))
+            foreach (var prior in opening.Beats.Take(index))
                 await RecordBeatAsync(state, prior, true, ct);
         await RecordBeatAsync(state, beat, false, ct);
         if (!string.IsNullOrWhiteSpace(state.LastOutcome))
-            await RecordBeatAsync(state, DayOneScenes.Opening.Beat("choice-wake"), false, ct);
+            await RecordBeatAsync(state, opening.Beat("choice-wake"), false, ct);
     }
 
     private async Task RecordBeatAsync(SessionState state, BeatDefinition beat, bool reconstructed, CancellationToken ct)

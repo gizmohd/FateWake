@@ -38,7 +38,7 @@ The season begins as an intimate survival story and ends with the realization th
 Normal life ends. Power, communications and familiar assumptions fail. The player learns that people are more dangerous, valuable and complicated than simple resource counters.
 
 ### Opening State
-The player begins at 6:17 AM in an ordinary place. Michelle, Eli and the injured stranger create the first immediate human problem. The first anomalous broadcast establishes that something is wrong beyond an ordinary blackout.
+Players begin at an ordinary site before or at 6:17 AM. Their assigned place and minute are fixed for that survivor. Michelle, Eli and the injured stranger create the first immediate human problem. The first anomalous broadcast establishes that something is wrong beyond an ordinary blackout.
 
 ### Central Conflict
 Stay isolated and preserve resources, or begin accepting responsibility for other people.

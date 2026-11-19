@@ -8,9 +8,6 @@ namespace Fatewake.Infrastructure.Persistence;
 public sealed class WorldMapStore(FatewakeDbContext db)
 {
     private const string SilenceClock = "silence-season-1";
-    private static readonly Guid Home = Guid.Parse("10000000-0000-0000-0001-000000000001");
-    private static readonly Guid Doorway = Guid.Parse("10000000-0000-0000-0001-000000000002");
-    private static readonly Guid Street = Guid.Parse("10000000-0000-0000-0001-000000000003");
 
     /// <summary>Reads the recent path and co-present names for the selected Thread.</summary>
     public async Task<WorldMap> ReadAsync(Guid survivorId, CancellationToken ct)
@@ -99,23 +96,13 @@ public sealed class WorldMapStore(FatewakeDbContext db)
 
     private static WorldVisitRecord? AuthoredPosition(SessionState state)
     {
-        var opening = DayOneScenes.Opening;
+        var opening = state.Arrival?.Opening() ?? DayOneScenes.Opening;
         if (state.SceneKey != opening.Key || state.SurvivorDay != opening.SurvivorDay)
             return null;
         var beat = opening.Beats.FirstOrDefault(beat => beat.Key == state.BeatKey);
         if (!TimeOnly.TryParseExact(beat?.Time, "h:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out var time))
             return null;
-        var cell = state.BeatKey switch
-        {
-            "street-reveal" or "first-choice" => Doorway,
-            "choice-wake" => state.LastOutcome switch
-            {
-                "injured_stranger_helped" or "helped_maya" => Street,
-                "called_from_safety" or "improvised_response" => Doorway,
-                _ => Home
-            },
-            _ => Home
-        };
+        var cell = (state.Arrival ?? DayOneArrival.Original).CellId(state.BeatKey, state.LastOutcome);
         return new() { SurvivorId = state.SurvivorId, TimelineId = state.TimelineId, CellId = cell,
             ClockKey = SilenceClock, Tick = time.Hour * 60 + time.Minute, Authored = true };
     }

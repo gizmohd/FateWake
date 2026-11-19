@@ -28,6 +28,7 @@ public sealed class StoryBranchTests
         var worker = new SceneWorkStepHandler(db, new Canon(), author,
             new SceneAuthoringOptions { Enabled = true, ApiKey = "test-key" }, NullLogger<SceneWorkStepHandler>.Instance);
 
+        Fatewake.Story.DayOneArrival? sharedArrival = null;
         var first = await GenerateAsync("investigate_radio", "Tune the radio.");
         var second = await GenerateAsync("investigate_radio", "Check the broadcast.");
         var different = await GenerateAsync("stay_inside", "Wait inside.");
@@ -35,6 +36,7 @@ public sealed class StoryBranchTests
         Assert.Null(author.Contexts[0].BranchFocus);
         Assert.Equal("listen_for_updates", author.Contexts[1].BranchFocus);
         Assert.Equal("Check the broadcast.", author.Contexts[1].PlayerChoice);
+        Assert.Equal(sharedArrival, author.Contexts[1].Arrival);
         Assert.DoesNotContain(author.Contexts[1].RecentSummaries, text => text.Contains("Tune the radio."));
         Assert.Null(author.Contexts[2].BranchFocus);
         Assert.NotNull(first.BranchKey);
@@ -46,6 +48,11 @@ public sealed class StoryBranchTests
         async Task<GeneratedSceneRecord> GenerateAsync(string actionType, string input)
         {
             var session = await new SessionStore(db).StartOrResumeAsync(null, "unknown", ct);
+            sharedArrival ??= session.Arrival!;
+            var survivor = await db.Survivors.SingleAsync(row => row.Id == session.SurvivorId, ct);
+            survivor.DayOneSiteKey = sharedArrival.SiteKey;
+            survivor.DayOneStartMinute = sharedArrival.Minute;
+            await db.SaveChangesAsync(ct);
             var action = new CandidateAction(actionType, new Dictionary<string, string>(), input);
             var snapshot = new GameSnapshot(session.SurvivorId, session.TimelineId, session.SurvivorDay,
                 session.EventKey, new Dictionary<string, string>());

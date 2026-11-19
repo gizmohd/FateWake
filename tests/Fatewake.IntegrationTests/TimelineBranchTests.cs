@@ -461,7 +461,7 @@ public sealed class TimelineBranchTests
         client.DefaultRequestHeaders.Remove("X-Test-Account");
         client.DefaultRequestHeaders.Add("X-Test-Account", fixture.Account.ToString());
         var threads = await client.GetStringAsync(path, ct);
-        Assert.Contains("6:17 AM", threads);
+        Assert.Contains(fixture.Session.Arrival!.TimeLabel, threads);
         Assert.DoesNotContain("narrativeFacts", threads, StringComparison.OrdinalIgnoreCase);
         var listing = await client.GetStringAsync(path + "/checkpoints", ct);
         Assert.Contains("opening", listing);

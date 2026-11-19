@@ -18,7 +18,8 @@ internal static class ThreadCanon
         emergency broadcasts conflict, and ordinary survivors face practical choices about trust, scarcity and mutual aid.
         Keep the opening local and NPC-driven. Let communities and contact with other Threads emerge only through established events.
         The cause of The Silence and the meaning of 6:17 remain unresolved. Treat anomalous broadcasts as observations, not explanations.
-        Day 1 starts at 6:17 AM and powered devices fail together at 6:43 AM. Preserve the player's established opening outcome.
+        Day 1 arrivals vary. The future-dated 6:17 broadcast and synchronized loss of power at 6:43 AM are fixed milestones.
+        Preserve the player's assigned starting place, time and established opening outcome.
         Do not bring forward the unpowered radio event reserved for Day 4 or the shared signal choice reserved for Day 7.
         Keep the Echo and deeper Wayfinder connections hidden. Respect authored milestones and knowledge already earned.
         Expand only the current Thread with observable local details compatible with existing canon.

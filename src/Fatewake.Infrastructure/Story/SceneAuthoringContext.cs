@@ -1,4 +1,5 @@
 using Fatewake.Infrastructure.Authentication;
+using Fatewake.Story;
 
 namespace Fatewake.Infrastructure.Story;
 
@@ -15,6 +16,7 @@ namespace Fatewake.Infrastructure.Story;
 /// <param name="PlayerChoice">The player's decision in the previous scene, as untrusted intent text.</param>
 /// <param name="ContentLevel">Effective age-capped level for the narrator and reviewer.</param>
 /// <param name="BranchFocus">Optional generic focus from a compatible branch.</param>
+/// <param name="Arrival">Authoritative starting site and minute, independent of the scene’s generated time label.</param>
 public sealed record SceneAuthoringContext(string SurvivorName, int SurvivorDay, int Sequence, bool RequiresDecision,
     IReadOnlyList<string> CanonPassages, IReadOnlyList<string> RecentSummaries, Guid? OwnerAccountId, Guid SurvivorId,
-    string? PlayerChoice = null, ContentLevel ContentLevel = ContentLevel.Under14, string? BranchFocus = null);
+    string? PlayerChoice = null, ContentLevel ContentLevel = ContentLevel.Under14, string? BranchFocus = null, DayOneArrival? Arrival = null);

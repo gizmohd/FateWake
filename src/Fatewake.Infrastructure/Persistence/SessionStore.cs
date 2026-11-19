@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Fatewake.Infrastructure.Story;
+using Fatewake.Story;
 using Fatewake.Observability;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -50,6 +51,7 @@ public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? lo
                     CurrentSurvivorDay = 1,
                     CreatedAt = now
                 };
+                var arrival = DayOneArrival.Allocate();
                 survivor = new()
                 {
                     Id = Guid.NewGuid(),
@@ -58,6 +60,8 @@ public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? lo
                     DisplayName = Fatewake.Story.BrandIdentity.PlayerName,
                     IdentityMode = "undetermined",
                     BroadRegion = broadRegion,
+                    DayOneSiteKey = arrival.SiteKey,
+                    DayOneStartMinute = arrival.Minute,
                     SurvivorDay = 1,
                     Status = SurvivorStatus.Active,
                     CreatedAt = now,
@@ -226,8 +230,12 @@ public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? lo
     {
         var state = ReadState(episode.State);
         return new(survivor.Id, episode.TimelineId, episode.Id, episode.SurvivorDay, episode.EventKey,
-            episode.Status.ToString().ToLowerInvariant(), state.outcome, state.facts, state.scene, state.beat, episode.Version);
+            episode.Status.ToString().ToLowerInvariant(), state.outcome, state.facts, state.scene, state.beat, episode.Version, Arrival(survivor));
     }
+
+    /// <summary>Reads a saved arrival, with null retaining the original opening for legacy saves.</summary>
+    public static DayOneArrival? Arrival(SurvivorRecord survivor) =>
+        survivor.DayOneSiteKey is { } site && survivor.DayOneStartMinute is { } minute ? new(site, minute) : null;
 
     private static (string? outcome, IReadOnlyDictionary<string, string> facts, string scene, string beat) ReadState(string json)
     {

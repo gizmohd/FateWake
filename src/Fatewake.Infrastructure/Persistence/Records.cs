@@ -69,6 +69,8 @@ public sealed class SurvivorRecord
     {
         get; set;
     }
+    public string? DayOneSiteKey { get; set; }
+    public int? DayOneStartMinute { get; set; }
     public int SurvivorDay { get; set; } = 1; public required SurvivorStatus Status
     {
         get; set;

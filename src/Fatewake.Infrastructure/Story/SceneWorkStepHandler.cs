@@ -80,6 +80,9 @@ public sealed class SceneWorkStepHandler(FatewakeDbContext db, IRagRetriever ret
             var intent = StoryBranch.DayOneIntent(dayOne?.OutcomeType) ?? StoryBranch.Intent(playerChoice);
             if (intent is null && previous is { HasDecision: false, ContentLevel: not null } && previous.ContentLevel <= level)
                 intent = "continue_without_decision";
+            var arrival = SessionStore.Arrival(survivor) ?? DayOneArrival.Original;
+            if (intent is not null && scene.Sequence == 1)
+                intent = $"{arrival.SiteKey}:{arrival.Minute}:{intent}";
             var branchKey = StoryBranch.Key(survivor.SurvivorDay, scene.Sequence, intent, previous?.BranchKey);
             var focus = branchKey is null ? null : await (
                 from candidate in db.Set<GeneratedSceneRecord>()
@@ -92,7 +95,7 @@ public sealed class SceneWorkStepHandler(FatewakeDbContext db, IRagRetriever ret
                 select matches.Key).FirstOrDefaultAsync(ct);
             if (!StoryBranch.Focuses.Contains(focus))
                 focus = null;
-            var query = $"{survivor.DisplayName} day {survivor.SurvivorDay} " +
+            var query = $"{arrival.SiteName} day {survivor.SurvivorDay} " +
                 (recent.Count > 0 ? recent[^1] : "opening scene setting characters world");
             var passages = await retriever.SearchAsync(query, new RagSearchFilter(scene.SurvivorId,
                 SceneWork.TimelineKey(scene.TimelineId), 1, survivor.SurvivorDay), options.RetrievalLimit, ct);
@@ -105,7 +108,7 @@ public sealed class SceneWorkStepHandler(FatewakeDbContext db, IRagRetriever ret
             var spec = await author.AuthorAsync(new SceneAuthoringContext(survivor.DisplayName, survivor.SurvivorDay,
                 scene.Sequence, SceneDecisionPolicy.RequiresDecision(streak),
                 canon, recent,
-                survivor.AccountId, survivor.Id, playerChoice, level, focus), context.JobId, context.Attempt, ct);
+                survivor.AccountId, survivor.Id, playerChoice, level, focus, arrival), context.JobId, context.Attempt, ct);
             if (!StoryContentPolicy.AllowsScene(level, spec) ||
                 spec.Choices.Count > 2 || spec.Choices.Any(x => x.AllowFreeform || x.ActionType == SceneChoiceResolver.Freeform))
                 throw new InvalidDataException("The scene did not pass content or choice checks.");

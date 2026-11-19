@@ -27,6 +27,10 @@ A free-form action may be accepted, mapped to an existing action, transformed in
 
 Generated scenes can reuse a generic plot cue from another compatible story branch at the same content level. The narrator writes the next scene from the current player's own state and action. Shared cues contain no player text, identities, or scene prose.
 
+### Day One arrivals
+
+A new survivor draws a fictional starting site and an in-world minute from 6:04 to 6:17 AM. The site and minute persist across resumes, resets and personal Thread forks. The initial beats adapt to that site and time. The future-dated 6:17 clue and the synchronized 6:43 blackout remain common milestones. Generated continuations use the recorded arrival as context.
+
 ### Story content settings
 
 Registration asks for a private date of birth. Settings offers **Under 14**, **14–17**, **18+ (Clean Language)**, and **18+ (Adult Language)**, capped by the account's age. Adult language requires an explicit choice. Guests and accounts without a birth date receive the Under 14 setting. Generated scenes must pass audience review before display. The topic ban on suicide and self-harm applies to every level.

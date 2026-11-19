@@ -174,7 +174,7 @@
 @if (_session is not null) { <StoryToasts @key="_session.SurvivorId" SurvivorId="_session.SurvivorId" /> }
 
 @code {
-    private static SceneDefinition Scene => DayOneScenes.Opening;
+    private SceneDefinition Scene = DayOneScenes.Opening;
     private BeatDefinition Beat => Scene.Beats[Math.Clamp(_beatIndex, 0, Scene.Beats.Count - 1)];
     private bool AtChapterEnd => _beatIndex == Scene.Beats.Count - 1;
     private string? SpeakerPortrait =>
@@ -236,6 +236,7 @@
             using var response = await StartSessionAsync(client, survivorId);
             response.EnsureSuccessStatusCode();
             _session = await response.Content.ReadFromJsonAsync<SessionDto>();
+            Scene = _session?.Arrival?.Opening() ?? DayOneScenes.Opening;
             if (_session is not null)
             {
                 if (user.Identity?.IsAuthenticated != true)
@@ -468,7 +469,7 @@
             await RememberArtwork(_artwork);
     }
 
-    private sealed record SessionDto(Guid SurvivorId,Guid TimelineId,Guid EventInstanceId,int SurvivorDay,string EventKey,string Status,string? LastOutcome,Dictionary<string,string> NarrativeFacts,string SceneKey,string BeatKey);
+    private sealed record SessionDto(Guid SurvivorId,Guid TimelineId,Guid EventInstanceId,int SurvivorDay,string EventKey,string Status,string? LastOutcome,Dictionary<string,string> NarrativeFacts,string SceneKey,string BeatKey,DayOneArrival? Arrival);
     private sealed record ResolutionDto(bool Accepted,string OutcomeKey, Dictionary<string,string>? NarrativeFacts);
 }
 

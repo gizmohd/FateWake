@@ -134,7 +134,7 @@ public sealed class TimelineStateStore(FatewakeDbContext db, ILogger<TimelineSta
             EventInstanceId = episode.Id,
             Key = beatKey,
             Label = beatKey == "phone-0617" ? "The Silence - opening" : "Before Michelle's plea",
-            TimeLabel = beatKey == "phone-0617" ? "Day 1, 6:17 AM" : "Day 1, 6:19 AM",
+            TimeLabel = "Day 1, " + (SessionStore.Arrival(survivor)?.Opening() ?? DayOneScenes.Opening).Beat(beatKey).Time,
             Snapshot = json,
             SnapshotHash = TimelineSnapshotCodec.Hash(json),
             CreatedAt = DateTimeOffset.UtcNow

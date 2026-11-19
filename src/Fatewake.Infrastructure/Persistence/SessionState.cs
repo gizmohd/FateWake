@@ -11,8 +11,9 @@ namespace Fatewake.Infrastructure.Persistence;
 /// <param name="NarrativeFacts">Authoritative narrative facts.</param>
 /// <param name="SceneKey">Current presentation scene.</param>
 /// <param name="BeatKey">Current presentation beat.</param>
+/// <param name="Arrival">The survivor’s assigned Day One starting site and minute, when saved.</param>
 /// <param name="Version">Expected active-event version used to detect stale branch selections.</param>
 /// <see href="../../../docs/code/src/Fatewake.Infrastructure/Persistence/SessionState.md">SessionState documentation</see>
 public sealed record SessionState(Guid SurvivorId, Guid TimelineId, Guid EventInstanceId, int SurvivorDay,
     string EventKey, string Status, string? LastOutcome, IReadOnlyDictionary<string, string> NarrativeFacts, string SceneKey, string BeatKey,
-    long Version = 0);
+    long Version = 0, Fatewake.Story.DayOneArrival? Arrival = null);
