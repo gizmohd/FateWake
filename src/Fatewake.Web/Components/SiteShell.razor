@@ -1,0 +1,55 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+<div class="play-shell">
+    <header class="play-masthead play-frame">
+        <a class="play-brand" href="/" aria-label="Fatewake home">
+            <span class="play-star" aria-hidden="true">✦</span>
+            <div>
+                <span class="play-wordmark">Fatewake</span>
+                <p>A Wayfinder Universe experience</p>
+            </div>
+        </a>
+        @Chapter
+    </header>
+
+    <nav class="play-navigation play-frame" aria-label="Game menu">
+        <span class="play-menu-title">Game menu</span>
+        @if (Chapter is not null)
+        {
+            <a class="play-menu-active" href="/play#play-controls" aria-current="page"><span aria-hidden="true">▶</span> Scene</a>
+        }
+        else
+        {
+            <NavLink href="/play" Match="NavLinkMatch.All" ActiveClass="play-menu-active"><span aria-hidden="true">▶</span> Scene</NavLink>
+        }
+        @if (SurvivorId is not null)
+        {
+            <NavLink href="@($"/novel/{SurvivorId}")" Match="NavLinkMatch.All" ActiveClass="play-menu-active"><span aria-hidden="true">▤</span> Journal</NavLink>
+        }
+        <AuthorizeView>
+            <Authorized>
+                <NavLink href="/account" Match="NavLinkMatch.All" ActiveClass="play-menu-active"><span aria-hidden="true">◇</span> Account</NavLink>
+            </Authorized>
+            <NotAuthorized>
+                <NavLink href="/login" Match="NavLinkMatch.All" ActiveClass="play-menu-active"><span aria-hidden="true">◇</span> Sign in</NavLink>
+                <NavLink href="/register" Match="NavLinkMatch.All" ActiveClass="play-menu-active"><span aria-hidden="true">+</span> Create account</NavLink>
+            </NotAuthorized>
+        </AuthorizeView>
+        <AuthorizeView Roles="Admin">
+            <Authorized>
+                <NavLink href="/admin" Match="NavLinkMatch.All" ActiveClass="play-menu-active"><span aria-hidden="true">⚙</span> Admin dashboard</NavLink>
+            </Authorized>
+        </AuthorizeView>
+        <NavLink class="play-exit" href="/" Match="NavLinkMatch.All" ActiveClass="play-menu-active"><span aria-hidden="true">↶</span> Main menu</NavLink>
+        @MenuActions
+    </nav>
+
+    @ChildContent
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RenderFragment ChildContent { get; set; } = default!;
+    [Parameter] public RenderFragment? Chapter { get; set; }
+    [Parameter] public Guid? SurvivorId { get; set; }
+    [Parameter] public RenderFragment? MenuActions { get; set; }
+}
