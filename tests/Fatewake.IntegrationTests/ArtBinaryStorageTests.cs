@@ -53,14 +53,32 @@ public sealed class ArtBinaryStorageTests
             var assetId = Guid.NewGuid();
             db.ArtAssets.Add(new ArtAssetRecord
             {
-                Id = assetId, Key = "scene", Version = 1, AssetType = "Background", Status = ArtAssetStatus.Approved,
-                VisualFingerprint = "scene-fingerprint", ContentHash = Hash(master), MasterPngStorageKey = "scene/master.png",
-                Width = 1, Height = 1, HasAlpha = false, CreatedAt = now, ApprovedAt = now
+                Id = assetId,
+                Key = "scene",
+                Version = 1,
+                AssetType = "Background",
+                Status = ArtAssetStatus.Approved,
+                VisualFingerprint = "scene-fingerprint",
+                ContentHash = Hash(master),
+                MasterPngStorageKey = "scene/master.png",
+                Width = 1,
+                Height = 1,
+                HasAlpha = false,
+                CreatedAt = now,
+                ApprovedAt = now
             });
             db.ArtAssetDerivatives.Add(new ArtAssetDerivativeRecord
             {
-                Id = Guid.NewGuid(), ArtAssetId = assetId, Kind = ArtDerivativeKind.WebP, StorageKey = "scene/delivery.webp",
-                ContentType = "image/webp", ContentHash = Hash(derivative), Width = 1, Height = 1, ByteSize = derivative.Length, CreatedAt = now
+                Id = Guid.NewGuid(),
+                ArtAssetId = assetId,
+                Kind = ArtDerivativeKind.WebP,
+                StorageKey = "scene/delivery.webp",
+                ContentType = "image/webp",
+                ContentHash = Hash(derivative),
+                Width = 1,
+                Height = 1,
+                ByteSize = derivative.Length,
+                CreatedAt = now
             });
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -93,9 +111,19 @@ public sealed class ArtBinaryStorageTests
             var now = DateTimeOffset.UtcNow;
             db.ArtAssets.Add(new ArtAssetRecord
             {
-                Id = Guid.NewGuid(), Key = "scene", Version = 1, AssetType = "Background", Status = ArtAssetStatus.Approved,
-                VisualFingerprint = "scene-fingerprint", ContentHash = Hash([1, 2, 3]), MasterPngStorageKey = "scene/master.png",
-                Width = 1, Height = 1, HasAlpha = false, CreatedAt = now, ApprovedAt = now
+                Id = Guid.NewGuid(),
+                Key = "scene",
+                Version = 1,
+                AssetType = "Background",
+                Status = ArtAssetStatus.Approved,
+                VisualFingerprint = "scene-fingerprint",
+                ContentHash = Hash([1, 2, 3]),
+                MasterPngStorageKey = "scene/master.png",
+                Width = 1,
+                Height = 1,
+                HasAlpha = false,
+                CreatedAt = now,
+                ApprovedAt = now
             });
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 

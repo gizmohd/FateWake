@@ -92,14 +92,16 @@ public static class LocalAuthenticationEndpoints
         if (operation == "set-password" && form["password"] != form["confirmPassword"])
             return Results.LocalRedirect(page + "?error=mismatch");
         using var client = clients.CreateClient("fatewake-api");
-        if (operation == "set-password" && context.User.FindFirst("fatewake.api_token") is {} token)
+        if (operation == "set-password" && context.User.FindFirst("fatewake.api_token") is { } token)
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.Value);
         var started = DateTimeOffset.UtcNow;
         try
         {
             using var response = await client.PostAsJsonAsync("/api/auth/" + operation, new
             {
-                Token = form["token"].ToString(), Email = form["email"].ToString(), Password = form["password"].ToString()
+                Token = form["token"].ToString(),
+                Email = form["email"].ToString(),
+                Password = form["password"].ToString()
             }, context.RequestAborted);
             if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
                 return Results.LocalRedirect(page + "?error=invalid");

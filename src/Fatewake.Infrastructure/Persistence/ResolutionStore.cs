@@ -52,6 +52,6 @@ public sealed class ResolutionStore(FatewakeDbContext db, ILogger<ResolutionStor
         true, r.OutcomeType,
         JsonSerializer.Deserialize<List<StateEffect>>(r.AuthoritativeEffects) ?? [],
         [],
-        JsonSerializer.Deserialize<Dictionary<string,string>>(r.NarrativeFacts) ?? new(),
+        JsonSerializer.Deserialize<Dictionary<string, string>>(r.NarrativeFacts) ?? new(),
         r.RulesVersion);
 }

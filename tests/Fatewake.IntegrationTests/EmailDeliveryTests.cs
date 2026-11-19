@@ -44,14 +44,14 @@ public sealed class EmailDeliveryTests
             await using var writer = new StreamWriter(stream, Encoding.ASCII) { AutoFlush = true, NewLine = "\r\n" };
             await writer.WriteLineAsync("220 localhost SMTP ready");
             var body = new StringBuilder();
-            while (await reader.ReadLineAsync(ct) is {} line)
+            while (await reader.ReadLineAsync(ct) is { } line)
             {
                 if (line.StartsWith("EHLO") || line.StartsWith("HELO")) await writer.WriteLineAsync("250 localhost");
                 else if (line.StartsWith("MAIL FROM") || line.StartsWith("RCPT TO")) await writer.WriteLineAsync("250 OK");
                 else if (line == "DATA")
                 {
                     await writer.WriteLineAsync("354 Send data");
-                    while (await reader.ReadLineAsync(ct) is {} data && data != ".") body.AppendLine(data);
+                    while (await reader.ReadLineAsync(ct) is { } data && data != ".") body.AppendLine(data);
                     await writer.WriteLineAsync("250 queued");
                 }
                 else if (line == "QUIT") { await writer.WriteLineAsync("221 bye"); break; }
@@ -61,7 +61,11 @@ public sealed class EmailDeliveryTests
         }, ct);
         var sender = new VerificationEmailSender(Options.Create(new EmailDeliveryOptions
         {
-            SmtpEnabled = true, Host = "127.0.0.1", Port = port, EnableSsl = false, Directory = mailbox.DirectoryPath
+            SmtpEnabled = true,
+            Host = "127.0.0.1",
+            Port = port,
+            EnableSsl = false,
+            Directory = mailbox.DirectoryPath
         }), NullLogger<VerificationEmailSender>.Instance);
         await sender.SendAsync("player@example.com", new string('B', 64), ct);
         var message = await received.WaitAsync(TimeSpan.FromSeconds(15), ct);

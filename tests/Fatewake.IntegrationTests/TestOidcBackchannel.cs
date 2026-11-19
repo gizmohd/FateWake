@@ -32,8 +32,13 @@ public sealed class TestOidcBackchannel(SecurityKey key) : HttpMessageHandler
             now.AddMinutes(-1), now.AddMinutes(5), new SigningCredentials(key, SecurityAlgorithms.RsaSha256)));
         return new(HttpStatusCode.OK)
         {
-            Content = new StringContent(JsonSerializer.Serialize(new { id_token = token, access_token = "opaque-provider-token",
-                token_type = "Bearer", expires_in = 300 }), Encoding.UTF8, "application/json")
+            Content = new StringContent(JsonSerializer.Serialize(new
+            {
+                id_token = token,
+                access_token = "opaque-provider-token",
+                token_type = "Bearer",
+                expires_in = 300
+            }), Encoding.UTF8, "application/json")
         };
     }
 }

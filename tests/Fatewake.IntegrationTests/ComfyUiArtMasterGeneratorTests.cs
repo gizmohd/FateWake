@@ -61,8 +61,13 @@ public sealed class ComfyUiArtMasterGeneratorTests : IDisposable
     {
         var options = Options.Create(new ComfyUiArtGenerationOptions
         {
-            Enabled = true, BaseUrl = "https://comfy.test/api/", ApiKey = apiKey, ApiKeyHeader = header,
-            WorkflowPath = _workflow, PollIntervalMilliseconds = 10, TimeoutSeconds = 10
+            Enabled = true,
+            BaseUrl = "https://comfy.test/api/",
+            ApiKey = apiKey,
+            ApiKeyHeader = header,
+            WorkflowPath = _workflow,
+            PollIntervalMilliseconds = 10,
+            TimeoutSeconds = 10
         });
         var http = new HttpClient(handler) { BaseAddress = new Uri(options.Value.BaseUrl) };
         var generator = new ComfyUiArtMasterGenerator(http, options, null!);

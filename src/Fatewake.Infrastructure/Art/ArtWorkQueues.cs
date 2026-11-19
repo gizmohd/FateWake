@@ -3,8 +3,8 @@ namespace Fatewake.Infrastructure.Art;
 /// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Art/ArtWorkQueues.md">ArtWorkQueues documentation</see>.</remarks>
 public static class ArtWorkQueues
 {
-    public const string Generate="art.generate";
-    public const string Encode="art.encode";
-    public const string Validate="art.validate";
-    public const string Finalize="art.finalize";
+    public const string Generate = "art.generate";
+    public const string Encode = "art.encode";
+    public const string Validate = "art.validate";
+    public const string Finalize = "art.finalize";
 }

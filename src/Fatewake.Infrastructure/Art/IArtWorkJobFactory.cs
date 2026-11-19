@@ -4,5 +4,5 @@ namespace Fatewake.Infrastructure.Art;
 /// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Art/IArtWorkJobFactory.md">IArtWorkJobFactory documentation</see>.</remarks>
 public interface IArtWorkJobFactory
 {
-    Task<CreatedWorkJob> CreateAsync(ArtWorkRequest request,CancellationToken ct=default);
+    Task<CreatedWorkJob> CreateAsync(ArtWorkRequest request, CancellationToken ct = default);
 }

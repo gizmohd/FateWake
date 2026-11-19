@@ -33,7 +33,9 @@ public sealed class VerificationEmailSender(IOptions<EmailDeliveryOptions> optio
         var path = Path.Combine(directory, $"{DateTimeOffset.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}.txt");
         var fileOptions = new FileStreamOptions
         {
-            Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None,
+            Mode = FileMode.CreateNew,
+            Access = FileAccess.Write,
+            Share = FileShare.None,
             Options = FileOptions.Asynchronous
         };
         if (!OperatingSystem.IsWindows()) fileOptions.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;

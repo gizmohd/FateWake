@@ -17,7 +17,7 @@ Artwork, animation, dialogue placement and prose never determine canonical outco
 
 ## Visual principles
 1. Mobile portrait is the primary composition.
-2. Artwork owns most of the screen; text overlays are concise.
+2. Artwork owns most of the screen; only scene time and signal cues overlay it. Dialogue and choices use separate, readable panels.
 3. Dialogue is character-attributed and visually distinct from narration.
 4. Choices appear at dramatic decision points rather than permanently occupying the UI.
 5. Major anomalies may deliberately break the normal panel language.
@@ -78,6 +78,8 @@ This metadata belongs to presentation provenance, not canonical game state.
 
 
 ## Implemented vertical-slice runtime
+The full-window `/play` shell follows the live-game panel in the Neon Frontier design reference: a retro masthead and chapter display, beveled violet frames, a game menu, a large scene viewport, speaker-attributed dialogue, and numbered choices with cyan keyboard and pointer highlights. On narrow screens the menu wraps above the scene. The menu exposes implemented routes only; the reference's art samples and engineering panels are not part of gameplay. The first-day setting and approved artwork are unchanged, and Michelle's dialogue badge reuses her approved scene layer when it is available.
+
 The Day 1 opening is now authored as runtime beats in `DayOneScenes`. `ArtCompositionView` displays the shared `art-generating.svg` placeholder while queued artwork is being prepared. It checks for ready artwork every five seconds, including after a browser image load fails, and renders approved layers as they become available. Explicit failed, cancelled, or disabled generation statuses end polling for those layers. The server persists `SceneKey` and `BeatKey` in the active event state so presentation resumes at the same beat after refresh/return.
 
 Presentation progression never resolves gameplay. Only an Interaction beat submits a CandidateAction to GameEngine. Motion respects `prefers-reduced-motion`.

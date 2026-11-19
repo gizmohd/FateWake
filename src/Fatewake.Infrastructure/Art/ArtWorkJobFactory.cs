@@ -4,15 +4,15 @@ using Fatewake.Infrastructure.Work;
 namespace Fatewake.Infrastructure.Art;
 /// <summary>Builds and persists the distributed artwork pipeline with parallel derivative processing and a validation/finalization fan-in.</summary>
 /// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Art/ArtWorkJobFactory.md">ArtWorkJobFactory documentation</see>.</remarks>
-public sealed class ArtWorkJobFactory(IWorkJobBuilder jobs):IArtWorkJobFactory
+public sealed class ArtWorkJobFactory(IWorkJobBuilder jobs) : IArtWorkJobFactory
 {
     /// <inheritdoc/>
-    public Task<CreatedWorkJob> CreateAsync(ArtWorkRequest request,CancellationToken ct=default)
+    public Task<CreatedWorkJob> CreateAsync(ArtWorkRequest request, CancellationToken ct = default)
     {
         if (request.IsPrivate && request.AccountId is null)
             throw new ArgumentException("Private artwork requires an owning account.", nameof(request));
-        var input=JsonSerializer.Serialize(request);
-        var steps=new WorkStepDefinition[]
+        var input = JsonSerializer.Serialize(request);
+        var steps = new WorkStepDefinition[]
         {
             new("resolve",ArtWorkStepTypes.Resolve,ArtWorkQueues.Generate,input,request.Priority),
             new("generate",ArtWorkStepTypes.GenerateMaster,ArtWorkQueues.Generate,input,request.Priority,3,["resolve"]),
@@ -25,6 +25,6 @@ public sealed class ArtWorkJobFactory(IWorkJobBuilder jobs):IArtWorkJobFactory
         var idempotencyKey = request.IsPrivate
             ? $"{request.VisualFingerprint}:account:{request.AccountId:N}"
             : request.VisualFingerprint;
-        return jobs.CreateAsync(new("art.asset",idempotencyKey,input,steps,request.Priority),ct);
+        return jobs.CreateAsync(new("art.asset", idempotencyKey, input, steps, request.Priority), ct);
     }
 }

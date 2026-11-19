@@ -4,8 +4,7 @@ using Fatewake.Infrastructure.Work;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 
 namespace Fatewake.IntegrationTests;
 
@@ -27,12 +26,12 @@ public sealed class OrchestratedArtworkTests
         await using var db = new FatewakeDbContext(options);
         var key = $"orchestration-test-{Guid.NewGuid():N}";
         var storage = new FileSystemArtBinaryStorage(root);
-        using var fixture = new Image<Rgba32>(32, 24, new Rgba32(100, 80, 60, 255));
-        using var png = new MemoryStream();
-        fixture.SaveAsPng(png);
+        using var fixture = new SKBitmap(32, 24);
+        fixture.Erase(new SKColor(100, 80, 60));
+        using var png = fixture.Encode(SKEncodedImageFormat.Png, 100);
         var provenance = new ArtGenerationProvenance("test-fixture", null, null, "Test fixture", null,
             "test", "test", null, null, null, [], new Dictionary<string, object?>(), new Dictionary<string, string>(), 0);
-        var asset = await new ArtAssetIngestionService(db, storage, new ImageSharpArtImageProcessor())
+        var asset = await new ArtAssetIngestionService(db, storage, new SkiaSharpArtImageProcessor())
             .IngestAsync(new ArtIngestRequest(key, "HeroIllustration", key, png.ToArray(), provenance, Approve: true), ct);
         await using var signals = new RabbitMqWorkSignalBus(Options.Create(new RabbitMqWorkOptions { ConnectionString = broker }));
         Guid? jobId = null;

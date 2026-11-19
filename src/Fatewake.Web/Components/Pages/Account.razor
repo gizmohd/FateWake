@@ -1,7 +1,6 @@
 @page "/account"
 @using Microsoft.AspNetCore.Components.Authorization
 @inject AuthenticatedApiClient Api
-@inject AuthenticationStateProvider Authentication
 @inject Microsoft.Extensions.Logging.ILogger<Account> Logger
 
 <PageTitle>Account - Fatewake</PageTitle>
@@ -35,7 +34,7 @@
     private string? _error;
     protected override async Task OnInitializedAsync()
     {
-        if ((await Authentication.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated != true) return;
+        if ((await Api.GetCurrentUserAsync()).Identity?.IsAuthenticated != true) return;
         using var client = await Api.CreateAsync();
         try { _account = await client.GetFromJsonAsync<Fatewake.Web.Authentication.LocalAccountInfo>("/api/auth/me"); }
         catch (HttpRequestException ex) { Logger.LogWarning(ex, "Account details could not be loaded"); _error = "Unable to load account details. Try signing in again."; }

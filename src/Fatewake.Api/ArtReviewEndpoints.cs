@@ -30,20 +30,30 @@ public static class ArtReviewEndpoints
             if (string.IsNullOrWhiteSpace(request.SceneKey) || request.SceneKey.Length > 100 || keys.Length is < 1 or > 24 ||
                 keys.Any(key => !catalog.Contains(key)) || request.Versions!.Values.Any(v => v is <= 0) ||
                 string.IsNullOrWhiteSpace(request.Critique) || request.Critique.Length > 4000 || request.Correction?.Length > 4000 ||
-                request.AssetKey is {} key && (!keys.Contains(key) || request.Version is null || request.Version != request.Versions[key]) ||
+                request.AssetKey is { } key && (!keys.Contains(key) || request.Version is null || request.Version != request.Versions[key]) ||
                 request.Regenerate && (request.AssetKey is null || string.IsNullOrWhiteSpace(request.Correction)))
                 return Results.BadRequest(new { error = "Select a rendered layer and provide a critique; replacement requests also need correction instructions." });
             if (request.Regenerate && !catalog.GenerationEnabled) return Results.Conflict(new { error = "Artwork generation is not configured." });
             foreach (var (reviewedKey, version) in request.Versions)
-                if (version is {} v && !await db.ArtAssets.AnyAsync(x => x.Key == reviewedKey && x.Version == v && x.Status == ArtAssetStatus.Approved, ct))
+                if (version is { } v && !await db.ArtAssets.AnyAsync(x => x.Key == reviewedKey && x.Version == v && x.Status == ArtAssetStatus.Approved, ct))
                     return Results.BadRequest(new { error = "A reviewed asset version does not exist." });
-            var review = new ArtReviewRecord { Id = Guid.NewGuid(), AccountId = account, SceneKey = request.SceneKey,
-                AssetKey = request.AssetKey, Version = request.Version, CompositionVersions = JsonSerializer.Serialize(request.Versions),
-                Critique = request.Critique.Trim(), Correction = request.Correction?.Trim(), Regenerate = request.Regenerate, CreatedAt = DateTimeOffset.UtcNow };
+            var review = new ArtReviewRecord
+            {
+                Id = Guid.NewGuid(),
+                AccountId = account,
+                SceneKey = request.SceneKey,
+                AssetKey = request.AssetKey,
+                Version = request.Version,
+                CompositionVersions = JsonSerializer.Serialize(request.Versions),
+                Critique = request.Critique.Trim(),
+                Correction = request.Correction?.Trim(),
+                Regenerate = request.Regenerate,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
             db.Add(review);
             await db.SaveChangesAsync(ct);
             // The correction persists before queuing, so ordinary scene resolution retries any interrupted queue request.
-            if (request.Regenerate) await jobs.CreateAsync((await SceneArtRevision.CreateAsync(catalog, db, request.AssetKey!, ct)) with {AccountId=account}, ct);
+            if (request.Regenerate) await jobs.CreateAsync((await SceneArtRevision.CreateAsync(catalog, db, request.AssetKey!, ct)) with { AccountId = account }, ct);
             return Results.Ok(new { review.Id, queued = request.Regenerate });
         }).RequireAuthorization("ArtAdministrator");
     }

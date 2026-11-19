@@ -3,6 +3,6 @@ namespace Fatewake.Infrastructure.Art;
 /// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Art/ArtGenerationProviderOptions.md">ArtGenerationProviderOptions documentation</see>.</remarks>
 public sealed class ArtGenerationProviderOptions
 {
- public const string SectionName="ArtGeneration";
- public string Provider{get;set;}="None";
+    public const string SectionName = "ArtGeneration";
+    public string Provider { get; set; } = "None";
 }

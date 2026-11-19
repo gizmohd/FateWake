@@ -5,8 +5,8 @@ namespace Fatewake.Story;
 public static class DayOneScenes
 {
     /// <summary>The opening scene covering the initial day-one events and choices.</summary>
-    public static readonly SceneDefinition Opening=new(
-        "day1-0617-0643","the-silence-day1",1,"The Silence",
+    public static readonly SceneDefinition Opening = new(
+        "day1-0617-0643", "the-silence-day1", 1, "The Silence",
         [
             new("phone-0617",BeatKind.Establishing,"day1-phone-0617","6:17 AM","NO SERVICE","You wake to a phone that insists it has signal. Nothing connects.",null,[],false),
             new("house-flicker",BeatKind.Narration,"day1-house-flicker","6:18 AM",null,"The lights flicker twice. Somewhere outside, car alarms begin answering one another.",null,[],false),

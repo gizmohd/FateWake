@@ -11,8 +11,8 @@ public sealed class AccountRecord { public Guid Id { get; set; } public string? 
 public sealed class ExternalIdentityRecord { public Guid Id { get; set; } public Guid AccountId { get; set; } public required string Provider { get; set; } public required string ProviderSubject { get; set; } public string? Email { get; set; } public bool? EmailVerified { get; set; } public string? DisplayName { get; set; } public string? ClaimsSnapshot { get; set; } public DateTimeOffset LinkedAt { get; set; } public DateTimeOffset LastLoginAt { get; set; } }
 
 
-public enum ArtAssetStatus { Draft=0, Approved=1, Superseded=2, Rejected=3 }
-public enum ArtDerivativeKind { MasterPng=0, WebP=1, OptimizedPng=2, Responsive=3 }
+public enum ArtAssetStatus { Draft = 0, Approved = 1, Superseded = 2, Rejected = 3 }
+public enum ArtDerivativeKind { MasterPng = 0, WebP = 1, OptimizedPng = 2, Responsive = 3 }
 
 public sealed class ArtAssetDerivativeRecord
 {

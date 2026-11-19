@@ -55,7 +55,7 @@ The primary graph domains are expected to include:
 PostgreSQL extensions such as pgvector may be adopted when semantic retrieval becomes necessary. Redis or a dedicated graph/search platform should be added only after a concrete performance or capability requirement justifies another consistency boundary. MongoDB and a dedicated graph database are not required for the MVP.
 
 ## .NET and Aspire Foundation
-The MVP targets **.NET 10** and uses **.NET Aspire** for local orchestration, service discovery, configuration, health/telemetry integration and PostgreSQL development resources.
+The MVP targets **.NET 11** and uses **.NET Aspire** for local orchestration, service discovery, configuration, health/telemetry integration and PostgreSQL development resources. EF Core and the Npgsql EF provider remain on compatible 10.x versions until a stable Npgsql provider for EF Core 11 is available.
 
 The initial system is deliberately a modular application rather than a microservice estate. Logical boundaries remain explicit so components can be separated later without paying the operational cost prematurely.
 

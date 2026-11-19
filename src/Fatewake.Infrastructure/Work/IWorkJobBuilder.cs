@@ -4,5 +4,5 @@ namespace Fatewake.Infrastructure.Work;
 public interface IWorkJobBuilder
 {
     /// <summary>Creates or returns an existing durable job for the supplied idempotency key.</summary>
-    Task<CreatedWorkJob> CreateAsync(WorkJobDefinition definition,CancellationToken ct=default);
+    Task<CreatedWorkJob> CreateAsync(WorkJobDefinition definition, CancellationToken ct = default);
 }

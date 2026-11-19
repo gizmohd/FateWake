@@ -28,8 +28,12 @@ public sealed class SceneArtCatalog(IConfiguration configuration)
         var prompt = File.ReadAllText(Path.Combine(root, "prompts", key + ".md"));
         var type = key.Split('-')[0] switch
         {
-            "bg" => "Background", "char" => "CharacterPose", "prop" => "Prop",
-            "fg" => "Foreground", "light" => "Lighting", "effect" => "Effect",
+            "bg" => "Background",
+            "char" => "CharacterPose",
+            "prop" => "Prop",
+            "fg" => "Foreground",
+            "light" => "Lighting",
+            "effect" => "Effect",
             _ => throw new InvalidOperationException("Unknown asset role.")
         };
         var context = type == "CharacterPose"

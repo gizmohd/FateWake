@@ -42,7 +42,7 @@ public static class ExternalAuthenticationExtensions
                 async (HttpContext context, VerifiedAccountService accounts, AccountRoleService roles, CancellationToken ct) =>
                 {
                     var authenticated = await context.AuthenticateAsync(provider);
-                    if (!authenticated.Succeeded || authenticated.Principal is not {} user) return Results.Unauthorized();
+                    if (!authenticated.Succeeded || authenticated.Principal is not { } user) return Results.Unauthorized();
                     var subject = user.FindFirstValue("sub");
                     if (string.IsNullOrWhiteSpace(subject)) return Results.Unauthorized();
                     var email = user.FindFirstValue("email") ?? user.FindFirstValue("preferred_username");

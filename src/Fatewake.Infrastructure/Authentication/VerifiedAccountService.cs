@@ -97,7 +97,7 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
         var owner = await db.AccountEmails.SingleOrDefaultAsync(x => x.NormalizedEmail == normalized, ct);
         if (owner?.Verified == true && previous?.Provider is null) return;
         string? hash = previous?.PasswordHash;
-        ExternalLogin? external = previous?.Provider is {} provider && previous.Subject is {} subject
+        ExternalLogin? external = previous?.Provider is { } provider && previous.Subject is { } subject
             ? new(provider, subject, previous.Email, false, previous.DisplayName, null) : null;
         var destination = previous?.Email;
         if (destination is null && owner is not null)
@@ -119,7 +119,7 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
         var candidate = await db.EmailVerifications.AsNoTracking().SingleOrDefaultAsync(x => x.TokenHash == hash, ct);
         if (candidate is null) return new(null, null, invalid);
         await using var tx = await db.Database.BeginTransactionAsync(ct);
-        if (candidate.Provider is {} provider && candidate.Subject is {} subject)
+        if (candidate.Provider is { } provider && candidate.Subject is { } subject)
             await LockIdentityAsync(provider, subject, ct);
         await LockEmailAsync(candidate.NormalizedEmail, ct);
         var proof = await db.EmailVerifications.FromSqlInterpolated(
@@ -128,7 +128,7 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
         if (proof.ConsumedAt is not null || proof.ExpiresAt <= DateTimeOffset.UtcNow)
             return new(null, null, invalid);
         LocalAccountResult result;
-        if (proof.Provider is {} externalProvider && proof.Subject is {} externalSubject)
+        if (proof.Provider is { } externalProvider && proof.Subject is { } externalSubject)
             result = await ResolveVerifiedExternalAsync(
                 new(externalProvider, externalSubject, proof.Email, true, proof.DisplayName, null), proof.NormalizedEmail, ct);
         else
@@ -198,9 +198,18 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
         if (account.Status != AccountStatus.Active) return new(null, null, "Account is unavailable.");
         var now = DateTimeOffset.UtcNow;
         if (identity is null)
-            db.ExternalIdentities.Add(new() { Id = Guid.NewGuid(), AccountId = account.Id, Provider = login.Provider,
-                ProviderSubject = login.Subject, Email = login.Email, EmailVerified = true, DisplayName = login.DisplayName,
-                LinkedAt = now, LastLoginAt = now });
+            db.ExternalIdentities.Add(new()
+            {
+                Id = Guid.NewGuid(),
+                AccountId = account.Id,
+                Provider = login.Provider,
+                ProviderSubject = login.Subject,
+                Email = login.Email,
+                EmailVerified = true,
+                DisplayName = login.DisplayName,
+                LinkedAt = now,
+                LastLoginAt = now
+            });
         else { identity.EmailVerified = true; identity.LastLoginAt = now; }
         log.LogInformation("Verified external identity linked to account {AccountId}", account.Id);
         return new(account.Id, account.PrimaryEmail, null);
@@ -209,8 +218,15 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
     private AccountRecord NewAccount(string email, string? displayName)
     {
         var now = DateTimeOffset.UtcNow;
-        var account = new AccountRecord { Id = Guid.NewGuid(), PrimaryEmail = email, DisplayName = displayName,
-            Status = AccountStatus.Active, CreatedAt = now, UpdatedAt = now };
+        var account = new AccountRecord
+        {
+            Id = Guid.NewGuid(),
+            PrimaryEmail = email,
+            DisplayName = displayName,
+            Status = AccountStatus.Active,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
         db.Accounts.Add(account);
         return account;
     }
@@ -219,9 +235,19 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
     {
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         var now = DateTimeOffset.UtcNow;
-        db.EmailVerifications.Add(new() { Id = Guid.NewGuid(), Email = email, NormalizedEmail = normalized,
-            TokenHash = HashToken(token), PasswordHash = passwordHash, Provider = external?.Provider,
-            Subject = external?.Subject, DisplayName = external?.DisplayName, CreatedAt = now, ExpiresAt = now.AddHours(24) });
+        db.EmailVerifications.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            Email = email,
+            NormalizedEmail = normalized,
+            TokenHash = HashToken(token),
+            PasswordHash = passwordHash,
+            Provider = external?.Provider,
+            Subject = external?.Subject,
+            DisplayName = external?.DisplayName,
+            CreatedAt = now,
+            ExpiresAt = now.AddHours(24)
+        });
         return token;
     }
 

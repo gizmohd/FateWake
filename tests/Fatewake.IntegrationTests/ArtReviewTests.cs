@@ -68,35 +68,48 @@ public sealed class ArtReviewTests
     private static async Task<WebApplication> CreateAsync(bool admin = true)
     {
         var builder = WebApplication.CreateBuilder(); builder.WebHost.UseTestServer();
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string,string?> { ["Administration:AdminEmails:0"]="gizmohd@gmail.com",
-            ["ArtGeneration:Provider"]="Local", ["ArtGeneration:Local:Enabled"]="true" });
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Administration:AdminEmails:0"] = "gizmohd@gmail.com",
+            ["ArtGeneration:Provider"] = "Local",
+            ["ArtGeneration:Local:Enabled"] = "true"
+        });
         var database = Guid.NewGuid().ToString(); builder.Services.AddDbContext<FatewakeDbContext>(o => o.UseInMemoryDatabase(database));
         builder.Services.AddAuthentication("test").AddScheme<AuthenticationSchemeOptions, TestAuthentication>("test", _ => { });
         builder.Services.AddArtReviewAuthorization(builder.Configuration); builder.Services.AddSingleton<SceneArtCatalog>();
-        builder.Services.AddSingleton<Jobs>(); builder.Services.AddSingleton<IArtWorkJobFactory>(s=>s.GetRequiredService<Jobs>());
+        builder.Services.AddSingleton<Jobs>(); builder.Services.AddSingleton<IArtWorkJobFactory>(s => s.GetRequiredService<Jobs>());
         var app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapArtReviews();
         await app.StartAsync(TestContext.Current.CancellationToken);
-        using var scope=app.Services.CreateScope(); var db=scope.ServiceProvider.GetRequiredService<FatewakeDbContext>();
+        using var scope = app.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<FatewakeDbContext>();
         db.Add(new AccountRoleRecord { AccountId = AccountId, Role = admin ? "Admin" : "User", AssignedAt = DateTimeOffset.UtcNow });
-        db.ArtAssets.Add(new ArtAssetRecord { Id=Guid.NewGuid(), Key="bg-day1-bedroom-dark", Version=1, AssetType="Background",
-            Status=ArtAssetStatus.Approved, VisualFingerprint="old", ContentHash="hash", MasterPngStorageKey="image.png" });
+        db.ArtAssets.Add(new ArtAssetRecord
+        {
+            Id = Guid.NewGuid(),
+            Key = "bg-day1-bedroom-dark",
+            Version = 1,
+            AssetType = "Background",
+            Status = ArtAssetStatus.Approved,
+            VisualFingerprint = "old",
+            ContentHash = "hash",
+            MasterPngStorageKey = "image.png"
+        });
         await db.SaveChangesAsync(TestContext.Current.CancellationToken); return app;
     }
     private sealed class Jobs : IArtWorkJobFactory
     {
         public ArtWorkRequest? Request;
-        public Task<CreatedWorkJob> CreateAsync(ArtWorkRequest request, CancellationToken ct=default)
-        { Request=request; return Task.FromResult(new CreatedWorkJob(Guid.NewGuid(),false,new Dictionary<string,Guid>())); }
+        public Task<CreatedWorkJob> CreateAsync(ArtWorkRequest request, CancellationToken ct = default)
+        { Request = request; return Task.FromResult(new CreatedWorkJob(Guid.NewGuid(), false, new Dictionary<string, Guid>())); }
     }
     private sealed class TestAuthentication(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
         : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
     {
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
-            var role=Request.Headers["X-Test-Role"].ToString();
-            if (role.Length==0) return Task.FromResult(AuthenticateResult.NoResult());
-            var user=new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier,AccountId.ToString()),new Claim(ClaimTypes.Role,role)],"test"));
-            return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(user,"test")));
+            var role = Request.Headers["X-Test-Role"].ToString();
+            if (role.Length == 0) return Task.FromResult(AuthenticateResult.NoResult());
+            var user = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, AccountId.ToString()), new Claim(ClaimTypes.Role, role)], "test"));
+            return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(user, "test")));
         }
     }
 }

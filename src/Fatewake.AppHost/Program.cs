@@ -52,18 +52,18 @@ IResourceBuilder<ProjectResource> web = builder.AddProject<Projects.Fatewake_Web
 api.WithEnvironment("Email__PublicWebUrl", web.GetEndpoint("https"));
 foreach (string? provider in new[] { "Google", "Microsoft" })
 {
-  foreach (string? setting in new[] { "Enabled", "ClientId", "ClientSecret", "TenantId" })
-  {
-    string key = $"Authentication:{provider}:{setting}";
-    if (builder.Configuration[key] is not { } value) continue;
-    api.WithEnvironment(key.Replace(":", "__"), value);
-    web.WithEnvironment(key.Replace(":", "__"), value);
-  }
+    foreach (string? setting in new[] { "Enabled", "ClientId", "ClientSecret", "TenantId" })
+    {
+        string key = $"Authentication:{provider}:{setting}";
+        if (builder.Configuration[key] is not { } value) continue;
+        api.WithEnvironment(key.Replace(":", "__"), value);
+        web.WithEnvironment(key.Replace(":", "__"), value);
+    }
 }
 foreach (string? setting in new[] { "SmtpEnabled", "Host", "Port", "EnableSsl", "Username", "Password", "FromAddress", "PublicWebUrl", "Directory" })
 {
-  if (builder.Configuration[$"Email:{setting}"] is { } value)
-    api.WithEnvironment($"Email__{setting}", value);
+    if (builder.Configuration[$"Email:{setting}"] is { } value)
+        api.WithEnvironment($"Email__{setting}", value);
 }
 builder.Build().Run();
 

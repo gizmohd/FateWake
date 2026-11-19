@@ -7,7 +7,7 @@ Two dependency-free Python 3.10+ scripts for Windows or Linux. Run from the repo
 1. On the actual RTX Spark host, confirm OS/CPU architecture, available storage, NVIDIA driver and GPU support. 128 GB unified memory is shared with the OS, not dedicated VRAM. Hardware performance has not been validated here.
 2. Install a compatible current [Ollama distribution](https://ollama.com/download) and start its local service on port 11434. Confirm that version supports Qwen3 and the think=false generate option.
 3. Install [ComfyUI](https://docs.comfy.org/installation/overview) with the correct GPU runtime and start it on loopback port 8188. Do not expose either service publicly. Run setup on that host or use local SSH tunnels. URLs with remote hosts, paths, credentials, or redirects are rejected.
-4. For launching Fatewake, install .NET 10 and start Docker/Podman per the repository README. The Python scripts themselves require no pip packages.
+4. For launching Fatewake, install the .NET 11 SDK and start Docker/Podman per the repository README. The Python scripts themselves require no pip packages.
 
 ## 1. Narrative baseline: Qwen3 14B and 8B
 

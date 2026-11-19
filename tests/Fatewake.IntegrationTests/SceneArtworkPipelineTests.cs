@@ -9,8 +9,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 
 namespace Fatewake.IntegrationTests;
 
@@ -29,7 +28,8 @@ public sealed class SceneArtworkPipelineTests
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["ArtGeneration:Provider"] = "Local", ["ArtGeneration:Local:Enabled"] = "true"
+            ["ArtGeneration:Provider"] = "Local",
+            ["ArtGeneration:Local:Enabled"] = "true"
         });
         builder.Services.AddDbContext<FatewakeDbContext>(options => options.UseNpgsql(connection));
         builder.Services.AddSingleton<SceneArtCatalog>();
@@ -42,7 +42,7 @@ public sealed class SceneArtworkPipelineTests
         builder.Services.AddSingleton<IArtBinaryStorage>(new FileSystemArtBinaryStorage(root));
         builder.Services.AddScoped<IWorkArtifactStore, WorkArtifactStore>();
         builder.Services.AddScoped<IArtGenerationStore, ArtGenerationStore>();
-        builder.Services.AddSingleton<IArtImageProcessor, ImageSharpArtImageProcessor>();
+        builder.Services.AddSingleton<IArtImageProcessor, SkiaSharpArtImageProcessor>();
         builder.Services.AddSingleton<Generator>();
         builder.Services.AddSingleton<IArtMasterGenerator>(sp => sp.GetRequiredService<Generator>());
         builder.Services.AddScoped<IWorkStepHandler, ArtResolveWorkStepHandler>();
@@ -90,7 +90,8 @@ public sealed class SceneArtworkPipelineTests
             {
                 using var response = await client.GetAsync($"/api/art/{asset.Key}/{asset.Version}/{format}", ct);
                 response.EnsureSuccessStatusCode();
-                using var image = Image.Load(await response.Content.ReadAsByteArrayAsync(ct));
+                using var image = SKBitmap.Decode(await response.Content.ReadAsByteArrayAsync(ct));
+                Assert.NotNull(image);
                 Assert.Equal(32, image.Width);
                 Assert.Equal(48, image.Height);
             }
@@ -107,10 +108,10 @@ public sealed class SceneArtworkPipelineTests
         public Task<GeneratedArtMaster> GenerateAsync(ArtGenerationInvocation invocation, CancellationToken ct = default)
         {
             Calls++;
-            using var image = new Image<Rgba32>(32, 48, new Rgba32(100, 80, 60, 255));
-            using var stream = new MemoryStream();
-            image.SaveAsPng(stream);
-            return Task.FromResult(new GeneratedArtMaster(stream.ToArray(), "test-provider", 0));
+            using var bitmap = new SKBitmap(32, 48);
+            bitmap.Erase(new SKColor(100, 80, 60));
+            using var png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+            return Task.FromResult(new GeneratedArtMaster(png.ToArray(), "test-provider", 0));
         }
     }
 }

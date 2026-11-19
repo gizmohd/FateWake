@@ -38,30 +38,30 @@ public sealed class AdminDashboardFilter
     public string? Parent { get; set; }
 }
 /// <summary>Reported counters; null totals indicate no available measurement.</summary>
-public sealed record AiMetrics(int Calls,int Succeeded,int Failed,int Started,int Cancelled,int TimedOut,int DuplicateReports,
-    int CallsWithTokens,long? InputTokens,long? OutputTokens,long? TotalTokens,long? CachedTokens,long? TextInputTokens,
-    long? ImageInputTokens,long? ImageOutputTokens,decimal? Credits,decimal? ComputeSeconds);
+public sealed record AiMetrics(int Calls, int Succeeded, int Failed, int Started, int Cancelled, int TimedOut, int DuplicateReports,
+    int CallsWithTokens, long? InputTokens, long? OutputTokens, long? TotalTokens, long? CachedTokens, long? TextInputTokens,
+    long? ImageInputTokens, long? ImageOutputTokens, decimal? Credits, decimal? ComputeSeconds);
 /// <summary>Actual provider-reported cost in one currency.</summary>
-public sealed record AiCurrencyCost(string Currency,decimal Amount);
+public sealed record AiCurrencyCost(string Currency, decimal Amount);
 /// <summary>One aggregate calendar row in the nested usage grid.</summary>
-public sealed record AiCalendarGroup(string Key,AiMetrics Metrics,AiCurrencyCost[] Costs);
+public sealed record AiCalendarGroup(string Key, AiMetrics Metrics, AiCurrencyCost[] Costs);
 /// <summary>Headline statistics and recording coverage.</summary>
-public sealed record AdminDashboardSummary(Dictionary<string,int> Jobs,int ImageVersions,int DistinctAssets,int ReusedJobs,
-    AiMetrics Usage,AiCurrencyCost[] Costs,DateTimeOffset? TrackingStartedAt,int HistoricalUntrackedGenerations,DateTimeOffset UpdatedAt);
+public sealed record AdminDashboardSummary(Dictionary<string, int> Jobs, int ImageVersions, int DistinctAssets, int ReusedJobs,
+    AiMetrics Usage, AiCurrencyCost[] Costs, DateTimeOffset? TrackingStartedAt, int HistoricalUntrackedGenerations, DateTimeOffset UpdatedAt);
 /// <summary>Safe user identity for Admin filtering.</summary>
-public sealed record AdminDashboardUser(Guid Id,string Label);
+public sealed record AdminDashboardUser(Guid Id, string Label);
 /// <summary>Bounded result page.</summary>
-public sealed record AdminResultPage<T>(T[] Items,int Total,int Page,int PageSize);
+public sealed record AdminResultPage<T>(T[] Items, int Total, int Page, int PageSize);
 /// <summary>Safe generation job row.</summary>
-public sealed record AdminJobRow(Guid Id,string AssetKey,string Provider,string Model,string Operation,string Status,
-    Guid? AccountId,string User,string CurrentStep,int Attempts,DateTimeOffset CreatedAt,DateTimeOffset? StartedAt,
-    DateTimeOffset? CompletedAt,string? Failure,int? AssetVersion);
+public sealed record AdminJobRow(Guid Id, string AssetKey, string Provider, string Model, string Operation, string Status,
+    Guid? AccountId, string User, string CurrentStep, int Attempts, DateTimeOffset CreatedAt, DateTimeOffset? StartedAt,
+    DateTimeOffset? CompletedAt, string? Failure, int? AssetVersion);
 /// <summary>Safe step details for a selected job.</summary>
-public sealed record AdminJobStep(string Step,string Status,int Attempts,DateTimeOffset UpdatedAt,string? Failure);
+public sealed record AdminJobStep(string Step, string Status, int Attempts, DateTimeOffset UpdatedAt, string? Failure);
 /// <summary>Job details excluding prompts and execution payloads.</summary>
-public sealed record AdminJobDetail(AdminJobRow Job,AdminJobStep[] Steps);
+public sealed record AdminJobDetail(AdminJobRow Job, AdminJobStep[] Steps);
 /// <summary>Individual external AI attempt and reported measurements.</summary>
-public sealed record AdminUsageRow(Guid Id,Guid? WorkJobId,Guid? AccountId,Guid? SurvivorId,string User,string Provider,string Model,
-    string Operation,string Outcome,DateTimeOffset StartedAt,DateTimeOffset? CompletedAt,string? ProviderRequestId,
-    bool CountedElsewhere,long? InputTokens,long? OutputTokens,long? TotalTokens,long? CachedTokens,long? TextInputTokens,
-    long? ImageInputTokens,long? ImageOutputTokens,decimal? Credits,decimal? ComputeSeconds,decimal? Cost,string? Currency);
+public sealed record AdminUsageRow(Guid Id, Guid? WorkJobId, Guid? AccountId, Guid? SurvivorId, string User, string Provider, string Model,
+    string Operation, string Outcome, DateTimeOffset StartedAt, DateTimeOffset? CompletedAt, string? ProviderRequestId,
+    bool CountedElsewhere, long? InputTokens, long? OutputTokens, long? TotalTokens, long? CachedTokens, long? TextInputTokens,
+    long? ImageInputTokens, long? ImageOutputTokens, decimal? Credits, decimal? ComputeSeconds, decimal? Cost, string? Currency);

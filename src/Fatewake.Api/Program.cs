@@ -44,7 +44,7 @@ builder.Services.AddDbContext<FatewakeDbContext>(o =>
     o.UseNpgsql(builder.Configuration.GetConnectionString("fatewake")));
 builder.Services.AddSingleton<IGameEngine, DayOneGameEngine>();
 builder.Services.AddScoped<IResolutionStore, ResolutionStore>();
-builder.Services.AddScoped<Fatewake.Observability.IAiUsageRecorder,Fatewake.Infrastructure.Usage.AiUsageRecorder>();
+builder.Services.AddScoped<Fatewake.Observability.IAiUsageRecorder, Fatewake.Infrastructure.Usage.AiUsageRecorder>();
 builder.Services.AddScoped<Fatewake.Infrastructure.Usage.AdminDashboardService>();
 builder.Services.AddScoped<ISessionStore, SessionStore>();
 builder.Services.AddScoped<StoryJournalService>();
@@ -75,7 +75,6 @@ builder.Services.AddScoped<IWorkJobBuilder, WorkJobBuilder>();
 builder.Services.AddScoped<IArtWorkJobFactory, ArtWorkJobFactory>();
 builder.Services.AddSingleton<SceneArtCatalog>();
 builder.Services.AddKeyedSingleton<IArtImageProcessor, SkiaSharpArtImageProcessor>("skia");
-builder.Services.AddKeyedSingleton<IArtImageProcessor, ImageSharpArtImageProcessor>("imagesharp");
 builder.Services.AddSingleton<IArtImageProcessor, SkiaSharpArtImageProcessor>();
 builder.Services.AddSingleton<IIntentInterpreter, BaselineIntentInterpreter>();
 builder.Services.Configure<ExternalIdentityOptions>(
@@ -171,7 +170,7 @@ app.MapPost("/api/session/start", async (
 {
     if (InvalidBearer(context)) return Results.Unauthorized();
     var accountId = AccountId(user);
-    if (request.SurvivorId is {} survivorId && !await CanAccess(db, survivorId, accountId, ct))
+    if (request.SurvivorId is { } survivorId && !await CanAccess(db, survivorId, accountId, ct))
         return Results.NotFound();
     var state = await sessions.StartOrResumeAsync(request.SurvivorId, request.BroadRegion ?? "unknown", ct, accountId);
     await story.RecordProgressAsync(state, ct);

@@ -3,13 +3,13 @@ namespace Fatewake.Infrastructure.Persistence;
 /// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Persistence/SurvivorVisualIdentityRecord.md">SurvivorVisualIdentityRecord documentation</see>.</remarks>
 public sealed class SurvivorVisualIdentityRecord
 {
-    public Guid SurvivorId{get;set;}
-    public Guid ActiveArtAssetId{get;set;}
-    public Guid? RequestedWorkJobId{get;set;}
-    public string? RequestedVisualFingerprint{get;set;}
-    public SurvivorVisualIdentityStatus Status{get;set;}
-    public Guid? SourceSurvivorId{get;set;}
-    public DateTimeOffset CreatedAt{get;set;}
-    public DateTimeOffset UpdatedAt{get;set;}
-    public DateTimeOffset? ActivatedAt{get;set;}
+    public Guid SurvivorId { get; set; }
+    public Guid ActiveArtAssetId { get; set; }
+    public Guid? RequestedWorkJobId { get; set; }
+    public string? RequestedVisualFingerprint { get; set; }
+    public SurvivorVisualIdentityStatus Status { get; set; }
+    public Guid? SourceSurvivorId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public DateTimeOffset? ActivatedAt { get; set; }
 }

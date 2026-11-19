@@ -15,7 +15,11 @@ public static class SceneArtRevision
             .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
         if (review is null) return work;
         var prompt = $"Required subject and composition correction: {review.Correction}\n\n{work.ResolvedPrompt}";
-        return work with { ResolvedPrompt = prompt, VisualFingerprint = Convert.ToHexString(SHA256.HashData(
-            Encoding.UTF8.GetBytes($"{work.VisualFingerprint}\n{review.Id}\n{prompt}"))).ToLowerInvariant() };
+        return work with
+        {
+            ResolvedPrompt = prompt,
+            VisualFingerprint = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes($"{work.VisualFingerprint}\n{review.Id}\n{prompt}"))).ToLowerInvariant()
+        };
     }
 }

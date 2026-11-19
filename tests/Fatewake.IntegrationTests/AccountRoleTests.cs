@@ -19,40 +19,41 @@ public sealed class AccountRoleTests
             await db.Database.MigrateAsync(ct);
             foreach (var id in accounts)
             {
-                db.Accounts.Add(new AccountRecord { Id=id, Status=AccountStatus.Active, CreatedAt=DateTimeOffset.UtcNow, UpdatedAt=DateTimeOffset.UtcNow });
-                db.AccountEmails.Add(new AccountEmailRecord { AccountId=id, NormalizedEmail=id+"@TEST.EXAMPLE", Verified=true });
+                db.Accounts.Add(new AccountRecord { Id = id, Status = AccountStatus.Active, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow });
+                db.AccountEmails.Add(new AccountEmailRecord { AccountId = id, NormalizedEmail = id + "@TEST.EXAMPLE", Verified = true });
             }
             await db.SaveChangesAsync(ct);
         }
         // The last registered account is the first to authenticate.
-        await using (var db = new FatewakeDbContext(options)) Assert.Equal("Admin",await new AccountRoleService(db).AssignOnSignInAsync(accounts[^1],ct));
-        var roles = await Task.WhenAll(accounts.Select(async id => {
+        await using (var db = new FatewakeDbContext(options)) Assert.Equal("Admin", await new AccountRoleService(db).AssignOnSignInAsync(accounts[^1], ct));
+        var roles = await Task.WhenAll(accounts.Select(async id =>
+        {
             await using var db = new FatewakeDbContext(options);
-            return await new AccountRoleService(db).AssignOnSignInAsync(id,ct);
+            return await new AccountRoleService(db).AssignOnSignInAsync(id, ct);
         }));
-        Assert.Single(roles,x=>x=="Admin"); Assert.Equal(11,roles.Count(x=>x=="User"));
+        Assert.Single(roles, x => x == "Admin"); Assert.Equal(11, roles.Count(x => x == "User"));
         await using (var db = new FatewakeDbContext(options))
         {
-            Assert.Equal(12,await db.Set<AccountRoleRecord>().CountAsync(ct));
-            Assert.Equal("Admin",await new AccountRoleService(db).AssignOnSignInAsync(accounts[^1],ct));
+            Assert.Equal(12, await db.Set<AccountRoleRecord>().CountAsync(ct));
+            Assert.Equal("Admin", await new AccountRoleService(db).AssignOnSignInAsync(accounts[^1], ct));
         }
     }
     /// <summary>Simultaneous first sign-ins produce exactly one durable Admin.</summary>
     [Fact]
     public async Task Concurrent_initial_sign_ins_choose_exactly_one_Admin()
     {
-        var connection=Environment.GetEnvironmentVariable("FATEWAKE_ROLE_RACE_TEST_CONNECTION");
+        var connection = Environment.GetEnvironmentVariable("FATEWAKE_ROLE_RACE_TEST_CONNECTION");
         if (string.IsNullOrWhiteSpace(connection)) Assert.Skip("An isolated PostgreSQL race test database is required.");
-        var options=new DbContextOptionsBuilder<FatewakeDbContext>().UseNpgsql(connection).Options;
-        var ct=TestContext.Current.CancellationToken; var ids=Enumerable.Range(0,8).Select(_=>Guid.NewGuid()).ToArray();
-        await using (var db=new FatewakeDbContext(options))
+        var options = new DbContextOptionsBuilder<FatewakeDbContext>().UseNpgsql(connection).Options;
+        var ct = TestContext.Current.CancellationToken; var ids = Enumerable.Range(0, 8).Select(_ => Guid.NewGuid()).ToArray();
+        await using (var db = new FatewakeDbContext(options))
         {
             await db.Database.MigrateAsync(ct);
-            foreach(var id in ids) { db.Accounts.Add(new AccountRecord { Id=id,Status=AccountStatus.Active,CreatedAt=DateTimeOffset.UtcNow,UpdatedAt=DateTimeOffset.UtcNow }); db.AccountEmails.Add(new AccountEmailRecord { AccountId=id,NormalizedEmail=id+"@TEST.EXAMPLE",Verified=true }); }
+            foreach (var id in ids) { db.Accounts.Add(new AccountRecord { Id = id, Status = AccountStatus.Active, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow }); db.AccountEmails.Add(new AccountEmailRecord { AccountId = id, NormalizedEmail = id + "@TEST.EXAMPLE", Verified = true }); }
             await db.SaveChangesAsync(ct);
         }
-        var results=await Task.WhenAll(ids.Select(async id=>{ await using var db=new FatewakeDbContext(options); return await new AccountRoleService(db).AssignOnSignInAsync(id,ct); }));
-        Assert.Single(results,x=>x=="Admin"); Assert.Equal(7,results.Count(x=>x=="User"));
+        var results = await Task.WhenAll(ids.Select(async id => { await using var db = new FatewakeDbContext(options); return await new AccountRoleService(db).AssignOnSignInAsync(id, ct); }));
+        Assert.Single(results, x => x == "Admin"); Assert.Equal(7, results.Count(x => x == "User"));
     }
 }
 

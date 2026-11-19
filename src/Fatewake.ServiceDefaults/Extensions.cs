@@ -131,7 +131,7 @@ public static class Extensions
             _ => throw new InvalidOperationException($"Unsupported OTLP {signal} protocol '{protocol}'.")
         };
         var endpoint = configuration[$"OTEL_EXPORTER_OTLP_{signal}_ENDPOINT"];
-        if (endpoint is null && configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] is {} common)
+        if (endpoint is null && configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] is { } common)
             endpoint = options.Protocol == OtlpExportProtocol.HttpProtobuf ? common.TrimEnd('/') + "/v1/" + signal.ToLowerInvariant() : common;
         if (endpoint is not null) options.Endpoint = new Uri(endpoint);
         options.Headers = configuration[$"OTEL_EXPORTER_OTLP_{signal}_HEADERS"] ?? configuration["OTEL_EXPORTER_OTLP_HEADERS"];

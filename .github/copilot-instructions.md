@@ -4,7 +4,9 @@ Fatewake is a persistent narrative survival/social strategy game (mobile-first w
 
 ## Build, test, lint
 
-Requires .NET 10 SDK (`global.json` pins `10.0.100`).
+Requires the stable .NET 11 SDK (`global.json` starts at `11.0.100`).
+
+**Permanent formatting rule:** After editing any repository file or page, run `dotnet format Fatewake.slnx --no-restore` before validation or handoff. Run `dotnet restore Fatewake.slnx` first if dependencies are not restored. The formatter covers supported .NET source in the solution; keep Razor markup, CSS, Markdown, and other unsupported content consistent with adjacent files.
 
 ```bash
 dotnet restore Fatewake.slnx
@@ -26,7 +28,7 @@ dotnet run --project tools/Fatewake.AssetValidator/Fatewake.AssetValidator.cspro
 ```
 This checks that every referenced artwork key has a prompt file (missing prompts fail the build); missing rendered images are allowed as placeholders. Runs as a separate CI job.
 
-`Directory.Build.props` sets `TreatWarningsAsErrors=true` and `net10.0` for all projects, so build warnings fail the build.
+`Directory.Build.props` sets `TreatWarningsAsErrors=true` and `net11.0` for all projects, so build warnings fail the build.
 
 ## Architecture
 

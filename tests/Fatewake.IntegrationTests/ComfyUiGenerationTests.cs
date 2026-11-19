@@ -23,7 +23,8 @@ public sealed class ComfyUiGenerationTests
         using var http = new HttpClient { BaseAddress = new("http://127.0.0.1:8188/"), Timeout = TimeSpan.FromMinutes(15) };
         var generator = new ComfyUiArtMasterGenerator(http, Options.Create(new ComfyUiArtGenerationOptions
         {
-            Enabled = true, TimeoutSeconds = 900,
+            Enabled = true,
+            TimeoutSeconds = 900,
             WorkflowPath = Path.Combine(repository, "workflows", profile + "-api.json"),
             OverlayWorkflowPath = Path.Combine(repository, "workflows", profile + "-overlay-api.json")
         }), new FileSystemArtBinaryStorage(outputRoot));
@@ -34,29 +35,37 @@ public sealed class ComfyUiGenerationTests
         var image = await generator.GenerateAsync(new("fatewake-comfy-smoke-" + type,
             new("smoke-" + type, type, "smoke", prompt, "ComfyUI", "workflow", NegativeInstructions: "watermark, logos, text, blurry, distorted")), ct);
         timer.Stop();
-        var processor = new ImageSharpArtImageProcessor();
+        var processor = new SkiaSharpArtImageProcessor();
         var info = processor.Inspect(image.MasterPng);
         Assert.Equal(ssd ? 768 : 512, info.Width);
         Assert.Equal(ssd ? 1344 : 768, info.Height);
         if (type == "Prop")
         {
             Assert.True(info.HasAlpha);
-            using var decoded = SixLabors.ImageSharp.Image.Load<SixLabors.ImageSharp.PixelFormats.Rgba32>(image.MasterPng);
+            using var decoded = SkiaSharp.SKBitmap.Decode(image.MasterPng);
             var transparent = false;
             var visible = false;
             for (var y = 0; y < decoded.Height; y++)
                 for (var x = 0; x < decoded.Width; x++)
                 {
-                    transparent |= decoded[x, y].A < 16;
-                    visible |= decoded[x, y].A > 240;
+                    var alpha = decoded.GetPixel(x, y).Alpha;
+                    transparent |= alpha < 16;
+                    visible |= alpha > 240;
                 }
             Assert.True(transparent && visible, "Overlay must contain both transparent background and visible subject pixels.");
         }
         Directory.CreateDirectory(outputRoot);
         await File.WriteAllBytesAsync(Path.Combine(outputRoot, (ssd ? "ssd1b-" : "") + type.ToLowerInvariant() + ".png"), image.MasterPng, ct);
         await File.WriteAllTextAsync(Path.Combine(outputRoot, (ssd ? "ssd1b-" : "") + type.ToLowerInvariant() + ".json"),
-            System.Text.Json.JsonSerializer.Serialize(new { profile, type, elapsedSeconds = timer.Elapsed.TotalSeconds,
-                width = info.Width, height = info.Height, hasAlpha = info.HasAlpha }), ct);
+            System.Text.Json.JsonSerializer.Serialize(new
+            {
+                profile,
+                type,
+                elapsedSeconds = timer.Elapsed.TotalSeconds,
+                width = info.Width,
+                height = info.Height,
+                hasAlpha = info.HasAlpha
+            }), ct);
     }
 
     /// <summary>Overlay assets use their alpha workflow and canonical tokens are substituted before submission.</summary>
@@ -79,7 +88,9 @@ public sealed class ComfyUiGenerationTests
             using var http = new HttpClient(handler) { BaseAddress = new("http://localhost:8188/") };
             var generator = new ComfyUiArtMasterGenerator(http, Options.Create(new ComfyUiArtGenerationOptions
             {
-                Enabled = true, WorkflowPath = backgroundPath, OverlayWorkflowPath = overlayPath
+                Enabled = true,
+                WorkflowPath = backgroundPath,
+                OverlayWorkflowPath = overlayPath
             }), new FileSystemArtBinaryStorage(root));
             var result = await generator.GenerateAsync(new("test", new("asset", type, "fingerprint", "A \"radio\"\nwith texture", "ComfyUI", "workflow-model.safetensors", NegativeInstructions: "no logos")), ct);
             Assert.Equal(new byte[] { 1, 2, 3 }, result.MasterPng);
@@ -106,7 +117,8 @@ public sealed class ComfyUiGenerationTests
             using var http = new HttpClient(new Responses()) { BaseAddress = new("http://localhost:8188/") };
             var generator = new ComfyUiArtMasterGenerator(http, Options.Create(new ComfyUiArtGenerationOptions
             {
-                Enabled = true, WorkflowPath = workflowPath
+                Enabled = true,
+                WorkflowPath = workflowPath
             }), new FileSystemArtBinaryStorage(root));
             await Assert.ThrowsAsync<InvalidOperationException>(() => generator.GenerateAsync(new(
                 "test", new("asset", "Background", "fingerprint", "prompt", "ComfyUI", "")),

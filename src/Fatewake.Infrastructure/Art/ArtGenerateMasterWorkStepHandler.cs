@@ -4,34 +4,34 @@ using Fatewake.Infrastructure.Work;
 namespace Fatewake.Infrastructure.Art;
 /// <summary>Reuses an approved master or generates and durably stores exactly one master PNG for a distributed artwork job.</summary>
 /// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Art/ArtGenerateMasterWorkStepHandler.md">ArtGenerateMasterWorkStepHandler documentation</see>.</remarks>
-public sealed class ArtGenerateMasterWorkStepHandler(IWorkArtifactStore artifacts,IArtBinaryStorage storage,IArtMasterGenerator generator,IArtGenerationStore generations):IWorkStepHandler
+public sealed class ArtGenerateMasterWorkStepHandler(IWorkArtifactStore artifacts, IArtBinaryStorage storage, IArtMasterGenerator generator, IArtGenerationStore generations) : IWorkStepHandler
 {
-    public string StepType=>ArtWorkStepTypes.GenerateMaster;
-    public async Task<string?> ExecuteAsync(WorkStepExecutionContext context,CancellationToken ct)
+    public string StepType => ArtWorkStepTypes.GenerateMaster;
+    public async Task<string?> ExecuteAsync(WorkStepExecutionContext context, CancellationToken ct)
     {
-        var existingMaster=await artifacts.GetAsync(context.JobId,"art.master",ct);
-        if(existingMaster is not null)return existingMaster;
+        var existingMaster = await artifacts.GetAsync(context.JobId, "art.master", ct);
+        if (existingMaster is not null) return existingMaster;
 
-        var request=JsonSerializer.Deserialize<ArtWorkRequest>(context.Input)??throw new InvalidOperationException("Invalid art work request.");
-        var resolveJson=await artifacts.GetAsync(context.JobId,"art.resolve",ct)??throw new InvalidOperationException("Resolve artifact is required before generation.");
-        var resolve=JsonSerializer.Deserialize<ArtResolveResult>(resolveJson)??throw new InvalidOperationException("Invalid resolve artifact.");
-        if(resolve.Reused)
+        var request = JsonSerializer.Deserialize<ArtWorkRequest>(context.Input) ?? throw new InvalidOperationException("Invalid art work request.");
+        var resolveJson = await artifacts.GetAsync(context.JobId, "art.resolve", ct) ?? throw new InvalidOperationException("Resolve artifact is required before generation.");
+        var resolve = JsonSerializer.Deserialize<ArtResolveResult>(resolveJson) ?? throw new InvalidOperationException("Invalid resolve artifact.");
+        if (resolve.Reused)
         {
-            if(string.IsNullOrWhiteSpace(resolve.MasterPngStorageKey))throw new InvalidOperationException("Reused asset has no master PNG storage key.");
-            var reused=new ArtMasterArtifact(resolve.MasterPngStorageKey,true,resolve.AssetId,request.Provider,request.Model,null,0m);
-            var reusedJson=JsonSerializer.Serialize(reused);await artifacts.PutAsync(context.JobId,"art.master",reusedJson,ct);return reusedJson;
+            if (string.IsNullOrWhiteSpace(resolve.MasterPngStorageKey)) throw new InvalidOperationException("Reused asset has no master PNG storage key.");
+            var reused = new ArtMasterArtifact(resolve.MasterPngStorageKey, true, resolve.AssetId, request.Provider, request.Model, null, 0m);
+            var reusedJson = JsonSerializer.Serialize(reused); await artifacts.PutAsync(context.JobId, "art.master", reusedJson, ct); return reusedJson;
         }
 
-        var invocation=new ArtGenerationInvocation($"art:{context.JobId:N}",request,context.JobId,context.Attempt);
-        var references=JsonSerializer.Serialize(request.ReferenceImages??[]);
-        var parameters=JsonSerializer.Serialize(new{request.Provider,request.Model,request.AssetType});
-        await generations.EnsurePendingAsync(context.JobId,invocation.IdempotencyKey,"generate",request.ResolvedPrompt,request.NegativeInstructions,request.Provider,request.Model,request.PromptTemplateId,request.PromptTemplateVersion,request.StyleBibleVersion,references,parameters,"{}",request.VisualFingerprint,ct);
-        var generated=await generator.GenerateAsync(invocation,ct);
-        await generations.CompleteAsync(context.JobId,generated.ProviderJobId,generated.CostUsd,ct);
-        var storageKey=$"art/staging/{context.JobId:N}/master.png";
-        await using(var stream=new MemoryStream(generated.MasterPng,writable:false))
-            await storage.PutAsync(storageKey,stream,"image/png",ct);
-        var master=new ArtMasterArtifact(storageKey,false,null,request.Provider,request.Model,generated.ProviderJobId,generated.CostUsd);
-        var output=JsonSerializer.Serialize(master);await artifacts.PutAsync(context.JobId,"art.master",output,ct);return output;
+        var invocation = new ArtGenerationInvocation($"art:{context.JobId:N}", request, context.JobId, context.Attempt);
+        var references = JsonSerializer.Serialize(request.ReferenceImages ?? []);
+        var parameters = JsonSerializer.Serialize(new { request.Provider, request.Model, request.AssetType });
+        await generations.EnsurePendingAsync(context.JobId, invocation.IdempotencyKey, "generate", request.ResolvedPrompt, request.NegativeInstructions, request.Provider, request.Model, request.PromptTemplateId, request.PromptTemplateVersion, request.StyleBibleVersion, references, parameters, "{}", request.VisualFingerprint, ct);
+        var generated = await generator.GenerateAsync(invocation, ct);
+        await generations.CompleteAsync(context.JobId, generated.ProviderJobId, generated.CostUsd, ct);
+        var storageKey = $"art/staging/{context.JobId:N}/master.png";
+        await using (var stream = new MemoryStream(generated.MasterPng, writable: false))
+            await storage.PutAsync(storageKey, stream, "image/png", ct);
+        var master = new ArtMasterArtifact(storageKey, false, null, request.Provider, request.Model, generated.ProviderJobId, generated.CostUsd);
+        var output = JsonSerializer.Serialize(master); await artifacts.PutAsync(context.JobId, "art.master", output, ct); return output;
     }
 }

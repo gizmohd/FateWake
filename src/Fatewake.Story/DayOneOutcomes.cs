@@ -3,7 +3,7 @@ namespace Fatewake.Story;
 public static class DayOneOutcomes
 {
     /// <summary>Formats a saved outcome, retaining compatibility with older stored keys.</summary>
-    public static string Text(string key, IReadOnlyDictionary<string,string>? facts = null) => key switch
+    public static string Text(string key, IReadOnlyDictionary<string, string>? facts = null) => key switch
     {
         "injured_stranger_helped" or "helped_maya" => "You step outside and help support the injured stranger. He receives immediate assistance. Michelle sees that you came to help.",
         "called_from_safety" => "You call from the safety of your doorway, trying to help without stepping into the street. Michelle hears you; the injured man still needs someone beside him.",

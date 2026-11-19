@@ -4,7 +4,6 @@
 @using System.Net.Http.Json
 @implements IAsyncDisposable
 @inject Fatewake.Web.Authentication.AuthenticatedApiClient Api
-@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Authentication
 @inject ILogger<AdminDashboardPanel> Logger
 <PageTitle>Admin dashboard — Fatewake</PageTitle>
 <main class="admin-dashboard">
@@ -85,7 +84,7 @@
     private static readonly (string Key,string Label)[] JobColumns=[("date","Created"),("asset","Asset"),("user","User"),("provider","Provider / model"),("status","Status")];
     protected override async Task OnInitializedAsync()
     {
-        _denied=!(await Authentication.GetAuthenticationStateAsync()).User.IsInRole("Admin");
+        _denied=!(await Api.GetCurrentUserAsync()).IsInRole("Admin");
         if(_denied) return;
         await FindUsers(); await Refresh(); _initialized=true;
     }

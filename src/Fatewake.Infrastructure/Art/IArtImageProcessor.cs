@@ -5,6 +5,6 @@ public interface IArtImageProcessor
 {
     ArtImageInfo Inspect(ReadOnlyMemory<byte> image);
     ArtImageInfo InspectPng(ReadOnlyMemory<byte> png);
-    Task<EncodedArtImage> CreateWebPAsync(ReadOnlyMemory<byte> masterPng,CancellationToken ct=default);
-    Task<EncodedArtImage> CreateOptimizedPngAsync(ReadOnlyMemory<byte> masterPng,CancellationToken ct=default);
+    Task<EncodedArtImage> CreateWebPAsync(ReadOnlyMemory<byte> masterPng, CancellationToken ct = default);
+    Task<EncodedArtImage> CreateOptimizedPngAsync(ReadOnlyMemory<byte> masterPng, CancellationToken ct = default);
 }

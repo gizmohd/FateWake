@@ -27,7 +27,9 @@ public static class BrowserAccountSession
         ], CookieAuthenticationDefaults.AuthenticationScheme));
         await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, new AuthenticationProperties
         {
-            IsPersistent = false, ExpiresUtc = started.AddSeconds(token.ExpiresIn), AllowRefresh = false
+            IsPersistent = false,
+            ExpiresUtc = started.AddSeconds(token.ExpiresIn),
+            AllowRefresh = false
         });
         return account.HasPassword ? "/play" : "/set-password";
     }

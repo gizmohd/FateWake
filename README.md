@@ -20,7 +20,7 @@ See [model setup scripts](tools/models/README.md) for dry-run-first Qwen3 14B/8B
 
 ## Running locally
 
-Install the .NET 10 SDK and start Docker or Podman, then run:
+Install the stable .NET 11 SDK (`global.json` selects `11.0.100` or a newer .NET 11 feature band) and start Docker or Podman, then run:
 
 ```powershell
 dotnet run --project src\Fatewake.AppHost\Fatewake.AppHost.csproj

@@ -154,12 +154,12 @@ public static class SceneArtEndpoints
     private static bool MatchesIfNoneMatch(IEnumerable<string> values, string etag)
     {
         foreach (var value in values)
-        foreach (var candidate in value.Split(','))
-        {
-            var normalized = candidate.Trim();
-            if (normalized.StartsWith("W/", StringComparison.OrdinalIgnoreCase)) normalized = normalized[2..].Trim();
-            if (normalized == "*" || string.Equals(normalized, etag, StringComparison.Ordinal)) return true;
-        }
+            foreach (var candidate in value.Split(','))
+            {
+                var normalized = candidate.Trim();
+                if (normalized.StartsWith("W/", StringComparison.OrdinalIgnoreCase)) normalized = normalized[2..].Trim();
+                if (normalized == "*" || string.Equals(normalized, etag, StringComparison.Ordinal)) return true;
+            }
         return false;
     }
 }

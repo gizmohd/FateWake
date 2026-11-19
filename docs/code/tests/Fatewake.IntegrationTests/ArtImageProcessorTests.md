@@ -1,3 +1,3 @@
 # ArtImageProcessorTests
 
-These tests exercise both image processor implementations for PNG inspection, alpha detection, delivery conversion, output dimensions, and decoder compatibility.
+These tests exercise the production SkiaSharp image processor for PNG inspection, alpha detection, PNG/WebP delivery conversion, and output dimensions.

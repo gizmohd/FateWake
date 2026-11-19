@@ -13,10 +13,10 @@ public sealed class DayOneOutcomePresentationTests
     [InlineData("investigate_radio", "tomorrow at 6:17 AM")]
     public void Canonical_engine_outcomes_have_concrete_player_visible_results(string action, string expected)
     {
-        var state=new GameSnapshot(Guid.NewGuid(),Guid.NewGuid(),1,"day-001-injured-stranger",new Dictionary<string,string>());
-        var result=new DayOneGameEngine().Resolve(state,new CandidateAction(action,new Dictionary<string,string>()));
+        var state = new GameSnapshot(Guid.NewGuid(), Guid.NewGuid(), 1, "day-001-injured-stranger", new Dictionary<string, string>());
+        var result = new DayOneGameEngine().Resolve(state, new CandidateAction(action, new Dictionary<string, string>()));
         Assert.True(result.Accepted);
-        Assert.Contains(expected,DayOneOutcomes.Text(result.OutcomeKey,result.NarrativeFacts));
-        Assert.DoesNotContain("world absorbs",DayOneOutcomes.Text(result.OutcomeKey,result.NarrativeFacts));
+        Assert.Contains(expected, DayOneOutcomes.Text(result.OutcomeKey, result.NarrativeFacts));
+        Assert.DoesNotContain("world absorbs", DayOneOutcomes.Text(result.OutcomeKey, result.NarrativeFacts));
     }
 }

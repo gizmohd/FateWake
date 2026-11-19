@@ -87,7 +87,8 @@ public sealed class DayOnePersistenceTests
         var key = new RsaSecurityKey(rsa) { KeyId = "oidc-test" };
         var metadata = new OpenIdConnectConfiguration
         {
-            Issuer = "https://provider.test", AuthorizationEndpoint = "https://provider.test/authorize",
+            Issuer = "https://provider.test",
+            AuthorizationEndpoint = "https://provider.test/authorize",
             TokenEndpoint = "https://provider.test/token"
         };
         metadata.SigningKeys.Add(key);
@@ -195,7 +196,9 @@ public sealed class DayOnePersistenceTests
         const string password = "a sufficiently long password";
         using var registration = await Form("/register", "/auth/register", new()
         {
-            ["email"] = "web@example.com", ["password"] = password, ["confirmPassword"] = password
+            ["email"] = "web@example.com",
+            ["password"] = password,
+            ["confirmPassword"] = password
         });
         Assert.Equal("/check-email", registration.Headers.Location?.OriginalString);
         var token = mailbox.Token("web@example.com");
@@ -432,7 +435,10 @@ public sealed class DayOnePersistenceTests
         Assert.Equal(HttpStatusCode.NotFound, forbiddenProgress.StatusCode);
         var action = new
         {
-            session.SurvivorId, session.TimelineId, session.EventInstanceId, IdempotencyKey = Guid.NewGuid(),
+            session.SurvivorId,
+            session.TimelineId,
+            session.EventInstanceId,
+            IdempotencyKey = Guid.NewGuid(),
             Action = new CandidateAction("help_injured_stranger", new Dictionary<string, string>())
         };
         using var forbiddenAction = await client.PostAsJsonAsync("/api/day1/resolve", action, ct);
@@ -574,16 +580,16 @@ public sealed class DayOnePersistenceTests
         var options = new DbContextOptionsBuilder<FatewakeDbContext>().UseNpgsql(cs).Options;
         await using var db = new FatewakeDbContext(options);
         await db.Database.EnsureDeletedAsync(ct);
-        await DatabaseInitializer.InitializeAsync(db,ct);
+        await DatabaseInitializer.InitializeAsync(db, ct);
         var realm = await db.Realms.SingleAsync(ct);
-        var timelineId=Guid.NewGuid(); var survivorId=Guid.NewGuid(); var eventId=Guid.NewGuid(); var now=DateTimeOffset.UtcNow;
-        db.Timelines.Add(new TimelineRecord{Id=timelineId,RealmId=realm.Id,ProgressionState="personal",ConvergenceState="isolated",WorldClockPolicy="activity",CreatedAt=now});
-        db.Survivors.Add(new SurvivorRecord{Id=survivorId,TimelineId=timelineId,DisplayName="Test Survivor",IdentityMode="fictional",BroadRegion="test",Status=SurvivorStatus.Active,CreatedAt=now,UpdatedAt=now});
-        db.EventInstances.Add(new EventInstanceRecord{Id=eventId,TimelineId=timelineId,SurvivorId=survivorId,EventKey="day-001-injured-stranger",Status=EventInstanceStatus.Active,SurvivorDay=1,StartedAt=now});
+        var timelineId = Guid.NewGuid(); var survivorId = Guid.NewGuid(); var eventId = Guid.NewGuid(); var now = DateTimeOffset.UtcNow;
+        db.Timelines.Add(new TimelineRecord { Id = timelineId, RealmId = realm.Id, ProgressionState = "personal", ConvergenceState = "isolated", WorldClockPolicy = "activity", CreatedAt = now });
+        db.Survivors.Add(new SurvivorRecord { Id = survivorId, TimelineId = timelineId, DisplayName = "Test Survivor", IdentityMode = "fictional", BroadRegion = "test", Status = SurvivorStatus.Active, CreatedAt = now, UpdatedAt = now });
+        db.EventInstances.Add(new EventInstanceRecord { Id = eventId, TimelineId = timelineId, SurvivorId = survivorId, EventKey = "day-001-injured-stranger", Status = EventInstanceStatus.Active, SurvivorDay = 1, StartedAt = now });
         await db.SaveChangesAsync(ct);
-        var action=new CandidateAction("help_injured_stranger",new Dictionary<string,string>());
-        var result=new DayOneGameEngine().Resolve(new GameSnapshot(survivorId,timelineId,1,"day-001-injured-stranger",new Dictionary<string,string>()),action);
-        await new ResolutionStore(db).PersistAsync(eventId,survivorId,timelineId,Guid.NewGuid(),action,result,ct);
+        var action = new CandidateAction("help_injured_stranger", new Dictionary<string, string>());
+        var result = new DayOneGameEngine().Resolve(new GameSnapshot(survivorId, timelineId, 1, "day-001-injured-stranger", new Dictionary<string, string>()), action);
+        await new ResolutionStore(db).PersistAsync(eventId, survivorId, timelineId, Guid.NewGuid(), action, result, ct);
         Assert.Single(await db.ActionResolutions.ToListAsync(ct)); Assert.Single(await db.GameEvents.ToListAsync(ct)); Assert.Single(await db.Wakes.ToListAsync(ct));
     }
 
@@ -635,7 +641,7 @@ public sealed class DayOnePersistenceTests
         await using var db = new FatewakeDbContext(options);
         await db.Database.EnsureDeletedAsync(ct);
         var migrator = db.GetService<IMigrator>();
-        await migrator.MigrateAsync("20261006000100_Initial",ct);
+        await migrator.MigrateAsync("20261006000100_Initial", ct);
 
         var accountId = Guid.NewGuid();
         var realmId = Guid.NewGuid();
@@ -659,41 +665,41 @@ INSERT INTO game_event ("Id", "TimelineId", "EventType", "Sequence", "SurvivorDa
 VALUES ({{gameEventId}}, {{timelineId}}, 'action_resolved', 1, 1, {{gameEventId}}, '{}', CURRENT_TIMESTAMP);
 INSERT INTO wake ("Id", "TimelineId", "OriginEventId", "WakeType", "Scope", "Severity", "State", "Properties", "CreatedDay", "CreatedAt")
 VALUES ({{wakeId}}, {{timelineId}}, {{gameEventId}}, 'test', 'personal', 1, 'active', '{}', 1, CURRENT_TIMESTAMP);
-""",ct);
+""", ct);
 
-        await migrator.MigrateAsync(cancellationToken:ct);
-        Assert.Equal(AccountStatus.Active,(await db.Accounts.SingleAsync(ct)).Status);
-        Assert.Equal(SurvivorStatus.Active,(await db.Survivors.SingleAsync(ct)).Status);
-        Assert.Equal(EventInstanceStatus.Active,(await db.EventInstances.SingleAsync(ct)).Status);
-        Assert.Equal(WakeState.Active,(await db.Wakes.SingleAsync(ct)).State);
+        await migrator.MigrateAsync(cancellationToken: ct);
+        Assert.Equal(AccountStatus.Active, (await db.Accounts.SingleAsync(ct)).Status);
+        Assert.Equal(SurvivorStatus.Active, (await db.Survivors.SingleAsync(ct)).Status);
+        Assert.Equal(EventInstanceStatus.Active, (await db.EventInstances.SingleAsync(ct)).Status);
+        Assert.Equal(WakeState.Active, (await db.Wakes.SingleAsync(ct)).State);
         var columnTypes = await db.Database.SqlQueryRaw<string>("""
 SELECT data_type AS "Value" FROM information_schema.columns
 WHERE table_schema = 'public' AND
 ((table_name IN ('account', 'survivor', 'event_instance') AND column_name = 'Status')
  OR (table_name = 'wake' AND column_name = 'State'))
 """).ToListAsync(ct);
-        Assert.Equal(4,columnTypes.Count);
-        Assert.All(columnTypes,type=>Assert.Equal("integer",type));
-        Assert.Equal(1,await db.Database.SqlQueryRaw<int>("""
+        Assert.Equal(4, columnTypes.Count);
+        Assert.All(columnTypes, type => Assert.Equal("integer", type));
+        Assert.Equal(1, await db.Database.SqlQueryRaw<int>("""
 SELECT count(*)::integer AS "Value" FROM pg_indexes
 WHERE schemaname = 'public' AND indexname = 'IX_event_instance_SurvivorId_Status_SurvivorDay'
 """).SingleAsync(ct));
 
-        var session = await new SessionStore(db).StartOrResumeAsync(survivorId,"test",ct);
-        Assert.Equal(episodeId,session.EventInstanceId);
-        using var json = JsonDocument.Parse(JsonSerializer.Serialize(session,new JsonSerializerOptions(JsonSerializerDefaults.Web)));
-        Assert.Equal("active",json.RootElement.GetProperty("status").GetString());
+        var session = await new SessionStore(db).StartOrResumeAsync(survivorId, "test", ct);
+        Assert.Equal(episodeId, session.EventInstanceId);
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(session, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        Assert.Equal("active", json.RootElement.GetProperty("status").GetString());
 
-        await migrator.MigrateAsync("20261006000100_Initial",ct);
+        await migrator.MigrateAsync("20261006000100_Initial", ct);
         var legacyStatuses = await db.Database.SqlQueryRaw<string>("""
 SELECT "Status" AS "Value" FROM account
 UNION ALL SELECT "Status" FROM survivor
 UNION ALL SELECT "Status" FROM event_instance
 UNION ALL SELECT "State" FROM wake
 """).ToListAsync(ct);
-        Assert.Equal(4,legacyStatuses.Count);
-        Assert.All(legacyStatuses,status=>Assert.Equal("active",status));
-        await migrator.MigrateAsync(cancellationToken:ct);
+        Assert.Equal(4, legacyStatuses.Count);
+        Assert.All(legacyStatuses, status => Assert.Equal("active", status));
+        await migrator.MigrateAsync(cancellationToken: ct);
     }
 
     /// <summary>The status migration rejects unsupported values without discarding stored data.</summary>
@@ -707,15 +713,15 @@ UNION ALL SELECT "State" FROM wake
         await using var db = new FatewakeDbContext(options);
         await db.Database.EnsureDeletedAsync(ct);
         var migrator = db.GetService<IMigrator>();
-        await migrator.MigrateAsync("20261006000100_Initial",ct);
+        await migrator.MigrateAsync("20261006000100_Initial", ct);
         await db.Database.ExecuteSqlInterpolatedAsync($"""
 INSERT INTO account ("Id", "Status", "CreatedAt", "UpdatedAt")
 VALUES ({Guid.NewGuid()}, 'unsupported', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-""",ct);
+""", ct);
 
-        var error = await Assert.ThrowsAsync<PostgresException>(()=>migrator.MigrateAsync(cancellationToken:ct));
-        Assert.Equal(PostgresErrorCodes.NotNullViolation,error.SqlState);
-        Assert.Equal("unsupported",await db.Database.SqlQueryRaw<string>("""SELECT "Status" AS "Value" FROM account""").SingleAsync(ct));
+        var error = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(cancellationToken: ct));
+        Assert.Equal(PostgresErrorCodes.NotNullViolation, error.SqlState);
+        Assert.Equal("unsupported", await db.Database.SqlQueryRaw<string>("""SELECT "Status" AS "Value" FROM account""").SingleAsync(ct));
         Assert.Single(await db.Database.GetAppliedMigrationsAsync(ct));
     }
 }

@@ -4,7 +4,6 @@
 @using Fatewake.Web.Presentation
 @using Fatewake.Web.Components.Presentation
 @inject Fatewake.Web.Authentication.AuthenticatedApiClient ApiClient
-@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Authentication
 @inject Microsoft.Extensions.Logging.ILogger<Home> Logger
 @inject IJSRuntime JS
 @inject Microsoft.Extensions.Hosting.IHostEnvironment Environment
@@ -54,7 +53,7 @@
         @if (_error is not null)
         {
             <div id="play-controls" class="play-frame play-message" role="alert" tabindex="-1">
-                @ErrorMessage
+                <p>@_error <a href="/login">Sign in again</a> or <a href="/play">reload</a>.</p>
             </div>
         }
         else if (!_ready)
@@ -66,7 +65,7 @@
             <div class="play-viewport play-frame">
                 <ArtCompositionView ArtworkKey="@Beat.ArtworkKey" Layers="@DayOneArt.For(Beat.ArtworkKey)"
                                     ArtworkDisplayed="RememberArtwork" SurvivorId="_session?.SurvivorId"
-                                    PrefetchKeys="UpcomingArtKeys" SelectedActionType="_selectedActionType">
+                                    PrefetchKeys="UpcomingArtKeys" SelectedActionType="@_selectedActionType">
                     <div class="play-scene-hud">
                         @if (Beat.Time is not null) { <span>@Beat.Time</span> }
                         @if (Beat.Status is not null) { <span class="play-signal">@Beat.Status</span> }
@@ -144,7 +143,6 @@
     private static SceneDefinition Scene=>DayOneScenes.Opening;
     private BeatDefinition Beat=>Scene.Beats[Math.Clamp(_beatIndex,0,Scene.Beats.Count-1)];
     private bool AtChapterEnd => _beatIndex == Scene.Beats.Count - 1;
-    private RenderFragment ErrorMessage => @<p>@_error <a href="/login">Sign in again</a> or <a href="/play">reload</a>.</p>;
     private string? SpeakerPortrait =>
         Beat.Dialogue?.Speaker == "MICHELLE SUMMERS" && _artwork?.ArtworkKey == Beat.ArtworkKey &&
         _artwork.Versions.GetValueOrDefault("char-michelle-day1-supporting") is > 0 and var version
@@ -182,7 +180,7 @@
         try
         {
         Guid? survivorId=null;
-        var user=(await Authentication.GetAuthenticationStateAsync()).User;
+        var user=await ApiClient.GetCurrentUserAsync();
         if(user.Identity?.IsAuthenticated!=true)
         {
             var saved=await JS.InvokeAsync<string?>("localStorage.getItem","fatewake.survivorId");
@@ -206,13 +204,15 @@
 
     private async Task NextBeat()
     {
-        if(_beatIndex>=Scene.Beats.Count-1)return;
+        if(_submitting || AtChapterEnd)return;
+        _submitting=true;
         try
         {
-            if (Beat.Key == "choice-wake") _selectedActionType = "";
-            _beatIndex++;_showOther=false;await SaveProgressAsync();StateHasChanged();
+            if (Beat.Key == "choice-wake") _selectedActionType = null;
+            _beatIndex++;_showOther=false;await SaveProgressAsync();
         }
         catch(HttpRequestException ex){Logger.LogWarning(ex,"Presentation progress could not be saved");_error="Unable to save your progress. Your session may have expired.";}
+        finally{_submitting=false;}
     }
 
     private static async Task<HttpResponseMessage> StartSessionAsync(HttpClient client,Guid? survivorId)
@@ -231,10 +231,10 @@
     private async Task ResetChapter()
     {
         if(_submitting||_session is null||!Environment.IsDevelopment())return;
-        if(!await JS.InvokeAsync<bool>("confirm","Reset this chapter? Your choices in it will be discarded."))return;
         _submitting=true;
         try
         {
+            if(!await JS.InvokeAsync<bool>("confirm","Reset this chapter? Your choices in it will be discarded."))return;
             using var client=await ApiClient.CreateAsync();
             using var response=await client.PostAsJsonAsync("/api/debug/session/reset-chapter",new{_session.SurvivorId,_session.EventInstanceId});
             response.EnsureSuccessStatusCode();
@@ -242,6 +242,7 @@
             _beatIndex=Scene.IndexOf(_session.BeatKey);_resolutionText="";_freeform="";_showOther=false;_inflightKey=null;_error=null;
         }
         catch(HttpRequestException ex){Logger.LogWarning(ex,"Development chapter reset failed");_error="Unable to reset the chapter.";}
+        catch(JSException ex){Logger.LogWarning(ex,"Chapter reset confirmation could not be displayed");_error="Unable to confirm the chapter reset.";}
         finally{_submitting=false;}
     }
 

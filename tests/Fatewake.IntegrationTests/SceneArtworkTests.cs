@@ -34,7 +34,8 @@ public sealed class SceneArtworkTests
         Assert.Throws<ArgumentException>(() => catalog.Create("../arbitrary"));
         var unconfiguredComfy = new SceneArtCatalog(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["ArtGeneration:Provider"] = "ComfyUI", ["ArtGeneration:ComfyUI:Enabled"] = "true",
+            ["ArtGeneration:Provider"] = "ComfyUI",
+            ["ArtGeneration:ComfyUI:Enabled"] = "true",
             ["ArtGeneration:ComfyUI:WorkflowPath"] = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json")
         }).Build());
         Assert.False(unconfiguredComfy.GenerationEnabled);
@@ -169,21 +170,47 @@ public sealed class SceneArtworkTests
         var now = DateTimeOffset.UtcNow;
         db.ArtAssets.Add(new ArtAssetRecord
         {
-            Id = id, Key = key, Version = version, AssetType = "test", Status = ArtAssetStatus.Approved,
-            OwnerAccountId = owner, VisualFingerprint = fingerprint ?? Guid.NewGuid().ToString("N"), ContentHash = "master-hash",
-            MasterPngStorageKey = key + "/master.png", Width = 1, Height = 1, HasAlpha = true,
-            CreatedAt = now, ApprovedAt = now
+            Id = id,
+            Key = key,
+            Version = version,
+            AssetType = "test",
+            Status = ArtAssetStatus.Approved,
+            OwnerAccountId = owner,
+            VisualFingerprint = fingerprint ?? Guid.NewGuid().ToString("N"),
+            ContentHash = "master-hash",
+            MasterPngStorageKey = key + "/master.png",
+            Width = 1,
+            Height = 1,
+            HasAlpha = true,
+            CreatedAt = now,
+            ApprovedAt = now
         });
         db.ArtAssetDerivatives.AddRange(
             new ArtAssetDerivativeRecord
             {
-                Id = Guid.NewGuid(), ArtAssetId = id, Kind = ArtDerivativeKind.WebP, StorageKey = key + "/image.webp",
-                ContentType = "image/webp", ContentHash = "webp-hash", Width = 1, Height = 1, ByteSize = 3, CreatedAt = now
+                Id = Guid.NewGuid(),
+                ArtAssetId = id,
+                Kind = ArtDerivativeKind.WebP,
+                StorageKey = key + "/image.webp",
+                ContentType = "image/webp",
+                ContentHash = "webp-hash",
+                Width = 1,
+                Height = 1,
+                ByteSize = 3,
+                CreatedAt = now
             },
             new ArtAssetDerivativeRecord
             {
-                Id = Guid.NewGuid(), ArtAssetId = id, Kind = ArtDerivativeKind.OptimizedPng, StorageKey = key + "/image.png",
-                ContentType = "image/png", ContentHash = "png-hash", Width = 1, Height = 1, ByteSize = 3, CreatedAt = now
+                Id = Guid.NewGuid(),
+                ArtAssetId = id,
+                Kind = ArtDerivativeKind.OptimizedPng,
+                StorageKey = key + "/image.png",
+                ContentType = "image/png",
+                ContentHash = "png-hash",
+                Width = 1,
+                Height = 1,
+                ByteSize = 3,
+                CreatedAt = now
             });
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return id;

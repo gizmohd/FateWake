@@ -4,5 +4,5 @@ namespace Fatewake.Infrastructure.Work;
 public interface IWorkSignalBus
 {
     /// <summary>Signals a queue that a durable step may be claimed.</summary>
-    Task SignalAsync(string queue,Guid stepId,CancellationToken ct=default);
+    Task SignalAsync(string queue, Guid stepId, CancellationToken ct = default);
 }

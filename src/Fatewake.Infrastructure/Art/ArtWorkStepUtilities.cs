@@ -4,6 +4,6 @@ namespace Fatewake.Infrastructure.Art;
 /// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Art/ArtWorkStepUtilities.md">ArtWorkStepUtilities documentation</see>.</remarks>
 internal static class ArtWorkStepUtilities
 {
-    public static async Task<byte[]> ReadAllAsync(IArtBinaryStorage storage,string key,CancellationToken ct){await using var stream=await storage.OpenReadAsync(key,ct);using var ms=new MemoryStream();await stream.CopyToAsync(ms,ct);return ms.ToArray();}
-    public static string Hash(ReadOnlySpan<byte> bytes)=>Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+    public static async Task<byte[]> ReadAllAsync(IArtBinaryStorage storage, string key, CancellationToken ct) { await using var stream = await storage.OpenReadAsync(key, ct); using var ms = new MemoryStream(); await stream.CopyToAsync(ms, ct); return ms.ToArray(); }
+    public static string Hash(ReadOnlySpan<byte> bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
 }
