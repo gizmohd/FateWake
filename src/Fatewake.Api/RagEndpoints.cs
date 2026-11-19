@@ -34,35 +34,35 @@ public static class RagEndpoints
             await using var stream = file.OpenReadStream();
             using var buffer = new MemoryStream();
             await stream.CopyToAsync(buffer, ct);
-                var bytes = buffer.ToArray();
-                var contentHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-                var staged = await staging.PutAsync(
-                    contentHash,
-                    file.FileName,
-                    file.ContentType ?? "application/octet-stream",
-                    bytes,
-                    ct);
-                var workRequest = new RagWorkRequest(
-                    staged.Id,
-                    file.FileName,
-                    file.ContentType ?? "application/octet-stream",
-                    sourceKey,
-                    First(form, "sourceType", "Manuscript"),
-                    title,
-                    First(form, "licenseStatus", "Authorized"),
-                    First(form, "reviewStatus", "PendingReview"),
-                    First(form, "visibility", "Internal"),
-                    NullIfBlank(form["timelineKey"].ToString()),
-                    int.TryParse(form["spoilerSeries"].ToString(), out var spoiler) ? spoiler : null,
-                    contentHash);
-                var payload = JsonSerializer.Serialize(workRequest);
-                var created = await jobs.CreateAsync(new WorkJobDefinition(
-                    "rag.import",
-                    $"rag:{contentHash}:{sourceKey}",
-                    payload,
-                    [new WorkStepDefinition("ingest", RagWorkStepTypes.Import, RagWorkQueues.Import, payload)]),
-                    ct);
-                return Results.Accepted("/api/admin/rag/status", new RagQueuedResult(created.JobId, staged.Id, created.Existing));
+            var bytes = buffer.ToArray();
+            var contentHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+            var staged = await staging.PutAsync(
+                contentHash,
+                file.FileName,
+                file.ContentType ?? "application/octet-stream",
+                bytes,
+                ct);
+            var workRequest = new RagWorkRequest(
+                staged.Id,
+                file.FileName,
+                file.ContentType ?? "application/octet-stream",
+                sourceKey,
+                First(form, "sourceType", "Manuscript"),
+                title,
+                First(form, "licenseStatus", "Authorized"),
+                First(form, "reviewStatus", "PendingReview"),
+                First(form, "visibility", "Internal"),
+                NullIfBlank(form["timelineKey"].ToString()),
+                int.TryParse(form["spoilerSeries"].ToString(), out var spoiler) ? spoiler : null,
+                contentHash);
+            var payload = JsonSerializer.Serialize(workRequest);
+            var created = await jobs.CreateAsync(new WorkJobDefinition(
+                "rag.import",
+                $"rag:{contentHash}:{sourceKey}",
+                payload,
+                [new WorkStepDefinition("ingest", RagWorkStepTypes.Import, RagWorkQueues.Import, payload)]),
+                ct);
+            return Results.Accepted("/api/admin/rag/status", new RagQueuedResult(created.JobId, staged.Id, created.Existing));
         }).DisableAntiforgery();
     }
 

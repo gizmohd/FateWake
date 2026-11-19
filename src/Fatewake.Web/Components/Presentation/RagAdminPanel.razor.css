@@ -20,6 +20,23 @@
 .rag-admin table { width: 100%; border-collapse: collapse; }
 .rag-admin th, .rag-admin td { padding: .55rem; border-bottom: 1px solid #3d365e; text-align: left; vertical-align: top; }
 .rag-admin .error { color: #ffd0af; }
+.error-dialog {
+    width: min(42rem, calc(100vw - 2rem));
+    max-height: 85dvh;
+    padding: 1.25rem;
+    overflow-y: auto;
+    border: 2px solid #ad72ef;
+    border-radius: .65rem .25rem;
+    background: #100c28;
+    color: #e9e8ff;
+    font: inherit;
+}
+.error-dialog::backdrop { background: #090817cc; }
+.error-dialog dl { display: grid; gap: .4rem; }
+.error-dialog dt { color: #72eaff; font-weight: bold; }
+.error-dialog dd { margin: 0 0 .65rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.error-dialog a { color: #72eaff; }
+.error-dialog form { display: flex; justify-content: flex-end; }
 @media (max-width: 43rem) {
     .rag-admin { padding: .75rem; }
     .upload-grid, .rag-metrics { grid-template-columns: 1fr; }

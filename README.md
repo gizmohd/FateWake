@@ -68,6 +68,8 @@ dotnet user-secrets set "ComfyUIHost:Arguments:0" "--windows-standalone-build" -
 
 Omit the Windows argument on Linux; add required GPU arguments as indexed `ComfyUIHost:Arguments` entries. Do not supply `--listen` or `--port`: AppHost binds ComfyUI to loopback and owns its port. Stop any manually started instance first; an occupied port fails configuration explicitly. The resource appears as `comfyui` in Aspire, with console logs and health checks. API and Worker remain independent of GPU readiness so gameplay and configured OpenAI fallback remain available. Configure `ArtGeneration:ComfyUI:WorkflowPath`, `OverlayWorkflowPath`, and `Model` for models actually installed locally. Local hosting overrides the remote base URL, clears cloud credentials for local requests, and uses `history`. Disable `ComfyUIHost:Enabled` to return to an externally managed renderer.
 
+For downloaded Z-Image Turbo components in the repository-root `models` directory, use the [shared model paths and Z-Image workflow setup](workflows/README.md#z-image-turbo-with-shared-model-storage). The new background/alpha-overlay templates use separate diffusion, text-encoder, and VAE loaders; they are not interchangeable with an SSD-1B checkpoint filename. Weights remain ignored, and changing the active workflow/model is an explicit opt-in after local generation checks.
+
 ## Accounts and local login
 
 Open **Sign in** in the Web app, or visit `/register` to create an account with an email address and a 12-128 character password. Local login is always available; it does not require external-provider credentials. Email lookup is case-insensitive. Passwords use ASP.NET Identity's salted, versioned password hasher; five failed attempts lock password login for 15 minutes.
@@ -85,12 +87,26 @@ dotnet user-secrets set "OpenIddictWeb:ClientId" "fatewake-web" --project src\Fa
 dotnet user-secrets set "OpenIddictWeb:RedirectUri" "https://localhost:63279/signin-oidc" --project src\Fatewake.AppHost
 ```
 
+Development uses OpenIddict development signing/encryption certificates persisted for the current OS user, so restarting the API does not invalidate every existing token. Tokens issued by the earlier temporary-key implementation require one new sign-in. All authenticated Web-to-API application calls forward the stored OAuth access token; a signed-in session missing that token fails explicitly rather than becoming a guest request.
+
 Outside Development, supply separate RSA private PEM keys of at least 2048 bits via the deployment secret store and share them between API replicas. For a local non-Development launch, set the AppHost user secrets without putting the keys in source:
 
 ```powershell
 dotnet user-secrets set "OpenIddict:SigningKey" (Get-Content $signingPemPath -Raw) --project src\Fatewake.AppHost
 dotnet user-secrets set "OpenIddict:EncryptionKey" (Get-Content $encryptionPemPath -Raw) --project src\Fatewake.AppHost
 ```
+
+### SQL Data Protection key ring
+
+Web and API persist ASP.NET Core Data Protection keys in PostgreSQL's `data_protection_keys` table. The API applies the additive migration before readiness; AppHost gives Web the same database connection and starts it after API readiness. Standalone Web deployments also need `ConnectionStrings:fatewake` and must wait for the migration. Web replicas share the stable application name `Fatewake.Web`; API replicas use `Fatewake.Api`. Redis cache eviction no longer affects these keys. Database backups must include this table: deleting keys makes previously protected cookies and antiforgery proofs unreadable.
+
+Development permits unencrypted key XML in the private development database, with the framework's warning. Outside Development, install the same RSA wrapping certificate and private key in each Web/API host's certificate store and configure its thumbprint:
+
+```powershell
+dotnet user-secrets set "DataProtection:CertificateThumbprint" "<wrapping-certificate-thumbprint>" --project src\Fatewake.AppHost
+```
+
+AppHost forwards the whole `DataProtection` section to Web and API. Its tracked defaults contain no private key. Use a deployment secret/certificate store in production; keep database access restricted and backups encrypted. Retain old wrapping certificates during rotation so historical key entries remain decryptable. This setting protects the Data Protection ring at rest; it does not replace OpenIddict signing/encryption credentials. Switching from filesystem keys to this new SQL ring requires one fresh sign-in.
 
 **Identity administration:** `/admin/users` manages invitations, email changes, roles, status, and administrator-initiated password resets. Deactivation revokes access without deleting survivor history. Players can also request a reset from **Forgot your password?** on the sign-in page. Invitations and password resets are single-use and expire after one hour. They use the configured email delivery service.
 

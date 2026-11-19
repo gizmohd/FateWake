@@ -1,9 +1,11 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using System.Net.Http.Headers
 @using Fatewake.Web.Presentation
+@using Fatewake.Observability
 @implements IAsyncDisposable
 @inject Fatewake.Web.Authentication.AuthenticatedApiClient Api
 @inject ILogger<RagAdminPanel> Logger
+@inject IJSRuntime JS
 
 <main class="rag-admin">
     <header>
@@ -22,7 +24,7 @@
             <h2 id="upload-heading">Import document</h2>
             <div class="upload-grid">
                 <label>Document
-                    <InputFile OnChange="SelectFile" accept=".txt,.md,.json,.csv,.xml,.yaml,.yml,.html,.htm,.pdf,.docx" />
+                    <InputFile OnChange="SelectFile" disabled="@_uploading" accept=".txt,.md,.json,.csv,.xml,.yaml,.yml,.html,.htm,.pdf,.docx" />
                 </label>
                 <label>Source key
                     <input @bind="_sourceKey" maxlength="200" placeholder="wayfinder-manuscript-v1" />
@@ -72,16 +74,18 @@
             {
                 <p class="selected-file">Selected: @_file.Name (@FormatBytes(_file.Size))</p>
             }
-            <button type="button" disabled="@(_uploading || _file is null)" @onclick="UploadAsync">
+            <button type="button" disabled="@(_uploading || _file is null || _authenticationRequired)" @onclick="UploadAsync">
                 @(_uploading ? "Importing…" : "Upload and import")
             </button>
             @if (_message is not null)
             {
                 <p role="status">@_message</p>
             }
-            @if (_error is not null)
+            @if (_uploadError is { } uploadError)
             {
-                <p role="alert" class="error">@_error</p>
+                <p role="alert" class="error">@uploadError.Message</p>
+                <button type="button" @onclick="() => ShowDetails(uploadError)">Show error details</button>
+                @if (uploadError.RequiresAuthentication) { <a href="/login">Sign in again</a> }
             }
         </section>
 
@@ -90,6 +94,12 @@
                 <h2 id="status-heading">Database status</h2>
                 <button type="button" disabled="@_loading" @onclick="RefreshAsync">Refresh</button>
             </div>
+            @if (_statusError is { } statusError)
+            {
+                <p role="alert" class="error">@statusError.Message</p>
+                <button type="button" @onclick="() => ShowDetails(statusError)">Show status error details</button>
+                @if (statusError.RequiresAuthentication) { <a href="/login">Sign in again</a> }
+            }
             @if (_status is { } status)
             {
                 <div class="rag-metrics">
@@ -137,6 +147,23 @@
             }
         </section>
     }
+    <dialog @ref="_errorDialog" aria-labelledby="rag-error-title" class="error-dialog">
+        <h2 id="rag-error-title">RAG request error details</h2>
+        @if (_details is { } details)
+        {
+            <p>@details.Message</p>
+            <dl>
+                <dt>Operation</dt><dd>@details.Operation</dd>
+                <dt>HTTP status</dt><dd>@(details.StatusCode?.ToString() ?? "No HTTP response")</dd>
+                <dt>Error code</dt><dd>@details.Code</dd>
+                <dt>Details</dt><dd>@details.Detail</dd>
+                <dt>Reference ID</dt><dd>@(details.ReferenceId ?? "Not returned by the API")</dd>
+                <dt>Time (UTC)</dt><dd>@details.OccurredAt.ToString("u")</dd>
+            </dl>
+            @if (details.RequiresAuthentication) { <p><a href="/login">Sign in again</a>, then retry the import.</p> }
+        }
+        <form method="dialog"><button type="submit" autofocus>Close</button></form>
+    </dialog>
 </main>
 
 @code {
@@ -155,7 +182,13 @@
     private int? _spoilerSeries;
     private IBrowserFile? _file;
     private string? _message;
-    private string? _error;
+    private RagRequestError? _uploadError;
+    private RagRequestError? _statusError;
+    private RagRequestError? _details;
+    private bool _authenticationRequired;
+    private bool _showDetails;
+    private ElementReference _errorDialog;
+    private IJSObjectReference? _dialogModule;
     private RagStatusResultDto? _status;
 
     protected override async Task OnInitializedAsync()
@@ -167,30 +200,49 @@
         }
     }
 
-    protected override Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender && !_denied)
         {
             _poll = PollAsync();
         }
-        return Task.CompletedTask;
+        if (_showDetails)
+        {
+            _showDetails = false;
+            _dialogModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Presentation/RagAdminPanel.razor.js");
+            await _dialogModule.InvokeVoidAsync("showErrorDetails", _errorDialog);
+        }
     }
 
     private void SelectFile(InputFileChangeEventArgs args)
     {
         _file = args.FileCount == 1 ? args.File : null;
-        _error = null;
+        _uploadError = null;
+        _message = null;
+        if (_file?.Size > 100L * 1024 * 1024)
+        {
+            _uploadError = new("Upload document", "The selected document is too large.",
+                "Choose a non-empty document no larger than 100 MiB.", null, "rag.file_too_large", null, DateTimeOffset.UtcNow);
+            _file = null;
+        }
+    }
+
+    private void ShowDetails(RagRequestError error)
+    {
+        _details = error;
+        _showDetails = true;
     }
 
     private async Task UploadAsync()
     {
-        if (_file is null)
+        if (_file is null || _authenticationRequired || _uploading)
         {
             return;
         }
         _uploading = true;
         _message = null;
-        _error = null;
+        _uploadError = null;
+        using var operation = OperationTelemetry.Start("web.rag.upload", Logger);
         try
         {
             using var client = await Api.CreateAsync();
@@ -211,10 +263,12 @@
                 content.Add(new StringContent(series.ToString()), "spoilerSeries");
             }
             using var response = await client.PostAsync("/api/admin/rag/import", content, _stop.Token);
-            var body = await response.Content.ReadAsStringAsync(_stop.Token);
             if (!response.IsSuccessStatusCode)
             {
-                _error = string.IsNullOrWhiteSpace(body) ? "The document could not be imported." : body;
+                _uploadError = await RagRequestError.ReadAsync(response, "Upload document", _stop.Token);
+                _authenticationRequired = _uploadError.RequiresAuthentication;
+                Logger.LogWarning("RAG upload rejected with HTTP {StatusCode}; reference {ReferenceId}",
+                    (int)response.StatusCode, _uploadError.ReferenceId);
                 return;
             }
             var result = await response.Content.ReadFromJsonAsync<RagImportResultDto>(_stop.Token);
@@ -225,10 +279,16 @@
                     : $"Document queued for Worker import. Job {result.WorkJobId}.";
             await RefreshAsync();
         }
-        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        catch (OperationCanceledException ex) when (_stop.IsCancellationRequested)
         {
-            Logger.LogWarning(ex, "RAG document upload failed");
-            _error = "The document could not be uploaded.";
+            operation.Fail(ex);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or IOException or OperationCanceledException or JSException)
+        {
+            operation.Fail(ex);
+            Logger.LogWarning("RAG upload failed with {ExceptionType}", ex.GetType().FullName);
+            _uploadError = LocalError(ex, "Upload document");
+            _authenticationRequired = _uploadError.RequiresAuthentication;
         }
         finally
         {
@@ -238,20 +298,39 @@
 
     private async Task RefreshAsync()
     {
-        if (_loading || _denied)
+        if (_loading || _denied || _authenticationRequired)
         {
             return;
         }
         _loading = true;
+        using var operation = OperationTelemetry.Start("web.rag.status", Logger);
         try
         {
             using var client = await Api.CreateAsync();
-            _status = await client.GetFromJsonAsync<RagStatusResultDto>("/api/admin/rag/status", _stop.Token);
+            using var response = await client.GetAsync("/api/admin/rag/status", _stop.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                _statusError = await RagRequestError.ReadAsync(response, "Refresh corpus status", _stop.Token);
+                _authenticationRequired = _statusError.RequiresAuthentication;
+                if (_authenticationRequired) _status = null;
+                Logger.LogWarning("RAG status rejected with HTTP {StatusCode}; reference {ReferenceId}",
+                    (int)response.StatusCode, _statusError.ReferenceId);
+                return;
+            }
+            _status = await response.Content.ReadFromJsonAsync<RagStatusResultDto>(_stop.Token);
+            if (_status is null) throw new System.Text.Json.JsonException("The RAG status response was empty.");
+            _statusError = null;
         }
-        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        catch (OperationCanceledException ex) when (_stop.IsCancellationRequested)
         {
-            Logger.LogWarning(ex, "RAG status refresh failed");
-            _error = "Could not refresh RAG status.";
+            operation.Fail(ex);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or IOException or OperationCanceledException)
+        {
+            operation.Fail(ex);
+            Logger.LogWarning("RAG status refresh failed with {ExceptionType}", ex.GetType().FullName);
+            _statusError = LocalError(ex, "Refresh corpus status");
+            _authenticationRequired = _statusError.RequiresAuthentication;
         }
         finally
         {
@@ -263,7 +342,7 @@
     {
         try
         {
-            while (!_stop.IsCancellationRequested)
+            while (!_stop.IsCancellationRequested && !_authenticationRequired)
             {
                 await Task.Delay(TimeSpan.FromSeconds(15), _stop.Token);
                 await InvokeAsync(RefreshAsync);
@@ -273,6 +352,19 @@
         {
         }
     }
+
+    private static RagRequestError LocalError(Exception exception, string operation) =>
+        exception is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized }
+            ? new(operation, "Your session has no valid API access token. Sign in again.",
+                "The signed-in request was blocked before contacting the API.", 401, "rag.sign_in_required", null, DateTimeOffset.UtcNow)
+            : new(operation, "The RAG request could not be completed.",
+                exception switch
+                {
+                    OperationCanceledException => "The request timed out. Check connectivity and retry; refresh the corpus status before resubmitting to check whether the import was queued.",
+                    System.Text.Json.JsonException => "The API returned an unreadable response. Refresh the corpus status before retrying.",
+                    IOException or JSException => "The selected document stream could not be read. Reselect the file and retry.",
+                    _ => "The API could not be reached. Check the service status and retry."
+                }, null, exception.GetType().Name, System.Diagnostics.Activity.Current?.TraceId.ToString(), DateTimeOffset.UtcNow);
 
     private static string FormatBytes(long bytes)
     {
@@ -287,6 +379,11 @@
         if (_poll is not null)
         {
             await _poll;
+        }
+        if (_dialogModule is not null)
+        {
+            try { await _dialogModule.DisposeAsync(); }
+            catch (JSDisconnectedException) { }
         }
         _stop.Dispose();
     }

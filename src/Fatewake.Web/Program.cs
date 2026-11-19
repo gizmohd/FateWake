@@ -1,11 +1,17 @@
-using Fatewake.Web.Features;
+using Fatewake.Infrastructure.Authentication;
+using Fatewake.Infrastructure.Persistence;
 using Fatewake.Web.Authentication;
+using Fatewake.Web.Features;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.EntityFrameworkCore;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.AddRedisDistributedCache("redis");
+builder.Services.AddDbContext<FatewakeDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("fatewake")));
+builder.Services.AddSqlDataProtection(builder.Configuration, "Fatewake.Web");
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
 {
     options.Cookie.Name = "fatewake.auth";
@@ -40,7 +46,16 @@ app.Use(async (context, next) =>
         context.Response.Headers.CacheControl = "no-store";
         context.Response.Headers["Referrer-Policy"] = "no-referrer";
     }
-    await next(context);
+    try
+    {
+        await next(context);
+    }
+    catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized && !context.Response.HasStarted)
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        await Results.Problem(statusCode: StatusCodes.Status401Unauthorized,
+            title: "Sign in again", detail: "The signed-in session has no API access token.").ExecuteAsync(context);
+    }
 });
 app.UseStaticFiles();
 app.UseAuthentication();

@@ -1,11 +1,18 @@
 using Fatewake.Infrastructure.Authentication;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.EntityFrameworkCore.Models;
 
 namespace Fatewake.Infrastructure.Persistence;
 
-public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> options) : DbContext(options)
+/// <summary>Maps authoritative gameplay, account, work, corpus, and shared Data Protection key-ring state.</summary>
+/// <see href="../../../docs/code/src/Fatewake.Infrastructure/Persistence/FatewakeDbContext.md">Documentation</see>
+public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> options) : DbContext(options), IDataProtectionKeyContext
 {
+    /// <summary>Persists the shared key ring; application discriminators isolate each host's protected payloads.</summary>
+    public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = null!;
+    /// <summary>Contains password-encrypted private certificates, never a plaintext certificate password.</summary>
+    public DbSet<DataProtectionCertificateRecord> DataProtectionCertificates => Set<DataProtectionCertificateRecord>();
     /// <summary>Server-translated calendar grouping in the selected reporting timezone.</summary>
     public static string CalendarKey(DateTimeOffset value, string zone, string pattern) => throw new NotSupportedException("SQL only.");
     /// <summary>Server-translated extraction of safe job metadata from JSON.</summary>
@@ -17,6 +24,15 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
     public DbSet<SurvivorVisualIdentityRecord> SurvivorVisualIdentities => Set<SurvivorVisualIdentityRecord>(); public DbSet<WorkJobRecord> WorkJobs => Set<WorkJobRecord>(); public DbSet<WorkArtifactRecord> WorkArtifacts => Set<WorkArtifactRecord>(); public DbSet<WorkStepRecord> WorkSteps => Set<WorkStepRecord>(); public DbSet<WorkStepDependencyRecord> WorkStepDependencies => Set<WorkStepDependencyRecord>(); public DbSet<AccountRecord> Accounts => Set<AccountRecord>(); public DbSet<ExternalIdentityRecord> ExternalIdentities => Set<ExternalIdentityRecord>(); public DbSet<ArtAssetRecord> ArtAssets => Set<ArtAssetRecord>(); public DbSet<ArtAssetDerivativeRecord> ArtAssetDerivatives => Set<ArtAssetDerivativeRecord>(); public DbSet<ArtGenerationRecord> ArtGenerations => Set<ArtGenerationRecord>(); public DbSet<ArtRegenerationRecord> ArtRegenerationRequests => Set<ArtRegenerationRecord>(); public DbSet<RagSourceRecord> RagSources => Set<RagSourceRecord>(); public DbSet<RagDocumentRecord> RagDocuments => Set<RagDocumentRecord>(); public DbSet<RagChunkRecord> RagChunks => Set<RagChunkRecord>(); public DbSet<RagClaimRecord> RagClaims => Set<RagClaimRecord>(); public DbSet<RagIngestRunRecord> RagIngestRuns => Set<RagIngestRunRecord>(); public DbSet<RagStagingRecord> RagStaging => Set<RagStagingRecord>(); public DbSet<RealmRecord> Realms => Set<RealmRecord>(); public DbSet<TimelineRecord> Timelines => Set<TimelineRecord>(); public DbSet<SurvivorRecord> Survivors => Set<SurvivorRecord>(); public DbSet<EventInstanceRecord> EventInstances => Set<EventInstanceRecord>(); public DbSet<ActionAttemptRecord> ActionAttempts => Set<ActionAttemptRecord>(); public DbSet<ActionResolutionRecord> ActionResolutions => Set<ActionResolutionRecord>(); public DbSet<GameEventRecord> GameEvents => Set<GameEventRecord>(); public DbSet<WakeRecord> Wakes => Set<WakeRecord>();
     protected override void OnModelCreating(ModelBuilder m)
     {
+        m.Entity<DataProtectionKey>().ToTable("data_protection_keys");
+        m.Entity<DataProtectionCertificateRecord>(entity =>
+        {
+            entity.ToTable("data_protection_certificates");
+            entity.HasKey(row => row.Thumbprint);
+            entity.HasIndex(row => row.NotAfter);
+            entity.Property(row => row.Thumbprint).HasMaxLength(64);
+            entity.Property(row => row.EncryptedPfx).HasColumnType("bytea");
+        });
         m.UseOpenIddict();
         m.Entity<OpenIddictEntityFrameworkCoreApplication>().ToTable("OpenIddictApplications", "oidc");
         m.Entity<OpenIddictEntityFrameworkCoreAuthorization>().ToTable("OpenIddictAuthorizations", "oidc");

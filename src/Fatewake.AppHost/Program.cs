@@ -59,6 +59,7 @@ api.WithForwardedSection(builder, "ArtStorage");
 api.WithForwardedSection(builder, "Administration");
 api.WithForwardedSection(builder, "OpenIddict");
 api.WithForwardedSection(builder, "OpenIddictWeb");
+api.WithForwardedSection(builder, "DataProtection");
 
 worker.WithForwardedSection(builder, "ArtGeneration");
 worker.WithForwardedSection(builder, "ArtStorage");
@@ -69,11 +70,13 @@ if (comfyUi is not null)
 }
 
 IResourceBuilder<ProjectResource> web = builder.AddProject("web", Path.Combine(repoRoot, "src", "Fatewake.Web", "Fatewake.Web.csproj"))
+    .WithReference(fatewake)
     .WithReference(api)
     .WithReference(redis)
     .WaitFor(api)
     .WaitFor(redis);
 web.WithForwardedSection(builder, "OpenIddictWeb");
+web.WithForwardedSection(builder, "DataProtection");
 
 api.WithEnvironment("Email__PublicWebUrl", web.GetEndpoint("https"));
 foreach (string? provider in new[] { "Google", "Microsoft" })

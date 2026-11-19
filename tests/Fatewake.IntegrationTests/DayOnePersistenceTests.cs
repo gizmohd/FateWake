@@ -107,7 +107,7 @@ public sealed class DayOnePersistenceTests
         Exception? providerFailure = null;
         await using var webFactory = new WebApplicationFactory<LocalAccountInfo>().WithWebHostBuilder(builder =>
         {
-            builder.UseEnvironment("Development").UseSetting($"Authentication:{provider}:Enabled", "true")
+            builder.UseEnvironment("Development").UseSetting("ConnectionStrings:fatewake", cs).UseSetting($"Authentication:{provider}:Enabled", "true")
                 .UseSetting($"Authentication:{provider}:ClientId", "test-client").UseSetting($"Authentication:{provider}:ClientSecret", "test-secret");
             builder.ConfigureServices(services =>
             {
@@ -186,7 +186,7 @@ public sealed class DayOnePersistenceTests
         using var apiClient = apiFactory.CreateClient();
         await using var webFactory = new WebApplicationFactory<LocalAccountInfo>().WithWebHostBuilder(builder =>
         {
-            builder.UseEnvironment("Development");
+            builder.UseEnvironment("Development").UseSetting("ConnectionStrings:fatewake", cs);
             builder.ConfigureServices(services => services.AddHttpClient("fatewake-auth", client => client.BaseAddress = new("https://localhost"))
                 .ConfigurePrimaryHttpMessageHandler(() => apiFactory.Server.CreateHandler()));
         });
@@ -622,7 +622,7 @@ public sealed class DayOnePersistenceTests
         await LoginAs(player, email, password, ct);
         await using var web = new WebApplicationFactory<LocalAccountInfo>().WithWebHostBuilder(builder =>
         {
-            builder.UseEnvironment("Development");
+            builder.UseEnvironment("Development").UseSetting("ConnectionStrings:fatewake", cs);
             builder.ConfigureServices(services => services.AddHttpClient("fatewake-auth", client => client.BaseAddress = new("https://localhost"))
                 .ConfigurePrimaryHttpMessageHandler(() => api.Server.CreateHandler()));
         });
@@ -782,6 +782,47 @@ public sealed class DayOnePersistenceTests
         });
         using var revokedRefresh = await admin.PostAsync("/connect/token", refreshForm, ct);
         Assert.Equal(HttpStatusCode.Unauthorized, revokedRefresh.StatusCode);
+    }
+
+    /// <summary>Development credentials survive an API host restart and still authorize RAG staging.</summary>
+    [Fact]
+    public async Task Development_access_token_survives_restart_and_authorizes_RAG_upload()
+    {
+        var cs = Environment.GetEnvironmentVariable("FATEWAKE_TEST_CONNECTION");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(cs), "Requires an isolated FATEWAKE_TEST_CONNECTION database.");
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = new FatewakeDbContext(new DbContextOptionsBuilder<FatewakeDbContext>().UseNpgsql(cs).Options);
+        await db.Database.EnsureDeletedAsync(ct);
+        using var mailbox = new TestEmailMailbox();
+        WebApplicationFactory<LocalLoginRequest> CreateFactory() =>
+            new WebApplicationFactory<LocalLoginRequest>().WithWebHostBuilder(builder =>
+                builder.UseEnvironment("Development").UseSetting("ConnectionStrings:fatewake", cs)
+                    .UseSetting("Email:Directory", mailbox.DirectoryPath));
+        string token;
+        await using (var first = CreateFactory())
+        {
+            using var client = CreateAuthorizationClient(first);
+            using var registration = await client.PostAsJsonAsync("/api/auth/register",
+                new { email = "rag-admin@example.test", password = "a sufficiently long password" }, ct);
+            Assert.Equal(HttpStatusCode.NoContent, registration.StatusCode);
+            await LoginAs(client, "rag-admin@example.test", "a sufficiently long password", ct);
+            token = client.DefaultRequestHeaders.Authorization!.Parameter!;
+            using var before = await client.GetAsync("/api/admin/rag/status", ct);
+            Assert.Equal(HttpStatusCode.OK, before.StatusCode);
+        }
+        await using var restarted = CreateFactory();
+        using var after = CreateAuthorizationClient(restarted);
+        after.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var status = await after.GetAsync("/api/admin/rag/status", ct);
+        Assert.Equal(HttpStatusCode.OK, status.StatusCode);
+        using var upload = new MultipartFormDataContent();
+        upload.Add(new StringContent("A test document approved for RAG ingestion."), "file", "test.txt");
+        upload.Add(new StringContent("test-restart-corpus"), "sourceKey");
+        upload.Add(new StringContent("Restart regression"), "title");
+        using var imported = await after.PostAsync("/api/admin/rag/import", upload, ct);
+        Assert.Equal(HttpStatusCode.Accepted, imported.StatusCode);
+        Assert.True(imported.Headers.Contains("X-Request-ID"));
+        Assert.Single(await db.RagStaging.ToListAsync(ct));
     }
 
     private static string UserDelete(Guid id, JsonElement account) =>

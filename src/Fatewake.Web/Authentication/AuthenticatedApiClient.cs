@@ -8,6 +8,7 @@ namespace Fatewake.Web.Authentication;
 /// <summary>Creates per-call API clients carrying the current circuit's server-side account token.</summary>
 /// <param name="clients">Factory for the service-discovery API client.</param>
 /// <param name="authentication">Current player authentication state.</param>
+/// <param name="logger">Reports rejected sessions without recording tokens or user claims.</param>
 /// <see href="../../../docs/code/src/Fatewake.Web/Authentication/AuthenticatedApiClient.md">AuthenticatedApiClient documentation</see>
 public sealed class AuthenticatedApiClient(IHttpClientFactory clients, AuthenticationStateProvider authentication,
     ILogger<AuthenticatedApiClient> logger)

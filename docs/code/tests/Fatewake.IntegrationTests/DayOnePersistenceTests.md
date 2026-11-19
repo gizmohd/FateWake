@@ -11,3 +11,5 @@ The email migration also preserves pre-existing local account IDs and password h
 These PostgreSQL-backed tests verify atomic persistence of action outcomes and migration behavior. They require `FATEWAKE_TEST_CONNECTION` and use a disposable database because setup deletes and recreates it.
 
 The durable-work migration case exercises real PostgreSQL leasing, artifacts, job completion, and rollback/reapplication while preserving the original survivor tables.
+
+Restart coverage checks that development OpenIddict access tokens remain valid after rebuilding the API host and can still authorize a staged RAG import. Browser factories use the same disposable SQL database for the new Data Protection repository.

@@ -3,23 +3,24 @@ using Fatewake.Api;
 using Fatewake.Api.Authentication;
 using Fatewake.GameEngine;
 using Fatewake.GameEngine.DayOne;
+using Fatewake.Infrastructure.Art;
+using Fatewake.Infrastructure.Authentication;
 using Fatewake.Infrastructure.Persistence;
 using Fatewake.Infrastructure.Story;
-using Fatewake.Infrastructure.Art;
 using Fatewake.Infrastructure.Work;
-using Microsoft.EntityFrameworkCore;
-using Fatewake.Infrastructure.Authentication;
+using Fatewake.Observability;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using OpenIddict.Abstractions;
+using OpenIddict.Validation.AspNetCore;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Threading.RateLimiting;
-using Fatewake.Observability;
-using OpenIddict.Abstractions;
-using OpenIddict.Validation.AspNetCore;
-using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
+builder.Services.AddSqlDataProtection(builder.Configuration, "Fatewake.Api");
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = RagIngestionLimits.MaxRequestBytes);
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
@@ -29,10 +30,11 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(optio
 builder.AddRedisDistributedCache("redis");
 builder.Services.AddAuthentication(OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)
     .AddExternalTokenValidation(builder.Configuration);
-builder.Services.AddAuthorization(options => options.AddPolicy("IdentityAdministrator", policy =>
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("IdentityAdministrator", policy =>
     policy.RequireAuthenticatedUser().RequireRole("Admin")
         .RequireAssertion(context => Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out _) &&
-            context.User.FindFirstValue(OpenIddictEndpoints.ClientClaim) == (builder.Configuration["OpenIddictWeb:ClientId"] ?? "fatewake-web"))));
+            context.User.FindFirstValue(OpenIddictEndpoints.ClientClaim) == (builder.Configuration["OpenIddictWeb:ClientId"] ?? "fatewake-web")));
 builder.Services.AddScoped<AdminApplicationEndpoints>();
 builder.Services.AddScoped<AdminUserEndpoints>();
 builder.Services.AddOpenIddict()

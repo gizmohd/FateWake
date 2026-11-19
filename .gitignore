@@ -57,9 +57,11 @@ TestResult.xml
 nunit-*.xml
 /.vs/Fatewake.slnx
 /data/
+/models/
 /emails/
 **/emails/
 BenchmarkDotNet.Artifacts/
 /.vs
 
 /src/Fatewake.Web/wwwroot/art/art/
+/models
