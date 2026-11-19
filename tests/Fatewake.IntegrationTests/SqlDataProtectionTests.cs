@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 
 namespace Fatewake.IntegrationTests;
 
@@ -15,9 +14,9 @@ public sealed class SqlDataProtectionTests
 {
     /// <summary>Uses the shared SQL ring across independent replicas while keeping application purposes isolated.</summary>
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Key_ring_survives_provider_restart_and_isolates_applications(bool wrapped)
+    [InlineData("Fatewake.Web")]
+    [InlineData("Fatewake.Api")]
+    public async Task Key_ring_survives_provider_restart_and_isolates_applications(string applicationName)
     {
         var connection = Environment.GetEnvironmentVariable("FATEWAKE_TEST_CONNECTION");
         Assert.SkipWhen(string.IsNullOrWhiteSpace(connection), "Requires an isolated FATEWAKE_TEST_CONNECTION database.");
@@ -27,36 +26,42 @@ public sealed class SqlDataProtectionTests
         };
         var options = new DbContextOptionsBuilder<FatewakeDbContext>().UseNpgsql(database.ConnectionString).Options;
         await using var db = new FatewakeDbContext(options);
-        using var rsa = RSA.Create(2048);
-        var request = new CertificateRequest("CN=Fatewake key-ring test", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(1));
-        var configuration = new ConfigurationBuilder().Build();
-        ServiceProvider Replica(string applicationName)
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["DataProtection:CertificatePassword"] = "Disposable SQL key-ring regression fixture password"
+        }).Build();
+        ServiceProvider Replica(string name, bool readOnly = false)
         {
             var services = new ServiceCollection();
             services.AddLogging();
             services.AddDbContext<FatewakeDbContext>(builder => builder.UseNpgsql(database.ConnectionString));
-            var protection = services.AddSqlDataProtection(configuration, applicationName);
-            if (wrapped)
-                protection.ProtectKeysWithCertificate(certificate).UnprotectKeysWithAnyCertificate(certificate);
+            var protection = services.AddSqlDataProtection(configuration, name);
+            if (readOnly)
+                protection.DisableAutomaticKeyGeneration();
             return services.BuildServiceProvider();
         }
         try
         {
             await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
             string protectedValue;
-            using (var first = Replica("Fatewake.Web"))
+            using (var first = Replica(applicationName))
                 protectedValue = first.GetRequiredService<IDataProtectionProvider>().CreateProtector("cookie-test").Protect("test-payload");
             var keys = await db.DataProtectionKeys.AsNoTracking().ToListAsync(TestContext.Current.CancellationToken);
             Assert.NotEmpty(keys);
-            if (wrapped)
-                Assert.All(keys, key => Assert.Contains("encryptedSecret", key.Xml!));
-            using (var restarted = Replica("Fatewake.Web"))
+            Assert.All(keys, key => Assert.Contains("SqlCertificateXmlDecryptor", key.Xml!));
+            Assert.All(keys, key => Assert.Contains("sqlEncryptedKey", key.Xml!));
+            var certificateCount = await db.DataProtectionCertificates.CountAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(1, certificateCount);
+            using (var restarted = Replica(applicationName, readOnly: true))
                 Assert.Equal("test-payload", restarted.GetRequiredService<IDataProtectionProvider>()
                     .CreateProtector("cookie-test").Unprotect(protectedValue));
-            using var api = Replica("Fatewake.Api");
-            Assert.Throws<CryptographicException>(() => api.GetRequiredService<IDataProtectionProvider>()
+            using var otherApplication = Replica(applicationName == "Fatewake.Web" ? "Fatewake.Api" : "Fatewake.Web", readOnly: true);
+            Assert.Throws<CryptographicException>(() => otherApplication.GetRequiredService<IDataProtectionProvider>()
                 .CreateProtector("cookie-test").Unprotect(protectedValue));
+            var after = await db.DataProtectionKeys.AsNoTracking().ToListAsync(TestContext.Current.CancellationToken);
+            Assert.True(keys.OrderBy(key => key.Id).Select(key => key.Xml).SequenceEqual(
+                after.OrderBy(key => key.Id).Select(key => key.Xml)), "Reading the persisted ring must not replace or rewrite existing keys.");
+            Assert.Equal(certificateCount, await db.DataProtectionCertificates.CountAsync(TestContext.Current.CancellationToken));
         }
         finally
         {
@@ -64,13 +69,18 @@ public sealed class SqlDataProtectionTests
         }
     }
 
-    /// <summary>Refuses an unwrapped production key ring instead of silently persisting plaintext keys.</summary>
-    [Fact]
-    public void Production_requires_a_wrapping_certificate()
+    /// <summary>Refuses explicitly empty or weak wrapping passwords instead of silently persisting plaintext keys.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("short")]
+    public void Invalid_wrapping_password_is_rejected(string password)
     {
         var services = new ServiceCollection();
-        var error = Assert.Throws<InvalidOperationException>(() =>
-            services.AddSqlDataProtection(new ConfigurationBuilder().Build(), "Fatewake.Web"));
-        Assert.Contains("CertificateThumbprint", error.Message);
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["DataProtection:CertificatePassword"] = password
+        }).Build();
+        var error = Assert.Throws<InvalidOperationException>(() => services.AddSqlDataProtection(configuration, "Fatewake.Web"));
+        Assert.Contains("CertificatePassword", error.Message);
     }
 }

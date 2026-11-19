@@ -1,13 +1,16 @@
 using System.Xml.Linq;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection.XmlEncryption;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Fatewake.Infrastructure.Authentication;
 
 /// <summary>Resolves the exact historical SQL certificate recorded by a Data Protection envelope.</summary>
 /// <see href="../../../docs/code/src/Fatewake.Infrastructure/Authentication/SqlCertificateXmlDecryptor.md">Documentation</see>
-public sealed class SqlCertificateXmlDecryptor(SqlKeyRingCertificateStore certificates) : IXmlDecryptor
+public sealed class SqlCertificateXmlDecryptor(IServiceProvider services) : IXmlDecryptor
 {
+    private readonly SqlKeyRingCertificateStore certificates = services.GetRequiredService<SqlKeyRingCertificateStore>();
+
     /// <summary>Authenticates and decrypts one envelope without exposing private keys or plaintext through logging.</summary>
     public XElement Decrypt(XElement encryptedElement)
     {
