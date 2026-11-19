@@ -11,6 +11,12 @@ Start ComfyUI and verify its web interface is reachable. Fatewake defaults to:
 
 Do not expose an unauthenticated ComfyUI instance directly to the public Internet.
 
+### Optional AppHost lifecycle
+
+AppHost can start and stop your existing Python installation automatically. Set `ComfyUIHost:Enabled`, `PythonExecutable`, and `WorkingDirectory` (the directory containing `main.py`) using AppHost user secrets; see the commands in [README](../README.md#apphost-managed-local-comfyui). `ComfyUIHost:Port` defaults to 8188; optional `Arguments` is an indexed array of GPU/runtime flags, not a shell command. The service binds to loopback, exposes console logs and a `/system_stats` health check in Aspire, and stops with AppHost. Do not also launch ComfyUI manually on the same port: an occupied port fails AppHost configuration explicitly rather than attaching to an unknown service.
+
+Local hosting directs both API and Worker to the managed endpoint with the standard `history` path and no cloud credentials. It does not install models or change workflow/model selection: configure compatible `ArtGeneration:ComfyUI` settings. API and Worker do not block on renderer readiness, preserving gameplay and explicitly configured OpenAI fallback during GPU outages. Disable local hosting to use an existing remote/cloud instance.
+
 ## 2. Install a model
 Install a checkpoint/workflow appropriate for the available GPU. Fatewake deliberately does not hard-code FLUX, SDXL, or another model. Put model files in the locations expected by ComfyUI and verify a normal generation succeeds in the ComfyUI UI first.
 

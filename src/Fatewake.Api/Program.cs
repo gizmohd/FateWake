@@ -9,18 +9,76 @@ using Fatewake.Infrastructure.Art;
 using Fatewake.Infrastructure.Work;
 using Microsoft.EntityFrameworkCore;
 using Fatewake.Infrastructure.Authentication;
-using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Identity;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Threading.RateLimiting;
 using Fatewake.Observability;
+using OpenIddict.Abstractions;
+using OpenIddict.Validation.AspNetCore;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
+builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = RagIngestionLimits.MaxRequestBytes);
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = RagIngestionLimits.MaxDocumentBytes;
+    options.MultipartHeadersLengthLimit = 64 * 1024;
+});
 builder.AddRedisDistributedCache("redis");
-builder.Services.AddAuthentication(BearerTokenDefaults.AuthenticationScheme).AddBearerToken(options =>
-    options.BearerTokenExpiration = TimeSpan.FromHours(8)).AddExternalTokenValidation(builder.Configuration);
-builder.Services.AddAuthorization();
+builder.Services.AddAuthentication(OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)
+    .AddExternalTokenValidation(builder.Configuration);
+builder.Services.AddAuthorization(options => options.AddPolicy("IdentityAdministrator", policy =>
+    policy.RequireAuthenticatedUser().RequireRole("Admin")
+        .RequireAssertion(context => Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out _) &&
+            context.User.FindFirstValue(OpenIddictEndpoints.ClientClaim) == (builder.Configuration["OpenIddictWeb:ClientId"] ?? "fatewake-web"))));
+builder.Services.AddScoped<AdminApplicationEndpoints>();
+builder.Services.AddScoped<AdminUserEndpoints>();
+builder.Services.AddOpenIddict()
+    .AddCore(options =>
+    {
+        options.UseEntityFrameworkCore()
+            .UseDbContext<FatewakeDbContext>();
+    })
+    .AddServer(options =>
+    {
+        options.SetIssuer(new Uri(builder.Configuration["OpenIddict:Issuer"] ?? "https://localhost:63281"));
+        options.SetAuthorizationEndpointUris("/connect/authorize");
+        options.SetTokenEndpointUris("/connect/token");
+        options.SetEndSessionEndpointUris("/connect/logout");
+        options.AllowAuthorizationCodeFlow()
+            .AllowRefreshTokenFlow();
+        options.RegisterScopes(OpenIddictConstants.Scopes.OpenId,
+            OpenIddictConstants.Scopes.Profile,
+            OpenIddictConstants.Scopes.Email,
+            OpenIddictConstants.Scopes.OfflineAccess,
+            "fatewake-api");
+        options.SetAccessTokenLifetime(TimeSpan.FromMinutes(30));
+        options.SetRefreshTokenLifetime(TimeSpan.FromDays(30));
+        if (builder.Environment.IsDevelopment())
+        {
+            options.AddDevelopmentEncryptionCertificate()
+                .AddDevelopmentSigningCertificate();
+        }
+        else
+        {
+            options.AddSigningKey(ReadOpenIddictKey(builder.Configuration, "OpenIddict:SigningKey"));
+            options.AddEncryptionKey(ReadOpenIddictKey(builder.Configuration, "OpenIddict:EncryptionKey"));
+        }
+        options.UseAspNetCore()
+            .EnableAuthorizationEndpointPassthrough()
+            .EnableTokenEndpointPassthrough()
+            .EnableEndSessionEndpointPassthrough();
+    })
+    .AddValidation(options =>
+    {
+        options.SetIssuer(builder.Configuration["OpenIddict:Issuer"] ?? "https://localhost:63281");
+        options.AddAudiences(builder.Configuration["OpenIddict:ApiAudience"] ?? "fatewake-api");
+        options.UseLocalServer();
+        options.EnableTokenEntryValidation();
+        options.UseAspNetCore();
+    });
 builder.Services.AddArtReviewAuthorization(builder.Configuration);
 builder.Services.Configure<PasswordHasherOptions>(options => options.IterationCount = 210_000);
 builder.Services.AddScoped<IPasswordHasher<LocalCredentialRecord>, PasswordHasher<LocalCredentialRecord>>();
@@ -88,7 +146,8 @@ app.Use(async (context, next) =>
 {
     using var operation = OperationTelemetry.Start("api.request");
     try { await next(context); }
-    catch (Exception ex) when (context.Request.Path.StartsWithSegments("/api/auth") && (ex is System.Net.Mail.SmtpException or IOException))
+    catch (Exception ex) when ((context.Request.Path.StartsWithSegments("/api/auth") || context.Request.Path == "/connect/authorize") &&
+        (ex is System.Net.Mail.SmtpException or IOException))
     {
         operation.Fail(ex);
         app.Logger.LogError(ex, "Email delivery or storage operation failed");
@@ -98,6 +157,7 @@ app.Use(async (context, next) =>
     }
     catch (Exception ex) { operation.Fail(ex); throw; }
 });
+app.UseMiddleware<RagRequestDiagnostics>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
@@ -106,11 +166,15 @@ app.MapArtReviews();
 app.MapStory();
 app.MapAdminDashboard();
 app.MapRagAdmin();
+app.MapOpenIddict();
+AdminApplicationEndpoints.Map(app);
+AdminUserEndpoints.Map(app);
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<FatewakeDbContext>();
     await DatabaseInitializer.InitializeAsync(db);
+    await OpenIddictEndpoints.SeedAsync(scope.ServiceProvider, app.Configuration);
     if (string.Equals(artStorage.Provider, "Postgres", StringComparison.OrdinalIgnoreCase))
         await scope.ServiceProvider.GetRequiredService<ArtBinaryBackfillService>().BackfillAsync();
 }
@@ -120,26 +184,13 @@ app.MapGet("/health", async (FatewakeDbContext db, CancellationToken ct) =>
         ? Results.Ok(new { status = "ok" })
         : Results.StatusCode(StatusCodes.Status503ServiceUnavailable));
 
-app.MapPost("/api/auth/register", async (LocalLoginRequest request, LocalAccountService accounts, AccountRoleService roles, CancellationToken ct) =>
+app.MapPost("/api/auth/register", async (LocalLoginRequest request, LocalAccountService accounts, CancellationToken ct) =>
 {
     var result = await accounts.RegisterAsync(request.Email, request.Password, ct);
     return result.VerificationRequired ? Results.Accepted(value: new { verificationRequired = true })
-        : result.AccountId is not null ? await SignIn(result, roles, ct) : Results.BadRequest(new { error = result.Error });
+        : result.AccountId is not null ? Results.NoContent() : Results.BadRequest(new { error = result.Error });
 }).RequireRateLimiting("local-auth");
 
-app.MapPost("/api/auth/login", async (LocalLoginRequest request, LocalAccountService accounts, AccountRoleService roles, CancellationToken ct) =>
-{
-    var result = await accounts.LoginAsync(request.Email, request.Password, ct);
-    if (result.VerificationRequired) return Results.Json(new { verificationRequired = true, error = result.Error }, statusCode: 403);
-    return result.AccountId is null ? Results.Json(new { error = result.Error }, statusCode: 401) : await SignIn(result, roles, ct);
-}).RequireRateLimiting("local-auth");
-
-app.MapExternalAuthentication(SignIn);
-app.MapPost("/api/auth/verify-email", async (VerificationRequest request, VerifiedAccountService verification, AccountRoleService roles, CancellationToken ct) =>
-{
-    var result = await verification.VerifyAsync(request.Token, ct, request.Password);
-    return result.AccountId is null ? Results.BadRequest(new { error = result.Error }) : await SignIn(result, roles, ct);
-}).RequireRateLimiting("local-auth");
 app.MapPost("/api/auth/resend-verification", async (EmailRequest request, VerifiedAccountService verification, CancellationToken ct) =>
 {
     await verification.ResendAsync(request.Email, ct);
@@ -273,15 +324,14 @@ static bool InvalidBearer(HttpContext context) =>
 static Task<bool> CanAccess(FatewakeDbContext db, Guid survivorId, Guid? accountId, CancellationToken ct) =>
     db.Survivors.AnyAsync(x => x.Id == survivorId && x.AccountId == accountId, ct);
 
-static async Task<IResult> SignIn(LocalAccountResult result, AccountRoleService roles, CancellationToken ct)
+static RsaSecurityKey ReadOpenIddictKey(IConfiguration configuration, string name)
 {
-    var role = await roles.AssignOnSignInAsync(result.AccountId!.Value, ct);
-    var identity = new ClaimsIdentity([
-        new Claim(ClaimTypes.NameIdentifier, result.AccountId!.Value.ToString()),
-        new Claim(ClaimTypes.Email, result.Email!),
-        new Claim(ClaimTypes.Name, result.Email!),
-        new Claim(ClaimTypes.Role, role)
-    ], BearerTokenDefaults.AuthenticationScheme);
-    return Results.SignIn(new ClaimsPrincipal(identity), authenticationScheme: BearerTokenDefaults.AuthenticationScheme);
+    var pem = configuration[name];
+    if (string.IsNullOrWhiteSpace(pem))
+        throw new InvalidOperationException($"{name} requires an RSA private key in PEM format.");
+    using var rsa = RSA.Create();
+    rsa.ImportFromPem(pem);
+    if (rsa.KeySize < 2048) throw new InvalidOperationException($"{name} must be at least 2048 bits.");
+    return new RsaSecurityKey(rsa.ExportParameters(includePrivateParameters: true));
 }
 

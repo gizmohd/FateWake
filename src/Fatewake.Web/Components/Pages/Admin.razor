@@ -4,6 +4,8 @@
 <nav class="admin-section-nav" aria-label="Administration sections">
     <a class="@(_section=="usage" ? "active" : null)" href="/admin">Generation &amp; AI usage</a>
     <a class="@(_section=="rag" ? "active" : null)" href="/admin?section=rag">RAG corpus</a>
+    <a href="/admin/users">Users</a>
+    <a href="/admin/applications">OpenIddict applications</a>
 </nav>
 @if (_section == "rag")
 {

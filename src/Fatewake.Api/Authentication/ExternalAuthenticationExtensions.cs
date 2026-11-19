@@ -10,7 +10,7 @@ namespace Fatewake.Api.Authentication;
 public static class ExternalAuthenticationExtensions
 {
     /// <summary>Registers only configured provider token-validation schemes.</summary>
-    public static void AddExternalTokenValidation(this AuthenticationBuilder authentication, IConfiguration configuration)
+    public static AuthenticationBuilder AddExternalTokenValidation(this AuthenticationBuilder authentication, IConfiguration configuration)
     {
         foreach (var provider in new[] { "Google", "Microsoft" })
         {
@@ -30,28 +30,22 @@ public static class ExternalAuthenticationExtensions
                 options.TokenValidationParameters.ClockSkew = TimeSpan.FromMinutes(1);
             });
         }
+        return authentication;
     }
 
-    /// <summary>Maps exchanges that accept only provider-validated claims, never caller-supplied subject/email JSON.</summary>
-    public static void MapExternalAuthentication(this WebApplication app, Func<LocalAccountResult, AccountRoleService, CancellationToken, Task<IResult>> signIn)
+    /// <summary>Resolves an enabled provider from independently validated claims, never from caller-supplied identity data.</summary>
+    public static async Task<LocalAccountResult?> ResolveExternalAccountAsync(HttpContext context, string provider,
+        IConfiguration configuration, VerifiedAccountService accounts, CancellationToken ct)
     {
-        foreach (var provider in new[] { "Google", "Microsoft" })
-        {
-            if (!app.Configuration.GetValue<bool>("Authentication:" + provider + ":Enabled")) continue;
-            app.MapPost("/api/auth/external/" + provider.ToLowerInvariant(),
-                async (HttpContext context, VerifiedAccountService accounts, AccountRoleService roles, CancellationToken ct) =>
-                {
-                    var authenticated = await context.AuthenticateAsync(provider);
-                    if (!authenticated.Succeeded || authenticated.Principal is not { } user) return Results.Unauthorized();
-                    var subject = user.FindFirstValue("sub");
-                    if (string.IsNullOrWhiteSpace(subject)) return Results.Unauthorized();
-                    var email = user.FindFirstValue("email") ?? user.FindFirstValue("preferred_username");
-                    var verified = provider == "Google" && user.FindFirstValue("email_verified")?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
-                    var result = await accounts.ExternalAsync(new(provider, subject, email, verified, user.FindFirstValue("name"), null), ct);
-                    if (result.VerificationRequired) return Results.Accepted(value: new { verificationRequired = true });
-                    return result.AccountId is null ? Results.BadRequest(new { error = result.Error }) : await signIn(result, roles, ct);
-                }).RequireRateLimiting("local-auth");
-        }
+        if (provider is not ("Google" or "Microsoft") || !configuration.GetValue<bool>("Authentication:" + provider + ":Enabled"))
+            return null;
+        var authenticated = await context.AuthenticateAsync(provider);
+        if (!authenticated.Succeeded || authenticated.Principal is not { } user) return null;
+        var subject = user.FindFirstValue("sub");
+        if (string.IsNullOrWhiteSpace(subject)) return null;
+        var email = user.FindFirstValue("email") ?? user.FindFirstValue("preferred_username");
+        var verified = provider == "Google" && user.FindFirstValue("email_verified")?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
+        return await accounts.ExternalAsync(new(provider, subject, email, verified, user.FindFirstValue("name"), null), ct);
     }
 
     private static string Authority(string provider, string? tenant)

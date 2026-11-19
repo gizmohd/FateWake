@@ -23,7 +23,7 @@ public static class BrowserAccountSession
             new Claim(ClaimTypes.NameIdentifier, account.AccountId.ToString()),
             new Claim(ClaimTypes.Name, account.Email),
             new Claim(ClaimTypes.Role, account.Role),
-            new Claim("fatewake.api_token", token.AccessToken)
+            new Claim(AuthenticatedApiClient.AccessTokenClaim, token.AccessToken)
         ], CookieAuthenticationDefaults.AuthenticationScheme));
         await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, new AuthenticationProperties
         {

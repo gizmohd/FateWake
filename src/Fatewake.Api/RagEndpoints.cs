@@ -6,6 +6,7 @@ using System.Text.Json;
 namespace Fatewake.Api;
 
 /// <summary>Exposes administrator-only RAG corpus upload and status operations.</summary>
+/// <see href="../../docs/code/src/Fatewake.Api/RagEndpoints.md">Documentation</see>
 public static class RagEndpoints
 {
     /// <summary>Maps multipart imports and database metrics to the protected RAG administration surface.</summary>
@@ -24,8 +25,8 @@ public static class RagEndpoints
                 return Results.BadRequest(new { error = "A multipart document upload is required." });
             var form = await request.ReadFormAsync(ct);
             var file = form.Files.GetFile("file");
-            if (file is null || file.Length is < 1 or > 20 * 1024 * 1024)
-                return Results.BadRequest(new { error = "Choose a document containing 1–20 MB of data." });
+            if (file is null || file.Length is < 1 or > RagIngestionLimits.MaxDocumentBytes)
+                return Results.BadRequest(new { error = "Choose a non-empty document no larger than 100 MiB." });
             var sourceKey = form["sourceKey"].ToString().Trim();
             var title = form["title"].ToString().Trim();
             if (sourceKey.Length is < 1 or > 200 || title.Length is < 1 or > 300)
@@ -33,8 +34,6 @@ public static class RagEndpoints
             await using var stream = file.OpenReadStream();
             using var buffer = new MemoryStream();
             await stream.CopyToAsync(buffer, ct);
-            try
-            {
                 var bytes = buffer.ToArray();
                 var contentHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
                 var staged = await staging.PutAsync(
@@ -64,19 +63,6 @@ public static class RagEndpoints
                     [new WorkStepDefinition("ingest", RagWorkStepTypes.Import, RagWorkQueues.Import, payload)]),
                     ct);
                 return Results.Accepted("/api/admin/rag/status", new RagQueuedResult(created.JobId, staged.Id, created.Existing));
-            }
-            catch (ArgumentException ex)
-            {
-                return Results.BadRequest(new { error = ex.Message });
-            }
-            catch (NotSupportedException ex)
-            {
-                return Results.BadRequest(new { error = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Results.BadRequest(new { error = ex.Message });
-            }
         }).DisableAntiforgery();
     }
 

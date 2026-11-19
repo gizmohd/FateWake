@@ -1,5 +1,6 @@
 using Fatewake.Infrastructure.Authentication;
 using Fatewake.Infrastructure.Persistence;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -27,7 +28,7 @@ public sealed class TestEmailMailbox : IDisposable
         var file = Directory.GetFiles(DirectoryPath, "*.txt").OrderByDescending(File.GetLastWriteTimeUtc)
             .First(x => File.ReadAllText(x).StartsWith("To: " + email + "\n", StringComparison.OrdinalIgnoreCase));
         var link = File.ReadAllLines(file).Single(x => x.StartsWith("https://", StringComparison.Ordinal));
-        return new Uri(link).Query["?token=".Length..];
+        return QueryHelpers.ParseQuery(new Uri(link).Query)["token"].ToString();
     }
     /// <inheritdoc />
     public void Dispose()

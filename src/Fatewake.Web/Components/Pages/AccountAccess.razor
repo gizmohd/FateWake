@@ -1,0 +1,30 @@
+@page "/account-access"
+
+<PageTitle>Confirm account change - Fatewake</PageTitle>
+<main class="account-page">
+    <h1>Confirm account change</h1>
+    @if (string.IsNullOrEmpty(Token) || Error is not null)
+    {
+        <p role="alert">This link could not be used. Ask an administrator to send a new one if it has expired.</p>
+    }
+    @if (!string.IsNullOrEmpty(Token))
+    {
+        <form method="post" action="/auth/account-access">
+            <AntiforgeryToken />
+            <input type="hidden" name="token" value="@Token" />
+            @if (RequiresPassword)
+            {
+                <label>New password <input type="password" name="password" autocomplete="new-password" minlength="12" maxlength="128" required /></label>
+                <label>Confirm password <input type="password" name="confirmPassword" autocomplete="new-password" minlength="12" maxlength="128" required /></label>
+            }
+            <button>Confirm</button>
+        </form>
+    }
+    <p><a href="/login">Back to sign in</a></p>
+</main>
+
+@code {
+    [SupplyParameterFromQuery(Name = "token")] public string? Token { get; set; }
+    [SupplyParameterFromQuery(Name = "password")] public bool RequiresPassword { get; set; }
+    [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+}

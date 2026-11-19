@@ -1,0 +1,11 @@
+.account-page .checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+.checkbox-field input {
+    flex: none;
+    margin: 0;
+    padding: 0;
+}

@@ -74,19 +74,7 @@ switch (provider.Provider.ToLowerInvariant())
         break;
     case "comfyui":
         var comfy = builder.Configuration.GetSection(ComfyUiArtGenerationOptions.SectionName).Get<ComfyUiArtGenerationOptions>() ?? new ComfyUiArtGenerationOptions();
-        if (!comfy.Enabled) throw new InvalidOperationException("Enable ArtGeneration:ComfyUI when Provider is ComfyUI.");
-        builder.Services.AddHttpClient<ComfyUiArtMasterGenerator>(client => client.BaseAddress = new Uri(comfy.BaseUrl))
-            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
-        var fallbackOpenAi = builder.Configuration.GetSection(OpenAiArtGenerationOptions.SectionName).Get<OpenAiArtGenerationOptions>() ?? new OpenAiArtGenerationOptions();
-        if (fallbackOpenAi.Enabled && !string.IsNullOrWhiteSpace(fallbackOpenAi.ApiKey))
-        {
-            builder.Services.AddHttpClient<OpenAiArtMasterGenerator>(client => client.BaseAddress = new Uri(fallbackOpenAi.BaseUrl));
-            builder.Services.AddScoped<IArtMasterGenerator, FallbackComfyUiArtMasterGenerator>();
-        }
-        else
-        {
-            builder.Services.AddScoped<IArtMasterGenerator, ComfyUiArtMasterGenerator>();
-        }
+        builder.Services.AddComfyUiMasterGenerator(builder.Configuration);
         builder.Services.AddHttpClient("art.comfyui.health", client => client.BaseAddress = new Uri(comfy.BaseUrl))
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
         builder.Services.AddHostedService<ArtRegenerationWorker>();

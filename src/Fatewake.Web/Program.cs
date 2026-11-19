@@ -1,7 +1,6 @@
 using Fatewake.Web.Features;
 using Fatewake.Web.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using System.Net.Http.Headers;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,11 +28,14 @@ builder.Services.AddRateLimiter(options =>
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 builder.Services.AddHttpClient("fatewake-api", client => client.BaseAddress = new("https+http://api"));
+builder.Services.AddHttpClient("fatewake-auth", client => client.BaseAddress = new("https+http://api"))
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false });
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 var app = builder.Build();
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/verify-email"))
+    if (context.Request.Path.StartsWithSegments("/verify-email") || context.Request.Path.StartsWithSegments("/account-access") ||
+        context.Request.Path.StartsWithSegments("/authorize-application") || context.Request.Path.StartsWithSegments("/admin/applications"))
     {
         context.Response.Headers.CacheControl = "no-store";
         context.Response.Headers["Referrer-Policy"] = "no-referrer";
@@ -48,18 +50,17 @@ app.UseAntiforgery();
 app.MapLocalAuthentication();
 // Keep artwork same-origin while the API owns approved assets and binary storage.
 app.MapGet("/art/{key}/{version:int}/{format}", async (string key, int version, string format,
-    IHttpClientFactory clients, HttpContext context, CancellationToken ct) =>
+    AuthenticatedApiClient clients, HttpContext context, CancellationToken ct) =>
 {
     if (version < 1 || format is not ("png" or "webp")) return Results.NotFound();
     using var request = new HttpRequestMessage(HttpMethod.Get,
         $"/api/art/{Uri.EscapeDataString(key)}/{version}/{format}");
-    if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("fatewake.api_token") is { } token)
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Value);
     foreach (var header in new[] { "If-None-Match", "If-Modified-Since" })
         if (context.Request.Headers.TryGetValue(header, out var values))
             request.Headers.TryAddWithoutValidation(header, values.ToArray());
 
-    using var response = await clients.CreateClient("fatewake-api").SendAsync(
+    using var client = clients.CreateForUser(context.User);
+    using var response = await client.SendAsync(
         request, HttpCompletionOption.ResponseHeadersRead, ct);
     context.Response.StatusCode = (int)response.StatusCode;
     if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotModified)

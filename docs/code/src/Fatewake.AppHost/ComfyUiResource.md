@@ -1,0 +1,5 @@
+# ComfyUiResource
+
+Opt-in Aspire executable resource for an existing local ComfyUI installation. Python and ComfyUI are not installed or downloaded by AppHost. Configure absolute Python and working-directory paths using AppHost user secrets. Arguments are passed directly, without shell evaluation; AppHost owns the loopback listen address and port. Invalid installation paths, endpoint overrides, and already occupied ports fail configuration explicitly. The port check is a startup preflight, not a reservation; a later bind race is still reported by the child process in Aspire.
+
+Aspire monitors `/system_stats` readiness. The API and Worker use the local endpoint with no cloud API key and the standard `history` path. They do not wait on GPU readiness: gameplay, queue processing, and an explicitly configured OpenAI fallback remain available during renderer startup or failure. Workflow and model settings still come from `ArtGeneration:ComfyUI` and must match the installed models. Disabling hosting leaves remote/external ComfyUI configuration unchanged.

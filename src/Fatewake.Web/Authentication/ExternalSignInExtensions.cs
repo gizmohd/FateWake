@@ -1,4 +1,3 @@
-using System.Net;
 using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -39,7 +38,9 @@ public static class ExternalSignInExtensions
                 options.SaveTokens = true;
                 options.MapInboundClaims = false;
                 options.Scope.Clear();
-                options.Scope.Add("openid"); options.Scope.Add("profile"); options.Scope.Add("email");
+                options.Scope.Add("openid");
+                options.Scope.Add("profile");
+                options.Scope.Add("email");
                 options.Events = new OpenIdConnectEvents
                 {
                     OnTicketReceived = async context =>
@@ -47,19 +48,16 @@ public static class ExternalSignInExtensions
                         context.HandleResponse();
                         var idToken = context.Properties?.GetTokenValue("id_token");
                         if (string.IsNullOrWhiteSpace(idToken)) throw new InvalidDataException("The provider returned no ID token.");
-                        using var client = context.HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>().CreateClient("fatewake-api");
+                        using var client = context.HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>().CreateClient("fatewake-auth");
                         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", idToken);
-                        var started = DateTimeOffset.UtcNow;
                         try
                         {
-                            using var response = await client.PostAsync("/api/auth/external/" + provider.ToLowerInvariant(), null, context.HttpContext.RequestAborted);
-                            if (response.StatusCode == HttpStatusCode.Accepted)
+                            var destination = await BrowserAuthorizationCode.SignInAsync(context.HttpContext, client, new()
                             {
-                                context.Response.Redirect("/check-email");
-                                return;
-                            }
-                            response.EnsureSuccessStatusCode();
-                            context.Response.Redirect(await BrowserAccountSession.SignInAsync(context.HttpContext, client, response, started));
+                                ["account_action"] = "external",
+                                ["provider"] = provider
+                            });
+                            context.Response.Redirect(destination ?? "/login?error=external");
                         }
                         catch (HttpRequestException ex)
                         {

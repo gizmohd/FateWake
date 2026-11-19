@@ -11,13 +11,22 @@ namespace Fatewake.Infrastructure.Authentication;
 public sealed class VerificationEmailSender(IOptions<EmailDeliveryOptions> options, ILogger<VerificationEmailSender> log)
 {
     /// <summary>Sends or writes a verification message; transport/storage failures propagate without fallback.</summary>
-    public async Task SendAsync(string email, string token, CancellationToken ct)
+    public Task SendAsync(string email, string token, CancellationToken ct) =>
+        DeliverAsync(email, "/verify-email", token, "Verify your Fatewake email",
+            "Confirm your email address to finish signing in to Fatewake", "24 hours", ct);
+
+    /// <summary>Sends a purpose-bound administrator-requested challenge without returning the proof to the administrator.</summary>
+    public Task SendAccountActionAsync(string email, string token, bool requiresPassword, CancellationToken ct) =>
+        DeliverAsync(email, requiresPassword ? "/account-access?password=true" : "/account-access", token,
+            "Confirm a Fatewake account change", "Confirm the requested change to your Fatewake account", "one hour", ct);
+
+    private async Task DeliverAsync(string email, string pathAndQuery, string token, string subject, string instruction,
+        string lifetime, CancellationToken ct)
     {
         using var operation = OperationTelemetry.Start("email.deliver", log);
         var settings = options.Value;
-        var link = settings.PublicWebUrl.TrimEnd('/') + "/verify-email?token=" + Uri.EscapeDataString(token);
-        const string subject = "Verify your Fatewake email";
-        var body = $"Confirm your email address to finish signing in to Fatewake:\n\n{link}\n\nThis link expires in 24 hours and can be used once. If you did not request this, ignore this email.";
+        var link = settings.PublicWebUrl.TrimEnd('/') + pathAndQuery + (pathAndQuery.Contains('?') ? "&token=" : "?token=") + Uri.EscapeDataString(token);
+        var body = $"{instruction}:\n\n{link}\n\nThis link expires in {lifetime} and can be used once. If you did not request this, ignore this email.";
         if (settings.SmtpEnabled)
         {
             using var client = new SmtpClient(settings.Host, settings.Port) { EnableSsl = settings.EnableSsl };

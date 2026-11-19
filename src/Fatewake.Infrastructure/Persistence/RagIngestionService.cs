@@ -1,9 +1,9 @@
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.RegularExpressions;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
 using UglyToad.PdfPig;
 
 namespace Fatewake.Infrastructure.Persistence;
@@ -17,8 +17,8 @@ public sealed class RagIngestionService(FatewakeDbContext db) : IRagIngestionSer
 
     public async Task<RagImportResult> ImportAsync(RagImportRequest request, CancellationToken ct = default)
     {
-        if (request.Bytes.Length is < 1 or > 20 * 1024 * 1024)
-            throw new ArgumentException("Uploaded documents must contain 1–20 MB of data.", nameof(request));
+        if (request.Bytes.LongLength is < 1 or > RagIngestionLimits.MaxDocumentBytes)
+            throw new ArgumentException("Uploaded documents must contain 1–100 MB of data.", nameof(request));
         var extension = Path.GetExtension(request.FileName).ToLowerInvariant();
         var text = ExtractText(extension, request.Bytes);
         text = NormalizeText(text);

@@ -194,7 +194,7 @@
         try
         {
             using var client = await Api.CreateAsync();
-            await using var stream = _file.OpenReadStream(20 * 1024 * 1024, _stop.Token);
+            await using var stream = _file.OpenReadStream(100 * 1024 * 1024, _stop.Token);
             using var content = new MultipartFormDataContent();
             using var fileContent = new StreamContent(stream);
             fileContent.Headers.ContentType = new MediaTypeHeaderValue(_file.ContentType ?? "application/octet-stream");

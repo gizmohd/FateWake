@@ -4,6 +4,10 @@
 <main class="account-page">
     <h1>Sign in</h1>
     <p>Use your email address and password.</p>
+    @if (Changed)
+    {
+        <p role="status">Your account change was confirmed. Sign in to continue.</p>
+    }
     @if (Error is not null)
     {
         <p role="alert">@Message</p>
@@ -15,12 +19,14 @@
         <button type="submit">Sign in</button>
     </form>
     <ExternalSignInButtons />
+    <p><a href="/forgot-password">Forgot your password?</a></p>
     <p><a href="/check-email">Verify your email or resend the verification link</a></p>
     <p><a href="/register">Create an account</a> or <a href="/play">continue as a guest</a>.</p>
 </main>
 
 @code {
     [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+    [SupplyParameterFromQuery(Name = "changed")] public bool Changed { get; set; }
     private string Message => Error switch
     {
         "limited" => "Too many attempts. Wait a minute and try again.",

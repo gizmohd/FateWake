@@ -7,7 +7,7 @@ namespace Aspire.Hosting;
 /// <remarks><see href="../../docs/code/src/Fatewake.AppHost/ConfigurationForwarding.md">ConfigurationForwarding documentation</see>.</remarks>
 public static class ConfigurationForwarding
 {
-    private static readonly string[] SecretKeyNames = ["ApiKey", "ClientSecret", "Password", "PrivateKey", "Secret", "Token"];
+    private static readonly string[] SecretKeyNames = ["ApiKey", "ClientSecret", "Password", "PrivateKey", "Secret", "Token", "SigningKey", "EncryptionKey"];
 
     /// <summary>Copies every non-empty value under <paramref name="section"/> to the resource; secret-named keys become masked secret parameters.</summary>
     /// <typeparam name="T">Resource type receiving environment variables.</typeparam>

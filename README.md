@@ -54,6 +54,20 @@ The PostgreSQL artwork smoke test uses `FATEWAKE_ART_TEST_CONNECTION`, which mus
 
 Database tests use `FATEWAKE_TEST_CONNECTION` and **delete/recreate that database**. Never point it at your development database. `FATEWAKE_TEST_RABBITMQ` enables the broker wakeup integration test.
 
+### AppHost-managed local ComfyUI
+
+Install ComfyUI and a compatible Python/GPU runtime first. `ComfyUIHost` is disabled by default. Configure local paths once in AppHost user secrets:
+
+```powershell
+dotnet user-secrets set "ComfyUIHost:Enabled" "true" --project src\Fatewake.AppHost
+dotnet user-secrets set "ComfyUIHost:PythonExecutable" "<absolute path to python executable>" --project src\Fatewake.AppHost
+dotnet user-secrets set "ComfyUIHost:WorkingDirectory" "<absolute directory containing ComfyUI main.py>" --project src\Fatewake.AppHost
+dotnet user-secrets set "ComfyUIHost:Port" "8188" --project src\Fatewake.AppHost
+dotnet user-secrets set "ComfyUIHost:Arguments:0" "--windows-standalone-build" --project src\Fatewake.AppHost
+```
+
+Omit the Windows argument on Linux; add required GPU arguments as indexed `ComfyUIHost:Arguments` entries. Do not supply `--listen` or `--port`: AppHost binds ComfyUI to loopback and owns its port. Stop any manually started instance first; an occupied port fails configuration explicitly. The resource appears as `comfyui` in Aspire, with console logs and health checks. API and Worker remain independent of GPU readiness so gameplay and configured OpenAI fallback remain available. Configure `ArtGeneration:ComfyUI:WorkflowPath`, `OverlayWorkflowPath`, and `Model` for models actually installed locally. Local hosting overrides the remote base URL, clears cloud credentials for local requests, and uses `history`. Disable `ComfyUIHost:Enabled` to return to an externally managed renderer.
+
 ## Accounts and local login
 
 Open **Sign in** in the Web app, or visit `/register` to create an account with an email address and a 12-128 character password. Local login is always available; it does not require external-provider credentials. Email lookup is case-insensitive. Passwords use ASP.NET Identity's salted, versioned password hasher; five failed attempts lock password login for 15 minutes.
@@ -62,7 +76,25 @@ Registration emails a verification link. Open it and re-enter the password chose
 
 Signed-in play resumes your account's survivor across browsers. Guest play remains available, but guest progress is kept separate and is not automatically claimed when registering or signing in. `/account` displays your email, whether local login is configured, and sign-out.
 
-The Web server exchanges credentials with `/api/auth/register` or `/api/auth/login`, keeps the API's eight-hour opaque bearer session inside an encrypted HttpOnly cookie, and uses antiforgery-protected forms. Production requires HTTPS and durable ASP.NET Core Data Protection keys; replicas of each service must share that service's key ring and application name. Signing out clears the browser session; an already copied API bearer token remains valid until expiry. Tokens are never stored in browser local storage.
+The Web server submits registration to `/api/auth/register`. After an immediate registration, sign-in, or successful email proof, it exchanges an OpenIddict authorization code with S256 PKCE entirely on the back channel. The API access token is kept in an encrypted HttpOnly cookie and expires after 30 minutes. Browser forms are antiforgery-protected. Production requires HTTPS and durable ASP.NET Core Data Protection keys; Web replicas must share a key ring and application name. Signing out clears the browser session; an already copied API access token remains valid until expiry. Tokens are never stored in browser local storage.
+
+`OpenIddictWeb:ClientId` and `OpenIddictWeb:RedirectUri` must match in Web and API. The redirect URI has no query or fragment and identifies the callback; the Web server intercepts the response rather than navigating to it. AppHost forwards both settings. To override them locally:
+
+```powershell
+dotnet user-secrets set "OpenIddictWeb:ClientId" "fatewake-web" --project src\Fatewake.AppHost
+dotnet user-secrets set "OpenIddictWeb:RedirectUri" "https://localhost:63279/signin-oidc" --project src\Fatewake.AppHost
+```
+
+Outside Development, supply separate RSA private PEM keys of at least 2048 bits via the deployment secret store and share them between API replicas. For a local non-Development launch, set the AppHost user secrets without putting the keys in source:
+
+```powershell
+dotnet user-secrets set "OpenIddict:SigningKey" (Get-Content $signingPemPath -Raw) --project src\Fatewake.AppHost
+dotnet user-secrets set "OpenIddict:EncryptionKey" (Get-Content $encryptionPemPath -Raw) --project src\Fatewake.AppHost
+```
+
+**Identity administration:** `/admin/users` manages invitations, email changes, roles, status, and administrator-initiated password resets. Deactivation revokes access without deleting survivor history. Players can also request a reset from **Forgot your password?** on the sign-in page. Invitations and password resets are single-use and expire after one hour. They use the configured email delivery service.
+
+`/admin/applications` registers public and confidential OpenIddict clients. Use authorization code with S256 PKCE, an exact registered callback, and the `fatewake-api` scope; clients enabled for refresh may also request `offline_access`. Confidential secrets are shown only on creation or rotation. On the seeded Fatewake Web client, only callback URLs are editable, and the configured redirect and post-logout URLs must stay registered.
 
 ### Google and Microsoft sign-in
 

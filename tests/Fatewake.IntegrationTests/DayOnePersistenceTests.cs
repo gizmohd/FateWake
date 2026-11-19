@@ -29,6 +29,8 @@ using Microsoft.IdentityModel.Tokens;
 using Fatewake.Web.Authentication;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.WebUtilities;
+using System.Text;
 
 namespace Fatewake.IntegrationTests;
 
@@ -109,7 +111,7 @@ public sealed class DayOnePersistenceTests
                 .UseSetting($"Authentication:{provider}:ClientId", "test-client").UseSetting($"Authentication:{provider}:ClientSecret", "test-secret");
             builder.ConfigureServices(services =>
             {
-                services.AddHttpClient("fatewake-api", client => client.BaseAddress = new("http://localhost"))
+                services.AddHttpClient("fatewake-auth", client => client.BaseAddress = new("https://localhost"))
                     .ConfigurePrimaryHttpMessageHandler(() => apiFactory.Server.CreateHandler());
                 services.PostConfigure<OpenIdConnectOptions>(provider, options =>
                 {
@@ -160,8 +162,10 @@ public sealed class DayOnePersistenceTests
     }
 
     /// <summary>Browser forms verify emailed links, prompt external users for a backup password, and reject missing antiforgery proofs.</summary>
-    [Fact]
-    public async Task Browser_verification_and_password_setup_are_antiforgery_protected()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Browser_verification_and_password_setup_are_antiforgery_protected(bool autoVerify)
     {
         var cs = Environment.GetEnvironmentVariable("FATEWAKE_TEST_CONNECTION");
         Assert.SkipWhen(string.IsNullOrWhiteSpace(cs), "Requires an isolated FATEWAKE_TEST_CONNECTION database.");
@@ -170,13 +174,20 @@ public sealed class DayOnePersistenceTests
         await db.Database.EnsureDeletedAsync(ct);
         using var mailbox = new TestEmailMailbox();
         await using var apiFactory = new WebApplicationFactory<LocalLoginRequest>().WithWebHostBuilder(builder =>
+        {
             builder.UseEnvironment("Development").UseSetting("ConnectionStrings:fatewake", cs)
-                .UseSetting("Email:Directory", mailbox.DirectoryPath));
+                .UseSetting("Email:Directory", mailbox.DirectoryPath);
+            if (!autoVerify) builder.ConfigureServices(services =>
+                services.AddScoped(provider => new VerifiedAccountService(
+                    provider.GetRequiredService<FatewakeDbContext>(), provider.GetRequiredService<VerificationEmailSender>(),
+                    provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<VerifiedAccountService>>(),
+                    provider.GetRequiredService<IPasswordHasher<LocalCredentialRecord>>())));
+        });
         using var apiClient = apiFactory.CreateClient();
         await using var webFactory = new WebApplicationFactory<LocalAccountInfo>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Development");
-            builder.ConfigureServices(services => services.AddHttpClient("fatewake-api", client => client.BaseAddress = new("http://localhost"))
+            builder.ConfigureServices(services => services.AddHttpClient("fatewake-auth", client => client.BaseAddress = new("https://localhost"))
                 .ConfigurePrimaryHttpMessageHandler(() => apiFactory.Server.CreateHandler()));
         });
         using var browser = webFactory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
@@ -200,14 +211,25 @@ public sealed class DayOnePersistenceTests
             ["password"] = password,
             ["confirmPassword"] = password
         });
-        Assert.Equal("/check-email", registration.Headers.Location?.OriginalString);
-        var token = mailbox.Token("web@example.com");
-        using var page = await browser.GetAsync("/verify-email?token=" + token, ct);
-        Assert.True(page.Headers.CacheControl?.NoStore);
-        Assert.Equal("no-referrer", Assert.Single(page.Headers.GetValues("Referrer-Policy")));
-        using var confirmed = await Form("/verify-email?token=" + token, "/auth/verify-email", new() { ["token"] = token, ["password"] = password });
-        Assert.Equal("/", confirmed.Headers.Location?.OriginalString);
-        Assert.Contains(confirmed.Headers.GetValues("Set-Cookie"), x => x.StartsWith("fatewake.auth=") && x.Contains("httponly", StringComparison.OrdinalIgnoreCase));
+        if (autoVerify)
+        {
+            AssertSession(registration);
+        }
+        else
+        {
+            Assert.Equal("/check-email", registration.Headers.Location?.OriginalString);
+            var token = mailbox.Token("web@example.com");
+            var proofPage = "/verify-email?token=" + token;
+            using var page = await browser.GetAsync(proofPage, ct);
+            Assert.True(page.Headers.CacheControl?.NoStore);
+            Assert.Equal("no-referrer", Assert.Single(page.Headers.GetValues("Referrer-Policy")));
+            using var invalid = await Form(proofPage, "/auth/verify-email", new() { ["token"] = token, ["password"] = "wrong" });
+            Assert.Equal("/verify-email?error=invalid", invalid.Headers.Location?.OriginalString);
+            using var confirmed = await Form(proofPage, "/auth/verify-email", new() { ["token"] = token, ["password"] = password });
+            AssertSession(confirmed);
+            using var replayed = await Form(proofPage, "/auth/verify-email", new() { ["token"] = token, ["password"] = password });
+            Assert.Equal("/verify-email?error=invalid", replayed.Headers.Location?.OriginalString);
+        }
         Assert.Contains("web@example.com", await browser.GetStringAsync("/account", ct));
         using var logout = await Form("/account", "/auth/logout", new());
         Assert.Equal("/", logout.Headers.Location?.OriginalString);
@@ -225,8 +247,15 @@ public sealed class DayOnePersistenceTests
         Assert.Equal("/account?password=added", configured.Headers.Location?.OriginalString);
         using var secondLogout = await Form("/account", "/auth/logout", new());
         using var localLogin = await Form("/login", "/auth/login", new() { ["email"] = "external-web@example.com", ["password"] = password });
-        Assert.Equal("/", localLogin.Headers.Location?.OriginalString);
+        AssertSession(localLogin);
         Assert.Contains("external-web@example.com", await browser.GetStringAsync("/account", ct));
+
+        static void AssertSession(HttpResponseMessage response)
+        {
+            Assert.Equal("/play", response.Headers.Location?.OriginalString);
+            Assert.Contains(response.Headers.GetValues("Set-Cookie"),
+                x => x.StartsWith("fatewake.auth=") && x.Contains("httponly", StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     /// <summary>Provider exchange verifies cryptographic signature, issuer, audience and expiry, then prompts password setup on new accounts.</summary>
@@ -260,7 +289,7 @@ public sealed class DayOnePersistenceTests
                     });
             });
         });
-        using var client = factory.CreateClient();
+        using var client = CreateAuthorizationClient(factory);
         string IdToken(string tokenIssuer = issuer, string tokenAudience = audience, bool expired = false)
         {
             var now = DateTime.UtcNow;
@@ -273,14 +302,13 @@ public sealed class DayOnePersistenceTests
         foreach (var invalid in new[] { IdToken(tokenIssuer: "https://evil.example.com"), IdToken(tokenAudience: "other-client"), IdToken(expired: true), "invalid" })
         {
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", invalid);
-            using var rejected = await client.PostAsync("/api/auth/external/google", null, ct);
+            using var rejected = await Authorize(client, new() { ["account_action"] = "external", ["provider"] = "Google" }, ct);
             Assert.Equal(HttpStatusCode.Unauthorized, rejected.StatusCode);
         }
         var valid = IdToken();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", valid);
-        using var exchanged = await client.PostAsync("/api/auth/external/google", null, ct);
-        Assert.Equal(HttpStatusCode.OK, exchanged.StatusCode);
-        var apiToken = (await exchanged.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("accessToken").GetString()!;
+        using var exchanged = await Authorize(client, new() { ["account_action"] = "external", ["provider"] = "Google" }, ct);
+        var apiToken = await Redeem(client, exchanged, ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiToken);
         var info = await client.GetFromJsonAsync<JsonElement>("/api/auth/me", ct);
         Assert.False(info.GetProperty("hasPassword").GetBoolean());
@@ -294,17 +322,20 @@ public sealed class DayOnePersistenceTests
         using var overwrite = await client.PostAsJsonAsync("/api/auth/set-password", new PasswordRequest("overwrite attempt password"), ct);
         Assert.Equal(HttpStatusCode.BadRequest, overwrite.StatusCode);
         client.DefaultRequestHeaders.Authorization = null;
-        using var localLogin = await client.PostAsJsonAsync("/api/auth/login", new LocalLoginRequest("PROVIDER@example.com", password), ct);
-        Assert.Equal(HttpStatusCode.OK, localLogin.StatusCode);
-        var localToken = (await localLogin.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("accessToken").GetString()!;
+        using var localLogin = await Authorize(client, LoginProof("PROVIDER@example.com", password), ct);
+        var localToken = await Redeem(client, localLogin, ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", localToken);
         Assert.Equal(id, (await client.GetFromJsonAsync<JsonElement>("/api/auth/me", ct)).GetProperty("accountId").GetGuid());
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", valid);
-        using var microsoft = await client.PostAsync("/api/auth/external/microsoft", null, ct);
+        using var microsoft = await Authorize(client, new() { ["account_action"] = "external", ["provider"] = "Microsoft" }, ct);
         Assert.Equal(HttpStatusCode.Accepted, microsoft.StatusCode);
-        using var proof = await client.PostAsJsonAsync("/api/auth/verify-email", new VerificationRequest(mailbox.Token("provider@example.com")), ct);
-        Assert.Equal(HttpStatusCode.OK, proof.StatusCode);
-        var provedToken = (await proof.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("accessToken").GetString()!;
+        client.DefaultRequestHeaders.Authorization = null;
+        using var proof = await Authorize(client, new()
+        {
+            ["account_action"] = "verify_email",
+            ["verification_token"] = mailbox.Token("provider@example.com")
+        }, ct);
+        var provedToken = await Redeem(client, proof, ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", provedToken);
         Assert.Equal(id, (await client.GetFromJsonAsync<JsonElement>("/api/auth/me", ct)).GetProperty("accountId").GetGuid());
         Assert.Single(await db.Accounts.ToListAsync(ct));
@@ -394,23 +425,26 @@ public sealed class DayOnePersistenceTests
         await using var factory = new WebApplicationFactory<LocalLoginRequest>().WithWebHostBuilder(builder =>
             builder.UseEnvironment("Development").UseSetting("ConnectionStrings:fatewake", cs)
                 .UseSetting("Email:Directory", mailbox.DirectoryPath));
-        using var client = factory.CreateClient();
+        using var client = CreateAuthorizationClient(factory);
         using var anonymousIdentity = await client.GetAsync("/api/auth/me", ct);
         Assert.Equal(HttpStatusCode.Unauthorized, anonymousIdentity.StatusCode);
         const string password = "a sufficiently long password";
         using var registration = await client.PostAsJsonAsync("/api/auth/register", new LocalLoginRequest("first@example.com", password), ct);
-        Assert.Equal(HttpStatusCode.Accepted, registration.StatusCode);
-        using var verifiedRegistration = await client.PostAsJsonAsync("/api/auth/verify-email", new VerificationRequest(mailbox.Token("first@example.com"), password), ct);
-        Assert.Equal(HttpStatusCode.OK, verifiedRegistration.StatusCode);
-        var registrationToken = await verifiedRegistration.Content.ReadFromJsonAsync<JsonElement>(ct);
-        Assert.Equal(28800, registrationToken.GetProperty("expiresIn").GetInt32());
+        Assert.Equal(HttpStatusCode.NoContent, registration.StatusCode);
         using var duplicate = await client.PostAsJsonAsync("/api/auth/register", new LocalLoginRequest("FIRST@EXAMPLE.COM", password), ct);
         Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
-        using var wrongPassword = await client.PostAsJsonAsync("/api/auth/login", new LocalLoginRequest("first@example.com", "wrong"), ct);
+        using var wrongPassword = await Authorize(client, LoginProof("first@example.com", "wrong"), ct);
         Assert.Equal(HttpStatusCode.Unauthorized, wrongPassword.StatusCode);
-        using var login = await client.PostAsJsonAsync("/api/auth/login", new LocalLoginRequest("FIRST@example.com", password), ct);
-        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
-        var token = (await login.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("accessToken").GetString()!;
+        using var wrongPkce = await Authorize(client, LoginProof("FIRST@example.com", password), ct);
+        using var rejectedCode = await Exchange(client, wrongPkce, new string('b', 43), ct);
+        Assert.Equal(HttpStatusCode.BadRequest, rejectedCode.StatusCode);
+        using var login = await Authorize(client, LoginProof("FIRST@example.com", password), ct);
+        var token = await Redeem(client, login, ct);
+        using var replayedCode = await Exchange(client, login, CodeVerifier, ct);
+        Assert.Equal(HttpStatusCode.BadRequest, replayedCode.StatusCode);
+        // Use a fresh code because OpenIddict can revoke tokens associated with a replayed authorization.
+        using var freshLogin = await Authorize(client, LoginProof("FIRST@example.com", password), ct);
+        token = await Redeem(client, freshLogin, ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         var identity = await client.GetFromJsonAsync<JsonElement>("/api/auth/me", ct);
         Assert.Equal("first@example.com", identity.GetProperty("email").GetString());
@@ -424,13 +458,13 @@ public sealed class DayOnePersistenceTests
         using var forbiddenGuest = await client.PostAsJsonAsync("/api/session/start", new { session.SurvivorId }, ct);
         Assert.Equal(HttpStatusCode.NotFound, forbiddenGuest.StatusCode);
         using var secondRegistration = await client.PostAsJsonAsync("/api/auth/register", new LocalLoginRequest("second@example.com", password), ct);
-        Assert.Equal(HttpStatusCode.Accepted, secondRegistration.StatusCode);
-        using var secondVerified = await client.PostAsJsonAsync("/api/auth/verify-email", new VerificationRequest(mailbox.Token("second@example.com"), password), ct);
-        var secondToken = (await secondVerified.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("accessToken").GetString()!;
+        Assert.Equal(HttpStatusCode.NoContent, secondRegistration.StatusCode);
+        using var secondVerified = await Authorize(client, LoginProof("second@example.com", password), ct);
+        var secondToken = await Redeem(client, secondVerified, ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", secondToken);
         using var forbiddenStart = await client.PostAsJsonAsync("/api/session/start", new { session.SurvivorId }, ct);
         Assert.Equal(HttpStatusCode.NotFound, forbiddenStart.StatusCode);
-        var progress = new { session.SurvivorId, session.EventInstanceId, SceneKey = "day1-0617-0643", BeatKey = "choice-wake" };
+        var progress = new { session.SurvivorId, session.EventInstanceId, session.SceneKey, session.BeatKey };
         using var forbiddenProgress = await client.PostAsJsonAsync("/api/session/progress", progress, ct);
         Assert.Equal(HttpStatusCode.NotFound, forbiddenProgress.StatusCode);
         var action = new
@@ -452,6 +486,367 @@ public sealed class DayOnePersistenceTests
         using var actionSaved = await client.PostAsJsonAsync("/api/day1/resolve", action, ct);
         Assert.Equal(HttpStatusCode.OK, actionSaved.StatusCode);
         Assert.True((await actionSaved.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("accepted").GetBoolean());
+    }
+
+    /// <summary>Admin changes operate on canonical accounts and invalidate active credentials without deleting survivors.</summary>
+    [Fact]
+    public async Task Admin_user_lifecycle_preserves_history_and_revokes_access()
+    {
+        var cs = Environment.GetEnvironmentVariable("FATEWAKE_TEST_CONNECTION");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(cs), "Requires an isolated FATEWAKE_TEST_CONNECTION database.");
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = new FatewakeDbContext(new DbContextOptionsBuilder<FatewakeDbContext>().UseNpgsql(cs).Options);
+        await db.Database.EnsureDeletedAsync(ct);
+        using var mailbox = new TestEmailMailbox();
+        await using var factory = new WebApplicationFactory<LocalLoginRequest>().WithWebHostBuilder(builder =>
+            builder.UseEnvironment("Development").UseSetting("ConnectionStrings:fatewake", cs)
+                .UseSetting("Email:Directory", mailbox.DirectoryPath));
+        using var admin = CreateAuthorizationClient(factory);
+        using var player = CreateAuthorizationClient(factory);
+        const string password = "a sufficiently long password";
+        const string replacement = "replacement password for tests";
+        const string email = "invitee@example.test";
+        using var anonymous = await player.GetAsync("/api/admin/accounts", ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        using var registered = await admin.PostAsJsonAsync("/api/auth/register", new LocalLoginRequest("admin@example.test", password), ct);
+        Assert.Equal(HttpStatusCode.NoContent, registered.StatusCode);
+        await LoginAs(admin, "admin@example.test", password, ct);
+        var adminId = (await admin.GetFromJsonAsync<JsonElement>("/api/auth/me", ct)).GetProperty("accountId").GetGuid();
+        var adminDetails = await admin.GetFromJsonAsync<JsonElement>($"/api/admin/accounts/{adminId}", ct);
+        using var selfDelete = await admin.DeleteAsync(UserDelete(adminId, adminDetails), ct);
+        Assert.Equal(HttpStatusCode.Conflict, selfDelete.StatusCode);
+        using var invite = await admin.PostAsJsonAsync("/api/admin/accounts", new { email, role = "User", displayName = "Invitee" }, ct);
+        Assert.Equal(HttpStatusCode.Accepted, invite.StatusCode);
+        using var duplicate = await admin.PostAsJsonAsync("/api/admin/accounts", new { email = email.ToUpperInvariant(), role = "User" }, ct);
+        Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
+        var proof = mailbox.Token(email);
+        var list = await admin.GetFromJsonAsync<JsonElement>("/api/admin/accounts?search=Invitee", ct);
+        var invited = Assert.Single(list.GetProperty("rows").EnumerateArray());
+        var id = invited.GetProperty("id").GetGuid();
+        Assert.Equal("Invited", invited.GetProperty("status").GetString());
+        Assert.DoesNotContain(proof, list.GetRawText());
+        using var activated = await player.PostAsJsonAsync("/api/auth/account-access", new { token = proof, password }, ct);
+        Assert.Equal(HttpStatusCode.NoContent, activated.StatusCode);
+        using var replayed = await player.PostAsJsonAsync("/api/auth/account-access", new { token = proof, password }, ct);
+        Assert.Equal(HttpStatusCode.BadRequest, replayed.StatusCode);
+        await LoginAs(player, email, password, ct);
+        using var forbidden = await player.GetAsync("/api/admin/accounts", ct);
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+        using var started = await player.PostAsJsonAsync("/api/session/start", new { SurvivorId = (Guid?)null }, ct);
+        Assert.Equal(HttpStatusCode.OK, started.StatusCode);
+        var session = Assert.IsType<SessionState>(await started.Content.ReadFromJsonAsync<SessionState>(ct));
+
+        using var reset = await admin.PostAsync($"/api/admin/accounts/{id}/password-reset", null, ct);
+        Assert.Equal(HttpStatusCode.Accepted, reset.StatusCode);
+        using var changed = await player.PostAsJsonAsync("/api/auth/account-access", new { token = mailbox.Token(email), password = replacement }, ct);
+        Assert.Equal(HttpStatusCode.NoContent, changed.StatusCode);
+        using var invalidated = await player.PostAsJsonAsync("/api/session/start", new { SurvivorId = (Guid?)null }, ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, invalidated.StatusCode);
+        await LoginAs(player, email, replacement, ct);
+
+        var details = await admin.GetFromJsonAsync<JsonElement>($"/api/admin/accounts/{id}", ct);
+        using var deactivated = await admin.DeleteAsync(UserDelete(id, details), ct);
+        Assert.Equal(HttpStatusCode.NoContent, deactivated.StatusCode);
+        using var revoked = await player.GetAsync("/api/auth/me", ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, revoked.StatusCode);
+        details = await admin.GetFromJsonAsync<JsonElement>($"/api/admin/accounts/{id}", ct);
+        Assert.Equal("Disabled", details.GetProperty("status").GetString());
+        using var reactivated = await admin.PutAsJsonAsync($"/api/admin/accounts/{id}", new
+        {
+            email,
+            status = "Active",
+            role = "User",
+            displayName = "New name",
+            version = details.GetProperty("version").GetString()
+        }, ct);
+        Assert.Equal(HttpStatusCode.NoContent, reactivated.StatusCode);
+        using var oldToken = await player.GetAsync("/api/auth/me", ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, oldToken.StatusCode);
+        await LoginAs(player, email, replacement, ct);
+        using var resumed = await player.PostAsJsonAsync("/api/session/start", new { session.SurvivorId }, ct);
+        Assert.Equal(HttpStatusCode.OK, resumed.StatusCode);
+        Assert.Equal(id, (await db.Survivors.SingleAsync(x => x.Id == session.SurvivorId, ct)).AccountId);
+        const string newEmail = "new-address@example.test";
+        details = await admin.GetFromJsonAsync<JsonElement>($"/api/admin/accounts/{id}", ct);
+        using var addressChange = await admin.PutAsJsonAsync($"/api/admin/accounts/{id}", new
+        {
+            email = newEmail,
+            status = "Active",
+            role = "User",
+            displayName = "New name",
+            version = Version(details)
+        }, ct);
+        Assert.Equal(HttpStatusCode.Accepted, addressChange.StatusCode);
+        Assert.Equal(email, (await player.GetFromJsonAsync<JsonElement>("/api/auth/me", ct)).GetProperty("email").GetString());
+        using var verifiedAddress = await player.PostAsJsonAsync("/api/auth/account-access", new { token = mailbox.Token(newEmail) }, ct);
+        Assert.Equal(HttpStatusCode.NoContent, verifiedAddress.StatusCode);
+        using var previousIdentity = await player.GetAsync("/api/auth/me", ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, previousIdentity.StatusCode);
+        await LoginAs(player, newEmail, replacement, ct);
+        Assert.Equal(id, (await player.GetFromJsonAsync<JsonElement>("/api/auth/me", ct)).GetProperty("accountId").GetGuid());
+        details = await admin.GetFromJsonAsync<JsonElement>($"/api/admin/accounts/{id}", ct);
+        using var promoted = await admin.PutAsJsonAsync($"/api/admin/accounts/{id}", new
+        {
+            email = newEmail,
+            status = "Active",
+            role = "Admin",
+            displayName = "New name",
+            version = Version(details)
+        }, ct);
+        Assert.Equal(HttpStatusCode.NoContent, promoted.StatusCode);
+        using var nowAdmin = await player.GetAsync("/api/admin/accounts", ct);
+        Assert.Equal(HttpStatusCode.OK, nowAdmin.StatusCode);
+        Assert.True(await db.Database.SqlQuery<int>($"""SELECT count(*)::int AS "Value" FROM identity_admin_audit WHERE target = {id.ToString()}""")
+            .SingleAsync(ct) >= 4);
+    }
+
+    /// <summary>A player can request and complete a single-use password reset without an authenticated browser session.</summary>
+    [Fact]
+    public async Task Browser_forgot_password_preserves_privacy_and_revokes_old_sessions()
+    {
+        var cs = Environment.GetEnvironmentVariable("FATEWAKE_TEST_CONNECTION");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(cs), "Requires an isolated FATEWAKE_TEST_CONNECTION database.");
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = new FatewakeDbContext(new DbContextOptionsBuilder<FatewakeDbContext>().UseNpgsql(cs).Options);
+        await db.Database.EnsureDeletedAsync(ct);
+        using var mailbox = new TestEmailMailbox();
+        await using var api = new WebApplicationFactory<LocalLoginRequest>().WithWebHostBuilder(builder =>
+            builder.UseEnvironment("Development").UseSetting("ConnectionStrings:fatewake", cs)
+                .UseSetting("Email:Directory", mailbox.DirectoryPath));
+        using var player = CreateAuthorizationClient(api);
+        const string email = "reset@example.test";
+        const string password = "a sufficiently long password";
+        const string replacement = "replacement password for tests";
+        using var registered = await player.PostAsJsonAsync("/api/auth/register", new LocalLoginRequest(email, password), ct);
+        Assert.Equal(HttpStatusCode.NoContent, registered.StatusCode);
+        await LoginAs(player, email, password, ct);
+        await using var web = new WebApplicationFactory<LocalAccountInfo>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Development");
+            builder.ConfigureServices(services => services.AddHttpClient("fatewake-auth", client => client.BaseAddress = new("https://localhost"))
+                .ConfigurePrimaryHttpMessageHandler(() => api.Server.CreateHandler()));
+        });
+        using var browser = web.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new("https://localhost") });
+        Assert.Contains("/forgot-password", await browser.GetStringAsync("/login", ct));
+
+        async Task<HttpResponseMessage> Submit(string page, string endpoint, Dictionary<string, string> fields)
+        {
+            var html = await browser.GetStringAsync(page, ct);
+            var match = Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
+            Assert.True(match.Success);
+            fields["__RequestVerificationToken"] = WebUtility.HtmlDecode(match.Groups[1].Value);
+            using var form = new FormUrlEncodedContent(fields);
+            return await browser.PostAsync(endpoint, form, ct);
+        }
+
+        using var noCsrf = await browser.PostAsync("/auth/forgot-password", new FormUrlEncodedContent([]), ct);
+        Assert.Equal(HttpStatusCode.BadRequest, noCsrf.StatusCode);
+        using var nonexistent = await Submit("/forgot-password", "/auth/forgot-password", new() { ["email"] = "missing@example.test" });
+        using var requested = await Submit("/forgot-password", "/auth/forgot-password", new() { ["email"] = email });
+        Assert.Equal("/forgot-password?sent=true", requested.Headers.Location?.OriginalString);
+        Assert.Equal(requested.Headers.Location, nonexistent.Headers.Location);
+        var reset = mailbox.Token(email);
+        using var throttled = await Submit("/forgot-password", "/auth/forgot-password", new() { ["email"] = email.ToUpperInvariant() });
+        Assert.Equal(requested.Headers.Location, throttled.Headers.Location);
+        Assert.Single(Directory.GetFiles(mailbox.DirectoryPath, "*.txt"));
+        var resetPage = "/account-access?password=true&token=" + reset;
+        using var proofPage = await browser.GetAsync(resetPage, ct);
+        Assert.True(proofPage.Headers.CacheControl?.NoStore);
+        var proofFields = new Dictionary<string, string> { ["token"] = reset, ["password"] = replacement, ["confirmPassword"] = replacement };
+        using var completed = await Submit(resetPage, "/auth/account-access", proofFields);
+        Assert.Equal("/login?changed=true", completed.Headers.Location?.OriginalString);
+        using var replayed = await Submit(resetPage, "/auth/account-access", proofFields);
+        Assert.Equal("/account-access?error=invalid", replayed.Headers.Location?.OriginalString);
+        using var next = await Submit("/forgot-password", "/auth/forgot-password", new() { ["email"] = email });
+        Assert.Equal(requested.Headers.Location, next.Headers.Location);
+        await db.Database.ExecuteSqlRawAsync("UPDATE identity_admin_proof SET expires_at = CURRENT_TIMESTAMP - interval '1 second'", ct);
+        using var expired = await player.PostAsJsonAsync("/api/auth/account-access", new { token = mailbox.Token(email), password }, ct);
+        Assert.Equal(HttpStatusCode.BadRequest, expired.StatusCode);
+        using var oldSession = await player.GetAsync("/api/auth/me", ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, oldSession.StatusCode);
+        player.DefaultRequestHeaders.Authorization = null;
+        using var rejectedPassword = await Authorize(player, LoginProof(email, password), ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, rejectedPassword.StatusCode);
+        await LoginAs(player, email, replacement, ct);
+    }
+
+    /// <summary>Confidential registrations expose secrets only once and protect the first-party client from removal.</summary>
+    [Fact]
+    public async Task Admin_application_lifecycle_validates_versions_and_revokes_grants()
+    {
+        var cs = Environment.GetEnvironmentVariable("FATEWAKE_TEST_CONNECTION");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(cs), "Requires an isolated FATEWAKE_TEST_CONNECTION database.");
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = new FatewakeDbContext(new DbContextOptionsBuilder<FatewakeDbContext>().UseNpgsql(cs).Options);
+        await db.Database.EnsureDeletedAsync(ct);
+        await using var factory = new WebApplicationFactory<LocalLoginRequest>().WithWebHostBuilder(builder =>
+            builder.UseEnvironment("Development").UseSetting("ConnectionStrings:fatewake", cs));
+        using var admin = CreateAuthorizationClient(factory);
+        const string password = "a sufficiently long password";
+        const string clientId = "test-client";
+        const string callback = "https://client.test/callback";
+        using var registered = await admin.PostAsJsonAsync("/api/auth/register", new LocalLoginRequest("admin@example.test", password), ct);
+        Assert.Equal(HttpStatusCode.NoContent, registered.StatusCode);
+        await LoginAs(admin, "admin@example.test", password, ct);
+
+        static object Settings(string name, string redirect, string? version = null) => new
+        {
+            clientId,
+            clientType = "confidential",
+            displayName = name,
+            redirectUris = new[] { redirect },
+            postLogoutRedirectUris = Array.Empty<string>(),
+            allowRefreshTokens = true,
+            version
+        };
+        const string endpoint = "/api/admin/applications";
+        using var invalid = await admin.PostAsJsonAsync(endpoint, Settings("Client", "https://*.test/callback"), ct);
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        using var created = await admin.PostAsJsonAsync(endpoint, Settings("Client", callback), ct);
+        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+        Assert.True(created.Headers.CacheControl?.NoStore);
+        var receipt = await created.Content.ReadFromJsonAsync<JsonElement>(ct);
+        var id = receipt.GetProperty("id").GetString();
+        var secret = receipt.GetProperty("secret").GetString()!;
+        Assert.Equal(64, secret.Length);
+        using var duplicate = await admin.PostAsJsonAsync(endpoint, Settings("Duplicate", callback), ct);
+        Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
+        var list = await admin.GetFromJsonAsync<JsonElement>(endpoint, ct);
+        Assert.DoesNotContain(secret, list.GetRawText());
+        var seededId = list.GetProperty("rows").EnumerateArray().Single(row => row.GetProperty("clientId").GetString() == "fatewake-web")
+            .GetProperty("id").GetString();
+        var seeded = await admin.GetFromJsonAsync<JsonElement>($"{endpoint}/{seededId}", ct);
+        using var protectedDelete = await admin.DeleteAsync($"{endpoint}/{seededId}?version={Version(seeded)}&confirm=fatewake-web", ct);
+        Assert.Equal(HttpStatusCode.Conflict, protectedDelete.StatusCode);
+        const string additionalCallback = "https://fatewake.test/signin-oidc";
+        const string additionalLogout = "https://fatewake.test/";
+        var requiredCallback = seeded.GetProperty("requiredRedirectUri").GetString()!;
+        var requiredLogout = seeded.GetProperty("requiredPostLogoutUri").GetString()!;
+        object SeededSettings(string[] urls, string name = "Fatewake Web") => new
+        {
+            clientId = "fatewake-web",
+            clientType = "public",
+            displayName = name,
+            redirectUris = urls,
+            postLogoutRedirectUris = new[] { requiredLogout, additionalLogout },
+            allowRefreshTokens = true,
+            version = Version(seeded)
+        };
+        using var requiredRemoval = await admin.PutAsJsonAsync($"{endpoint}/{seededId}", SeededSettings([additionalCallback]), ct);
+        Assert.Equal(HttpStatusCode.Conflict, requiredRemoval.StatusCode);
+        using var protectedName = await admin.PutAsJsonAsync($"{endpoint}/{seededId}", SeededSettings([requiredCallback], "New name"), ct);
+        Assert.Equal(HttpStatusCode.Conflict, protectedName.StatusCode);
+        using var addedUrls = await admin.PutAsJsonAsync($"{endpoint}/{seededId}", SeededSettings([requiredCallback, additionalCallback]), ct);
+        Assert.Equal(HttpStatusCode.OK, addedUrls.StatusCode);
+        seeded = await admin.GetFromJsonAsync<JsonElement>($"{endpoint}/{seededId}", ct);
+        Assert.Contains(additionalCallback, seeded.GetProperty("redirectUris").EnumerateArray().Select(value => value.GetString()));
+        Assert.Contains(additionalLogout, seeded.GetProperty("postLogoutRedirectUris").EnumerateArray().Select(value => value.GetString()));
+        await LoginAs(admin, "admin@example.test", password, ct);
+        var details = await admin.GetFromJsonAsync<JsonElement>($"{endpoint}/{id}", ct);
+        Assert.False(details.TryGetProperty("secret", out _));
+        using var updated = await admin.PutAsJsonAsync($"{endpoint}/{id}", Settings("Updated client", callback, Version(details)), ct);
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+        using var stale = await admin.DeleteAsync($"{endpoint}/{id}?version={Version(details)}&confirm={clientId}", ct);
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        details = await admin.GetFromJsonAsync<JsonElement>($"{endpoint}/{id}", ct);
+        using var rotate = await admin.PostAsync($"{endpoint}/{id}/rotate-secret?version={Version(details)}", null, ct);
+        Assert.Equal(HttpStatusCode.OK, rotate.StatusCode);
+        var newSecret = (await rotate.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("secret").GetString()!;
+        Assert.NotEqual(secret, newSecret);
+
+        using var authorized = await Authorize(admin, new() { ["account_action"] = "consent" }, ct, clientId, callback);
+        using var wrongSecret = await Exchange(admin, authorized, CodeVerifier, ct, clientId, callback, secret);
+        Assert.Equal(HttpStatusCode.Unauthorized, wrongSecret.StatusCode);
+        using var fresh = await Authorize(admin, new() { ["account_action"] = "consent", ["scope"] = "openid fatewake-api offline_access" }, ct, clientId, callback);
+        using var token = await Exchange(admin, fresh, CodeVerifier, ct, clientId, callback, newSecret);
+        Assert.Equal(HttpStatusCode.OK, token.StatusCode);
+        using var thirdParty = CreateAuthorizationClient(factory);
+        var credentials = await token.Content.ReadFromJsonAsync<JsonElement>(ct);
+        thirdParty.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", credentials.GetProperty("access_token").GetString());
+        var refresh = credentials.GetProperty("refresh_token").GetString()!;
+        using var before = await thirdParty.GetAsync("/api/auth/me", ct);
+        Assert.Equal(HttpStatusCode.OK, before.StatusCode);
+        using var forbidden = await thirdParty.GetAsync(endpoint, ct);
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+        details = await admin.GetFromJsonAsync<JsonElement>($"{endpoint}/{id}", ct);
+        using var deleted = await admin.DeleteAsync($"{endpoint}/{id}?version={Version(details)}&confirm={clientId}", ct);
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        using var after = await thirdParty.GetAsync("/api/auth/me", ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, after.StatusCode);
+        using var refreshForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["grant_type"] = "refresh_token",
+            ["client_id"] = clientId,
+            ["client_secret"] = newSecret,
+            ["refresh_token"] = refresh
+        });
+        using var revokedRefresh = await admin.PostAsync("/connect/token", refreshForm, ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, revokedRefresh.StatusCode);
+    }
+
+    private static string UserDelete(Guid id, JsonElement account) =>
+        $"/api/admin/accounts/{id}?confirm={id}&version={Uri.EscapeDataString(Version(account))}";
+
+    private static string Version(JsonElement value) => value.GetProperty("version").GetString()!;
+
+    private static async Task LoginAs(HttpClient client, string email, string password, CancellationToken ct)
+    {
+        client.DefaultRequestHeaders.Authorization = null;
+        using var authorization = await Authorize(client, LoginProof(email, password), ct);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await Redeem(client, authorization, ct));
+    }
+
+    private static readonly string CodeVerifier = new('a', 43);
+    private const string Callback = "https://localhost:63279/signin-oidc";
+
+    private static HttpClient CreateAuthorizationClient(WebApplicationFactory<LocalLoginRequest> factory) =>
+        factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new("https://localhost") });
+
+    private static Dictionary<string, string> LoginProof(string email, string password) =>
+        new() { ["account_action"] = "login", ["email"] = email, ["password"] = password };
+
+    private static async Task<HttpResponseMessage> Authorize(HttpClient client, Dictionary<string, string> form, CancellationToken ct,
+        string clientId = "fatewake-web", string callback = Callback)
+    {
+        form["client_id"] = clientId;
+        form["response_type"] = "code";
+        form["response_mode"] = "query";
+        form["redirect_uri"] = callback;
+        form.TryAdd("scope", "openid fatewake-api");
+        form["state"] = "test-state";
+        form["code_challenge"] = WebEncoders.Base64UrlEncode(SHA256.HashData(Encoding.ASCII.GetBytes(CodeVerifier)));
+        form["code_challenge_method"] = "S256";
+        using var content = new FormUrlEncodedContent(form);
+        return await client.PostAsync("/connect/authorize", content, ct);
+    }
+
+    private static async Task<HttpResponseMessage> Exchange(HttpClient client, HttpResponseMessage authorization, string verifier, CancellationToken ct,
+        string clientId = "fatewake-web", string callback = Callback, string? secret = null)
+    {
+        Assert.Equal(HttpStatusCode.Redirect, authorization.StatusCode);
+        var location = Assert.IsType<Uri>(authorization.Headers.Location);
+        Assert.Equal(callback, location.GetLeftPart(UriPartial.Path));
+        var query = QueryHelpers.ParseQuery(location.Query);
+        Assert.Equal("test-state", query["state"].ToString());
+        var fields = new Dictionary<string, string>
+        {
+            ["client_id"] = clientId,
+            ["grant_type"] = "authorization_code",
+            ["code"] = Assert.Single(query["code"])!,
+            ["code_verifier"] = verifier,
+            ["redirect_uri"] = callback
+        };
+        if (secret is not null) fields["client_secret"] = secret;
+        using var content = new FormUrlEncodedContent(fields);
+        return await client.PostAsync("/connect/token", content, ct);
+    }
+
+    private static async Task<string> Redeem(HttpClient client, HttpResponseMessage authorization, CancellationToken ct)
+    {
+        client.DefaultRequestHeaders.Authorization = null;
+        using var response = await Exchange(client, authorization, CodeVerifier, ct);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("access_token").GetString()!;
     }
 
     /// <summary>Local credentials enforce uniqueness, durable lockout, password hashing, and account-owned session resumption.</summary>

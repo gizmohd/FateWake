@@ -1,5 +1,7 @@
 using Fatewake.Infrastructure.Art;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Fatewake.IntegrationTests;
@@ -38,6 +40,36 @@ public sealed class ComfyUiArtMasterGeneratorTests : IDisposable
 
         Assert.All(handler.Requests.Where(r => r.Uri.Host == "comfy.test"), r => Assert.Equal("Bearer test-key", r.Headers["Authorization"]));
         Assert.False(handler.Requests.Single(r => r.Uri == RecordingComfyUiHandler.StorageUrl).Headers.ContainsKey("Authorization"));
+    }
+
+    /// <summary>The Worker interface resolves its configured typed client even when OpenAI fallback is disabled.</summary>
+    [Fact]
+    public async Task Registered_generator_preserves_base_address_without_fallback()
+    {
+        var settings = new Dictionary<string, string?>
+        {
+            ["ArtGeneration:ComfyUI:Enabled"] = "true",
+            ["ArtGeneration:ComfyUI:BaseUrl"] = "https://comfy.test/api/",
+            ["ArtGeneration:ComfyUI:WorkflowPath"] = _workflow,
+            ["ArtGeneration:ComfyUI:ApiKey"] = "test-key",
+            ["ArtGeneration:ComfyUI:ApiKeyHeader"] = "X-API-Key",
+            ["ArtGeneration:OpenAI:Enabled"] = "false"
+        };
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.Configure<ComfyUiArtGenerationOptions>(configuration.GetSection(ComfyUiArtGenerationOptions.SectionName));
+        services.AddSingleton<IArtBinaryStorage>(new FileSystemArtBinaryStorage(Path.GetTempPath()));
+        services.AddComfyUiMasterGenerator(configuration);
+        var handler = new RecordingComfyUiHandler();
+        services.AddHttpClient<ComfyUiArtMasterGenerator>().ConfigurePrimaryHttpMessageHandler(() => handler);
+        await using var provider = services.BuildServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var generator = scope.ServiceProvider.GetRequiredService<IArtMasterGenerator>();
+        var result = await generator.GenerateAsync(new("registered-client",
+            new("asset", "Background", "fingerprint", "test prompt", "ComfyUI", "workflow")), TestContext.Current.CancellationToken);
+        Assert.Equal(RecordingComfyUiHandler.ImageBytes, result.MasterPng);
+        Assert.Contains(handler.Requests, request => request.Uri == new Uri("https://comfy.test/api/prompt"));
     }
 
     /// <summary>A null, empty, or whitespace key is treated as not configured and sends no auth header.</summary>

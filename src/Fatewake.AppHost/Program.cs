@@ -4,10 +4,11 @@ Environment.SetEnvironmentVariable("ASPIRE_DASHBOARD_TELEMETRY_OPTOUT", "true");
 
 IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(args);
 builder.Services.AddFatewakeObservability(builder.Configuration, "Fatewake.AppHost");
+var comfyUi = builder.AddLocalComfyUi();
 
 IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgres")
-    .WithImage("pgvector/pgvector", "0.8.7-pg18-trixie")
-    .WithDataVolume()
+    .WithImage("pgvector/pgvector", "pg18-trixie")
+    .WithVolume("fatewake-postgres-data", "/var/lib/postgresql")
     .WithLifetime(ContainerLifetime.Persistent);
 IResourceBuilder<PostgresDatabaseResource> fatewake = postgres.AddDatabase("fatewake");
 
@@ -55,15 +56,24 @@ IResourceBuilder<ProjectResource> worker = builder.AddProject("worker", Path.Com
 
 api.WithForwardedSection(builder, "ArtGeneration");
 api.WithForwardedSection(builder, "ArtStorage");
+api.WithForwardedSection(builder, "Administration");
+api.WithForwardedSection(builder, "OpenIddict");
+api.WithForwardedSection(builder, "OpenIddictWeb");
 
 worker.WithForwardedSection(builder, "ArtGeneration");
 worker.WithForwardedSection(builder, "ArtStorage");
+if (comfyUi is not null)
+{
+    api.WithLocalComfyUi(comfyUi);
+    worker.WithLocalComfyUi(comfyUi);
+}
 
 IResourceBuilder<ProjectResource> web = builder.AddProject("web", Path.Combine(repoRoot, "src", "Fatewake.Web", "Fatewake.Web.csproj"))
     .WithReference(api)
     .WithReference(redis)
     .WaitFor(api)
     .WaitFor(redis);
+web.WithForwardedSection(builder, "OpenIddictWeb");
 
 api.WithEnvironment("Email__PublicWebUrl", web.GetEndpoint("https"));
 foreach (string? provider in new[] { "Google", "Microsoft" })

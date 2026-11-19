@@ -1,0 +1,45 @@
+@page "/authorize-application"
+@using Microsoft.AspNetCore.Components.Authorization
+
+<PageTitle>Authorize application - Fatewake</PageTitle>
+<main class="account-page">
+    <h1>Authorize an application</h1>
+    @if (Error is not null)
+    {
+        <p role="alert">This authorization request could not be completed. Start again from the application.</p>
+    }
+    @if (ClientId is not null && RedirectUri is not null)
+    {
+        <p>Application <strong>@ClientId</strong> is requesting access to your Fatewake account and gameplay data. It will receive the authorization code at <strong>@RedirectUri</strong>.</p>
+        <AuthorizeView>
+            <Authorized>
+                <form method="post" action="/auth/application-consent">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="client_id" value="@ClientId" />
+                    <input type="hidden" name="redirect_uri" value="@RedirectUri" />
+                    <input type="hidden" name="state" value="@State" />
+                    <input type="hidden" name="scope" value="@Scope" />
+                    <input type="hidden" name="code_challenge" value="@Challenge" />
+                    <input type="hidden" name="nonce" value="@Nonce" />
+                    <input type="hidden" name="prompt" value="@Prompt" />
+                    <button>Allow access</button>
+                </form>
+            </Authorized>
+            <NotAuthorized>
+                <p><a href="/login">Sign in</a>, then restart authorization from the application.</p>
+            </NotAuthorized>
+        </AuthorizeView>
+    }
+    <p><a href="/">Leave without granting access</a></p>
+</main>
+
+@code {
+    [SupplyParameterFromQuery(Name = "client_id")] public string? ClientId { get; set; }
+    [SupplyParameterFromQuery(Name = "redirect_uri")] public string? RedirectUri { get; set; }
+    [SupplyParameterFromQuery(Name = "state")] public string? State { get; set; }
+    [SupplyParameterFromQuery(Name = "scope")] public string? Scope { get; set; }
+    [SupplyParameterFromQuery(Name = "code_challenge")] public string? Challenge { get; set; }
+    [SupplyParameterFromQuery(Name = "nonce")] public string? Nonce { get; set; }
+    [SupplyParameterFromQuery(Name = "prompt")] public string? Prompt { get; set; }
+    [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+}

@@ -1,0 +1,322 @@
+@page "/admin/users"
+@page "/admin/applications"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Net
+@using System.Text.Json
+@using Fatewake.Web.Authentication
+@inject AuthenticatedApiClient Api
+@inject NavigationManager Navigation
+@inject ILogger<AdminIdentity> Log
+
+<PageTitle>@Heading - Fatewake</PageTitle>
+<main class="account-page">
+    <nav aria-label="Administration sections">
+        <a href="/admin">Generation &amp; AI usage</a>
+        <a href="/admin?section=rag">RAG corpus</a>
+        <a href="/admin/users">Users</a>
+        <a href="/admin/applications">OpenIddict applications</a>
+    </nav>
+    <h1>@Heading</h1>
+    @if (_notice is not null)
+    {
+        <p role="status">@_notice</p>
+    }
+    @if (_error is not null)
+    {
+        <p role="alert">@_error</p>
+    }
+    @if (_secret is not null)
+    {
+        <aside>
+            <p>Copy this secret now. It cannot be retrieved again.</p>
+            <output>@_secret</output>
+            <button type="button" @onclick="() => _secret = null">Dismiss secret</button>
+        </aside>
+    }
+    <form @onsubmit="SearchAsync" @onsubmit:preventDefault>
+        <label>Search <input @bind="_search" maxlength="100" /></label>
+        <button disabled="@_busy">Search</button>
+    </form>
+    <button type="button" disabled="@_busy" @onclick="StartCreate">@(Users ? "Invite user" : "Create application")</button>
+    <ul>
+        @foreach (var row in _rows)
+        {
+            var id = Text(row, "id");
+            <li><button type="button" disabled="@_busy" @onclick="() => LoadAsync(id)">
+                @Text(row, Users ? "email" : "clientId") @Text(row, "displayName")
+            </button></li>
+        }
+    </ul>
+    <p>
+        <button type="button" disabled="@(_busy || _page == 1)" @onclick="() => ChangePageAsync(-1)">Previous</button>
+        Page @_page (@_total results)
+        <button type="button" disabled="@(_busy || _page * 25 >= _total)" @onclick="() => ChangePageAsync(1)">Next</button>
+    </p>
+    @if (_editing)
+    {
+        <h2>@(_id is null ? "Create" : "Details")</h2>
+        <form @onsubmit="SaveAsync" @onsubmit:preventDefault>
+            <fieldset disabled="@_busy">
+                <label>Display name <input @bind="_name" readonly="@_protected" maxlength="100" /></label>
+                @if (Users)
+                {
+                    <label>Email <input type="email" @bind="_email" maxlength="254" required /></label>
+                    <label>Role <select @bind="_role"><option>User</option><option>Admin</option></select></label>
+                    @if (_id is not null)
+                    {
+                        <p>Verified email: @(_verified ? "yes" : "no"); Local password: @(_hasPassword ? "yes" : "no")</p>
+                        <label>Status
+                            <select @bind="_status">
+                                @if (!_verified)
+                                {
+                                    <option>Invited</option>
+                                }
+                                else
+                                {
+                                    <option>Active</option>
+                                }
+                                @if (_storedStatus == "Disabled")
+                                {
+                                    <option>Disabled</option>
+                                }
+                            </select>
+                        </label>
+                    }
+                }
+                else
+                {
+                    <label>Client ID <input @bind="_clientId" readonly="@(_id is not null)" maxlength="100" required /></label>
+                    <label>Client type <select @bind="_clientType" disabled="@_protected"><option value="public">Public</option><option value="confidential">Confidential</option></select></label>
+                    <label>Redirect URLs (one per line) <textarea @bind="_redirects" required></textarea></label>
+                    <label>Post-logout URLs (one per line) <textarea @bind="_logoutRedirects"></textarea></label>
+                    <label class="checkbox-field">
+                        <input type="checkbox" @bind="_refresh" disabled="@_protected" />
+                        <span>Allow refresh tokens</span>
+                    </label>
+                }
+                <button>Save</button>
+            </fieldset>
+        </form>
+        @if (_protected)
+        {
+            <p>The seeded Fatewake Web client cannot be deleted. The configured URLs below must remain registered:</p>
+            <ul>
+                <li>Redirect: <code>@_requiredRedirect</code></li>
+                <li>Post-logout: <code>@_requiredPostLogout</code></li>
+            </ul>
+        }
+        @if (_id is not null && !_protected)
+        {
+            @if (Users && _status == "Active" && _verified)
+            {
+                <button type="button" disabled="@_busy" @onclick='() => SendActionAsync("password-reset")'>Send password reset</button>
+            }
+            @if (Users && _status == "Invited")
+            {
+                <button type="button" disabled="@_busy" @onclick='() => SendActionAsync("resend-invitation")'>Resend invitation</button>
+            }
+            @if (!Users && _clientType == "confidential")
+            {
+                <label class="checkbox-field">
+                    <input type="checkbox" @bind="_confirmRotation" />
+                    <span>Replace the existing client secret</span>
+                </label>
+                <button type="button" disabled="@(_busy || !_confirmRotation)" @onclick='() => SendActionAsync("rotate-secret")'>Rotate secret</button>
+            }
+            @if (!Users || _storedStatus != "Disabled")
+            {
+                <form @onsubmit="RemoveAsync" @onsubmit:preventDefault>
+                    <label>Enter @(Users ? $"account ID {_id}" : $"client ID {_clientId}") to confirm <input @bind="_confirmation" required /></label>
+                    <button disabled="@_busy">@(Users ? "Deactivate user" : "Delete application")</button>
+                </form>
+            }
+        }
+        <button type="button" @onclick="() => _editing = false">Close details</button>
+    }
+</main>
+
+@code {
+    private bool Users => new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/').EndsWith("/users", StringComparison.OrdinalIgnoreCase);
+    private string Heading => Users ? "Users" : "OpenIddict applications";
+    private string Endpoint => Users ? "/api/admin/accounts" : "/api/admin/applications";
+    private string? _currentEndpoint, _id, _version, _secret, _error, _notice;
+    private string _search = "", _name = "", _email = "", _role = "User", _status = "Invited";
+    private string _storedStatus = "Invited";
+    private string _clientId = "", _clientType = "public", _redirects = "", _logoutRedirects = "", _confirmation = "";
+    private string _requiredRedirect = "", _requiredPostLogout = "";
+    private bool _refresh, _editing, _protected, _verified, _hasPassword, _busy, _confirmRotation;
+    private int _page = 1, _total;
+    private JsonElement[] _rows = [];
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (_currentEndpoint == Endpoint) return Task.CompletedTask;
+        _currentEndpoint = Endpoint;
+        _editing = false;
+        _secret = null;
+        _search = "";
+        return SearchAsync();
+    }
+
+    private Task SearchAsync()
+    {
+        _page = 1;
+        return ExecuteAsync(RefreshAsync);
+    }
+
+    private Task ChangePageAsync(int direction)
+    {
+        _page += direction;
+        return ExecuteAsync(RefreshAsync);
+    }
+
+    private async Task RefreshAsync(HttpClient client)
+    {
+        using var response = await client.GetAsync($"{Endpoint}?page={_page}&search={Uri.EscapeDataString(_search)}");
+        if (!await CheckAsync(response)) return;
+        var result = await response.Content.ReadFromJsonAsync<JsonElement>();
+        _rows = result.GetProperty("rows").EnumerateArray().ToArray();
+        _total = result.GetProperty("total").GetInt32();
+    }
+
+    private void StartCreate()
+    {
+        _id = _version = _secret = _error = _notice = null;
+        _name = _email = _clientId = _redirects = _logoutRedirects = _confirmation = "";
+        _role = "User";
+        _status = _storedStatus = "Invited";
+        _clientType = "public";
+        _refresh = _protected = _verified = _hasPassword = _confirmRotation = false;
+        _editing = true;
+    }
+
+    private Task LoadAsync(string id) => ExecuteAsync(client => ReadAsync(client, id));
+
+    private async Task ReadAsync(HttpClient client, string id)
+    {
+        using var response = await client.GetAsync($"{Endpoint}/{id}");
+        if (!await CheckAsync(response)) return;
+        var result = await response.Content.ReadFromJsonAsync<JsonElement>();
+        _id = id;
+        _version = Text(result, "version");
+        _name = Text(result, "displayName");
+        _confirmation = "";
+        _confirmRotation = false;
+        if (Users)
+        {
+            _email = Text(result, "email");
+            _role = Text(result, "role");
+            _status = _storedStatus = Text(result, "status");
+            _verified = result.GetProperty("verified").GetBoolean();
+            _hasPassword = result.GetProperty("hasPassword").GetBoolean();
+            _protected = false;
+        }
+        else
+        {
+            _clientId = Text(result, "clientId");
+            _clientType = Text(result, "clientType");
+            _redirects = Join(result, "redirectUris");
+            _logoutRedirects = Join(result, "postLogoutRedirectUris");
+            _refresh = result.GetProperty("allowRefreshTokens").GetBoolean();
+            _protected = result.GetProperty("isProtected").GetBoolean();
+            _requiredRedirect = Text(result, "requiredRedirectUri");
+            _requiredPostLogout = Text(result, "requiredPostLogoutUri");
+        }
+        _editing = true;
+    }
+
+    private Task SaveAsync() => ExecuteAsync(async client =>
+    {
+        object values = Users
+            ? new { email = _email, displayName = _name, role = _role, status = _status, version = _version }
+            : new { clientId = _clientId, displayName = _name, clientType = _clientType, redirectUris = Lines(_redirects),
+                postLogoutRedirectUris = Lines(_logoutRedirects), allowRefreshTokens = _refresh, version = _version };
+        using var response = _id is null
+            ? await client.PostAsJsonAsync(Endpoint, values)
+            : await client.PutAsJsonAsync($"{Endpoint}/{_id}", values);
+        if (!await CheckAsync(response)) return;
+        _notice = response.StatusCode == HttpStatusCode.Accepted ? "Saved. The account email was sent." : "Saved.";
+        if (!Users)
+        {
+            var result = await response.Content.ReadFromJsonAsync<JsonElement>();
+            _secret = Text(result, "secret") is { Length: > 0 } secret ? secret : null;
+            await ReadAsync(client, Text(result, "id"));
+        }
+        else if (_id is { } id)
+            await ReadAsync(client, id);
+        else
+            _editing = false;
+        await RefreshAsync(client);
+    });
+
+    private Task SendActionAsync(string action) => ExecuteAsync(async client =>
+    {
+        using var response = await client.PostAsync($"{Endpoint}/{_id}/{action}?version={Uri.EscapeDataString(_version ?? "")}", null);
+        if (!await CheckAsync(response)) return;
+        if (action == "rotate-secret")
+        {
+            var result = await response.Content.ReadFromJsonAsync<JsonElement>();
+            _secret = Text(result, "secret");
+            await ReadAsync(client, _id!);
+        }
+        _notice = action == "rotate-secret" ? "Client secret replaced." : "Account email sent.";
+    });
+
+    private Task RemoveAsync() => ExecuteAsync(async client =>
+    {
+        using var response = await client.DeleteAsync($"{Endpoint}/{_id}?version={Uri.EscapeDataString(_version ?? "")}&confirm={Uri.EscapeDataString(_confirmation)}");
+        if (!await CheckAsync(response)) return;
+        _editing = false;
+        _notice = Users ? "Account deactivated." : "Application deleted.";
+        await RefreshAsync(client);
+    });
+
+    private async Task ExecuteAsync(Func<HttpClient, Task> action)
+    {
+        if (_busy) return;
+        _busy = true;
+        _error = _notice = _secret = null;
+        using var operation = Fatewake.Observability.OperationTelemetry.Start("web.admin_identity", Log);
+        try
+        {
+            using var client = await Api.CreateAsync();
+            await action(client);
+        }
+        catch (HttpRequestException ex)
+        {
+            operation.Fail(ex);
+            Log.LogWarning("Identity administration API could not be reached");
+            _error = "The account service is unavailable.";
+        }
+        catch (TaskCanceledException ex)
+        {
+            operation.Fail(ex);
+            _error = "The account service took too long to respond.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task<bool> CheckAsync(HttpResponseMessage response)
+    {
+        if (response.IsSuccessStatusCode) return true;
+        _error = response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
+            ? "Administrator access is required. Sign in again if your session expired."
+            : $"The request failed ({(int)response.StatusCode}).";
+        if (response.Content.Headers.ContentType?.MediaType == "application/json")
+        {
+            var result = await response.Content.ReadFromJsonAsync<JsonElement>();
+            if (Text(result, "error") is { Length: > 0 } message) _error = message;
+        }
+        return false;
+    }
+
+    private static string Text(JsonElement row, string key) =>
+        row.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : "";
+    private static string Join(JsonElement row, string key) =>
+        string.Join(Environment.NewLine, row.GetProperty(key).EnumerateArray().Select(value => value.GetString()));
+    private static string[] Lines(string value) => value.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+}
