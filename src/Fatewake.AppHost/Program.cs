@@ -1,3 +1,4 @@
+using Aspire.Hosting.Dotnet;
 using Microsoft.Extensions.Hosting;
 
 IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(args);
@@ -18,9 +19,10 @@ IResourceBuilder<RabbitMQServerResource> rabbit = builder.AddRabbitMQ("rabbitmq"
 
 string artStorageRoot = Path.GetFullPath(builder.Configuration["ArtStorage:RootPath"] ??
     Path.Combine("data", "art"), Path.Combine(builder.AppHostDirectory, "..", ".."));
+string repoRoot = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", ".."));
 string emailsRoot = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "emails"));
 
-IResourceBuilder<ProjectResource> api = builder.AddProject<Projects.Fatewake_Api>("api")
+IResourceBuilder<DotnetProjectResource> api = builder.AddDotnetProject("api", Path.Combine(repoRoot, "src", "Fatewake.Api", "Fatewake.Api.csproj"))
     .WithReference(fatewake)
     .WithReference(rabbit)
     .WithEnvironment("RabbitMq__ConnectionString", rabbit.Resource.ConnectionStringExpression)
@@ -30,7 +32,7 @@ IResourceBuilder<ProjectResource> api = builder.AddProject<Projects.Fatewake_Api
     .WaitFor(fatewake)
     .WaitFor(rabbit);
 
-IResourceBuilder<ProjectResource> worker = builder.AddProject<Projects.Fatewake_Worker>("worker")
+IResourceBuilder<DotnetProjectResource> worker = builder.AddDotnetProject("worker", Path.Combine(repoRoot, "src", "Fatewake.Worker", "Fatewake.Worker.csproj"))
     .WithReference(fatewake)
     .WithReference(rabbit)
     .WithEnvironment("RabbitMq__ConnectionString", rabbit.Resource.ConnectionStringExpression)
@@ -45,7 +47,7 @@ api.WithForwardedSection(builder, "ArtStorage");
 worker.WithForwardedSection(builder, "ArtGeneration");
 worker.WithForwardedSection(builder, "ArtStorage");
 
-IResourceBuilder<ProjectResource> web = builder.AddProject<Projects.Fatewake_Web>("web")
+IResourceBuilder<DotnetProjectResource> web = builder.AddDotnetProject("web", Path.Combine(repoRoot, "src", "Fatewake.Web", "Fatewake.Web.csproj"))
     .WithReference(api)
     .WaitFor(api);
 
