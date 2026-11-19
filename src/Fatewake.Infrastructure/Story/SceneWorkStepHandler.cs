@@ -97,10 +97,13 @@ public sealed class SceneWorkStepHandler(FatewakeDbContext db, IRagRetriever ret
                 focus = null;
             var query = $"{arrival.SiteName} day {survivor.SurvivorDay} " +
                 (recent.Count > 0 ? recent[^1] : "opening scene setting characters world");
-            var passages = await retriever.SearchAsync(query, new RagSearchFilter(scene.SurvivorId,
-                SceneWork.TimelineKey(scene.TimelineId), 1, survivor.SurvivorDay), options.RetrievalLimit, ct);
-            var approvedCanon = passages.Where(x => !string.IsNullOrWhiteSpace(x.Text) && StoryContentPolicy.Allows(level, x.Text))
-                .Select(x => x.Text.Length > 1200 ? x.Text[..1200] : x.Text).ToArray();
+            var filter = new RagSearchFilter(scene.SurvivorId, SceneWork.TimelineKey(scene.TimelineId),
+                1, survivor.SurvivorDay);
+            var passages = await retriever.SearchAsync(query, filter, options.RetrievalLimit, ct);
+            var claims = await new RagClaimService(db).SearchApprovedAsync(query, filter, options.RetrievalLimit, ct);
+            var approvedCanon = claims.Concat(passages.Select(x => x.Text))
+                .Where(text => !string.IsNullOrWhiteSpace(text) && StoryContentPolicy.Allows(level, text))
+                .Select(text => text.Length > 1200 ? text[..1200] : text).ToArray();
             var threadCanon = await ThreadCanon.ReadAsync(db, scene, survivor.SurvivorDay, level, 8, ct);
             var canon = approvedCanon.Concat(threadCanon.Where(text => StoryContentPolicy.Allows(level, text)))
                 .Distinct(StringComparer.Ordinal).ToArray();

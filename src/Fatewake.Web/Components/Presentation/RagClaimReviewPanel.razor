@@ -1,0 +1,229 @@
+@using Fatewake.Infrastructure.Rag
+@implements IDisposable
+@inject Fatewake.Web.Authentication.AuthenticatedApiClient Api
+@inject ILogger<RagClaimReviewPanel> Logger
+
+<section class="claim-review" aria-labelledby="claim-review-heading">
+    <h2 id="claim-review-heading">Canon claim review</h2>
+    <div class="claim-controls">
+        <label>Review status
+            <select @bind="_status" @bind:after="ChangeStatusAsync" disabled="@_busy">
+                <option value="@RagClaimService.Pending">Pending review</option>
+                <option value="@RagClaimService.Approved">Approved</option>
+                <option value="@RagClaimService.Rejected">Rejected</option>
+            </select>
+        </label>
+        <button type="button" disabled="@_busy" @onclick="LoadAsync">@(_pageData is null ? "Load claims" : "Refresh claims")</button>
+        <button type="button" disabled="@_busy" aria-expanded="@_settingsOpen" @onclick="ToggleSettingsAsync">Source auto-approval</button>
+    </div>
+
+    @if (_error is not null)
+    {
+        <p class="claim-error" role="alert">@_error</p>
+    }
+    @if (_notice is not null)
+    {
+        <p role="status">@_notice</p>
+    }
+    @if (_settingsOpen)
+    {
+        <div class="claim-settings">
+            <h3>Source auto-approval</h3>
+            <p>Set a minimum confidence from 0 to 1 for a source you trust. Saving approves matching pending claims and applies to future extractions from that source. This setting applies only to extracted claims. Leave blank for manual review.</p>
+            <div class="claim-controls">
+                <label>Find authorized sources
+                    <input type="search" maxlength="200" @bind="_sourceSearch" disabled="@_busy" />
+                </label>
+                <button type="button" disabled="@_busy" @onclick="LoadSourcesAsync">Search</button>
+                <label>Source
+                    <select @bind="_sourceId" @bind:after="SelectSource" disabled="@_busy">
+                        <option value="@Guid.Empty">@(_sources.Length == 0 ? "No matching sources" : "Choose a source")</option>
+                        @foreach (var source in _sources)
+                        {
+                            <option value="@source.Id">@source.Title (@source.Key)</option>
+                        }
+                    </select>
+                </label>
+            </div>
+            @if (_sourceId != Guid.Empty)
+            {
+                <div class="claim-controls">
+                    <label>Minimum confidence
+                        <input type="number" min="0" max="1" step="0.0001" @bind="_minimum" disabled="@_busy" />
+                    </label>
+                    <button type="button" disabled="@_busy" @onclick="SavePolicyAsync">Save source policy</button>
+                </div>
+            }
+        </div>
+    }
+
+    @if (_pageData is { } data)
+    {
+        @if (data.Claims.Length == 0)
+        {
+            <p>No claims with this status.</p>
+        }
+        @foreach (var claim in data.Claims)
+        {
+            <article class="claim-card" @key="claim.Id">
+                <h3>@claim.Subject @claim.Predicate @claim.Object</h3>
+                <p>@claim.ClaimType · @claim.Confidence.ToString("P0") confidence</p>
+                <blockquote>@(claim.Evidence ?? "No evidence was recorded.")</blockquote>
+                <p>@claim.DocumentTitle · @claim.SourceKey · Passage @(claim.ChunkOrdinal + 1)</p>
+                @if (claim.ReviewedBy == "auto:source-policy")
+                {
+                    <p>Approved automatically by source policy.</p>
+                }
+                <div class="claim-controls">
+                    @if (claim.Status != RagClaimService.Approved)
+                    {
+                        <button type="button" disabled="@(_busy || claim.Evidence is null)"
+                                @onclick="() => DecideAsync(claim, RagClaimService.Approved)">Approve</button>
+                    }
+                    @if (claim.Status != RagClaimService.Rejected)
+                    {
+                        <button type="button" disabled="@_busy"
+                                @onclick="() => DecideAsync(claim, RagClaimService.Rejected)">Reject</button>
+                    }
+                </div>
+            </article>
+        }
+        @if (_page > 1 || data.HasMore)
+        {
+            <div class="claim-controls">
+                <button type="button" disabled="@(_busy || _page == 1)" @onclick="() => MoveAsync(-1)">Previous</button>
+                <span>Page @_page</span>
+                <button type="button" disabled="@(_busy || !data.HasMore)" @onclick="() => MoveAsync(1)">Next</button>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    [Parameter] public EventCallback Changed { get; set; }
+
+    private const string Root = "/api/admin/rag";
+    private readonly CancellationTokenSource _stop = new();
+    private RagClaimPage? _pageData;
+    private RagClaimSource[] _sources = [];
+    private string _status = RagClaimService.Pending;
+    private string _sourceSearch = "";
+    private string? _error;
+    private string? _notice;
+    private int _page = 1;
+    private Guid _sourceId;
+    private decimal? _minimum;
+    private bool _busy;
+    private bool _settingsOpen;
+
+    private Task LoadAsync() => RunAsync(ReadClaimsAsync);
+
+    private Task ChangeStatusAsync()
+    {
+        _page = 1;
+        _pageData = null;
+        return LoadAsync();
+    }
+
+    private Task MoveAsync(int direction) =>
+        RunAsync((client, ct) => ReadClaimsAsync(client, _page + direction, ct));
+
+    private Task ReadClaimsAsync(HttpClient client, CancellationToken ct) => ReadClaimsAsync(client, _page, ct);
+
+    private async Task ReadClaimsAsync(HttpClient client, int page, CancellationToken ct)
+    {
+        _pageData = await client.GetFromJsonAsync<RagClaimPage>($"{Root}/claims?status={_status}&page={page}", ct)
+            ?? throw new InvalidDataException("The claim list was empty.");
+        if (page > 1 && _pageData.Claims.Length == 0)
+        {
+            _page = 1;
+            await ReadClaimsAsync(client, 1, ct);
+            return;
+        }
+        _page = page;
+    }
+
+    private Task DecideAsync(RagClaimReview claim, string status) => RunAsync(async (client, ct) =>
+    {
+        using var response = await client.PutAsJsonAsync($"{Root}/claims/{claim.Id}/decision",
+            new RagClaimDecision(claim.Status, status), ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            await ReadClaimsAsync(client, ct);
+            _error = "The claim changed or its source is no longer eligible. The list was refreshed.";
+            return;
+        }
+        response.EnsureSuccessStatusCode();
+        _notice = status == RagClaimService.Approved ? "Claim approved." : "Claim rejected.";
+        await Changed.InvokeAsync();
+        await ReadClaimsAsync(client, ct);
+    });
+
+    private Task ToggleSettingsAsync()
+    {
+        _settingsOpen = !_settingsOpen;
+        return _settingsOpen ? LoadSourcesAsync() : Task.CompletedTask;
+    }
+
+    private Task LoadSourcesAsync() => RunAsync(async (client, ct) =>
+    {
+        _sources = await client.GetFromJsonAsync<RagClaimSource[]>(
+            $"{Root}/claim-sources?search={Uri.EscapeDataString(_sourceSearch)}", ct) ?? [];
+        SelectSource();
+    });
+
+    private void SelectSource()
+    {
+        var source = Array.Find(_sources, source => source.Id == _sourceId);
+        _sourceId = source?.Id ?? Guid.Empty;
+        _minimum = source?.MinimumConfidence;
+    }
+
+    private Task SavePolicyAsync() => RunAsync(async (client, ct) =>
+    {
+        if (_minimum is < 0 or > 1 || (_minimum is { } value && decimal.Round(value, 4) != value))
+        {
+            _error = "Enter a confidence from 0 to 1 with at most four decimal places.";
+            return;
+        }
+        using var response = await client.PutAsJsonAsync($"{Root}/claim-sources/{_sourceId}/policy",
+            new RagClaimSourcePolicy(_minimum), ct);
+        response.EnsureSuccessStatusCode();
+        _sources = _sources.Select(source => source.Id == _sourceId ? source with { MinimumConfidence = _minimum } : source).ToArray();
+        _notice = "Source policy saved.";
+        await Changed.InvokeAsync();
+        if (_pageData is not null)
+            await ReadClaimsAsync(client, ct);
+    });
+
+    private async Task RunAsync(Func<HttpClient, CancellationToken, Task> action)
+    {
+        if (_busy)
+            return;
+        _busy = true;
+        _error = null;
+        _notice = null;
+        var ct = _stop.Token;
+        try
+        {
+            using var client = await Api.CreateAsync();
+            await action(client, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or System.Text.Json.JsonException or OperationCanceledException)
+        {
+            Logger.LogWarning("RAG claim review request failed with {ExceptionType}", ex.GetType().Name);
+            _error = "The claim request could not be completed. Refresh the list and try again.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        _stop.Cancel();
+        _stop.Dispose();
+    }
+}

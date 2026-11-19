@@ -1,0 +1,14 @@
+.claim-review { margin-top: 1rem; padding: 1rem; border: 1px solid #4d3d82; border-radius: .4rem; background: #100c28; }
+.claim-review h2, .claim-review h3 { margin: .4rem 0 .75rem; }
+.claim-controls { display: flex; align-items: end; flex-wrap: wrap; gap: .65rem; }
+.claim-controls label { display: grid; gap: .35rem; min-width: 0; }
+.claim-controls input, .claim-controls select, .claim-controls button {
+    max-width: 100%; min-height: 2.5rem; padding: .5rem .7rem; border: 1px solid #6b5abb;
+    background: #18153a; color: var(--ink); font: inherit;
+}
+.claim-controls button { cursor: pointer; }
+.claim-controls button:disabled { opacity: .55; cursor: default; }
+.claim-card, .claim-settings { margin: .85rem 0; padding: .8rem; border: 1px solid #4d3d82; background: #17133a; }
+.claim-card p { margin: .45rem 0; color: var(--muted); }
+.claim-card blockquote { margin: .75rem 0; padding-left: .75rem; border-left: 2px solid var(--cyan); white-space: pre-wrap; }
+.claim-error { color: #ffd0af; }

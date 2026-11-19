@@ -48,6 +48,10 @@ public sealed class RagClaimRecord
     {
         get; set;
     }
+    public string? Evidence { get; set; }
+    public string? ReviewedBy { get; set; }
+    public DateTimeOffset? ReviewedAt { get; set; }
+
     public string Metadata { get; set; } = "{}";
     public DateTimeOffset CreatedAt
     {

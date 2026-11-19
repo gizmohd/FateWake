@@ -24,6 +24,8 @@ public sealed class RagStagingRecord
     {
         get; set;
     }
+    public string SourceKey { get; set; } = "";
+
     public long ByteSize
     {
         get; set;

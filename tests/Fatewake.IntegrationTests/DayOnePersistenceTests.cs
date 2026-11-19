@@ -1063,6 +1063,10 @@ public sealed class DayOnePersistenceTests
         Assert.Equal(HttpStatusCode.Accepted, imported.StatusCode);
         Assert.True(imported.Headers.Contains("X-Request-ID"));
         Assert.Single(await db.RagStaging.ToListAsync(ct));
+        using var claims = await after.GetAsync("/api/admin/rag/claims", ct);
+        using var claimSources = await after.GetAsync("/api/admin/rag/claim-sources", ct);
+        Assert.Equal(HttpStatusCode.OK, claims.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, claimSources.StatusCode);
     }
 
     private static string UserDelete(Guid id, JsonElement account) =>

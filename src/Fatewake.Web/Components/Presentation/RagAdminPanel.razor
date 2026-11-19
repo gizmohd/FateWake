@@ -146,6 +146,10 @@
                 <p role="status">Loading RAG status…</p>
             }
         </section>
+        @if (!_authenticationRequired)
+        {
+            <RagClaimReviewPanel Changed="RefreshAsync" />
+        }
     }
     <dialog @ref="_errorDialog" aria-labelledby="rag-error-title" class="error-dialog">
         <h2 id="rag-error-title">RAG request error details</h2>

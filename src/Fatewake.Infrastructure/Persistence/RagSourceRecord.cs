@@ -44,6 +44,8 @@ public sealed class RagSourceRecord
     {
         get; set;
     }
+    public decimal? ClaimAutoApprovalMinimumConfidence { get; set; }
+
     public string Metadata { get; set; } = "{}";
     public DateTimeOffset CreatedAt
     {

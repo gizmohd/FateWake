@@ -6,6 +6,7 @@ using Fatewake.GameEngine.DayOne;
 using Fatewake.Infrastructure.Art;
 using Fatewake.Infrastructure.Authentication;
 using Fatewake.Infrastructure.Persistence;
+using Fatewake.Infrastructure.Rag;
 using Fatewake.Infrastructure.Story;
 using Fatewake.Infrastructure.Work;
 using Fatewake.Observability;
@@ -116,6 +117,7 @@ builder.Services.AddScoped<TimelineStateStore>();
 builder.Services.AddScoped<TimelineBranchService>();
 builder.Services.AddScoped<StoryJournalService>();
 builder.Services.AddScoped<IRagIngestionService, RagIngestionService>();
+builder.Services.AddScoped<RagClaimService>();
 builder.Services.AddScoped<IRagStagingStore, RagStagingStore>();
 builder.Services.AddScoped<IAccountStore, AccountStore>();
 builder.Services.Configure<ArtStorageOptions>(builder.Configuration.GetSection(ArtStorageOptions.SectionName));
@@ -183,6 +185,12 @@ app.Use(async (context, next) =>
         {
             error = ex.Message
         });
+    }
+    catch (OperationCanceledException ex) when (context.RequestAborted.IsCancellationRequested)
+    {
+        operation.Fail(ex);
+        if (!context.Response.HasStarted)
+            context.Response.StatusCode = StatusCodes.Status499ClientClosedRequest;
     }
     catch (Exception ex) { operation.Fail(ex); throw; }
 });

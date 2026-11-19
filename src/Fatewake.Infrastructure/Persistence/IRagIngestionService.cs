@@ -5,5 +5,6 @@ namespace Fatewake.Infrastructure.Persistence;
 public interface IRagIngestionService
 {
     Task<RagImportResult> ImportAsync(RagImportRequest request, CancellationToken ct = default);
+    Task<RagImportResult?> FindCompletedAsync(string sourceKey, string contentHash, CancellationToken ct = default);
     Task<RagStatusResult> StatusAsync(CancellationToken ct = default);
 }

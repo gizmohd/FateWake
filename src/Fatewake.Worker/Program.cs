@@ -49,6 +49,16 @@ builder.Services.AddHttpClient<ISceneAuthor, OpenAiSceneAuthor>(client =>
 builder.Services.AddScoped<IWorkStepHandler, SceneWorkStepHandler>();
 builder.Services.AddHostedService<RagEmbeddingWorker>();
 
+var claims = builder.Configuration.GetSection("ClaimExtraction").Get<ClaimExtractionOptions>() ?? new();
+builder.Services.AddSingleton(claims);
+builder.Services.AddHttpClient<IClaimExtractor, OpenAiClaimExtractor>(client =>
+{
+    client.BaseAddress = new Uri(claims.BaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(90);
+});
+builder.Services.AddScoped<RagClaimService>();
+builder.Services.AddHostedService<RagClaimExtractionWorker>();
+
 var storage = builder.Configuration.GetSection(ArtStorageOptions.SectionName).Get<ArtStorageOptions>() ?? new ArtStorageOptions();
 switch (storage.Provider.ToLowerInvariant())
 {

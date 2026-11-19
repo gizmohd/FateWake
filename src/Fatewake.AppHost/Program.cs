@@ -66,6 +66,7 @@ worker.WithForwardedSection(builder, "ArtGeneration");
 worker.WithForwardedSection(builder, "ArtStorage");
 worker.WithForwardedSection(builder, "ArtPromptAuthoring");
 worker.WithForwardedSection(builder, "Embedding");
+worker.WithForwardedSection(builder, "ClaimExtraction");
 worker.WithForwardedSection(builder, "SceneAuthoring");
 worker.WithForwardedSection(builder, "Work");
 if (comfyUi is not null)

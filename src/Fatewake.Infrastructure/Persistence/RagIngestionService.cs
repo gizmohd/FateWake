@@ -19,29 +19,43 @@ public sealed class RagIngestionService(FatewakeDbContext db) : IRagIngestionSer
     {
         if (request.Bytes.LongLength is < 1 or > RagIngestionLimits.MaxDocumentBytes)
             throw new ArgumentException("Uploaded documents must contain 1–100 MB of data.", nameof(request));
-        var extension = Path.GetExtension(request.FileName).ToLowerInvariant();
-        var text = ExtractText(extension, request.Bytes);
-        text = NormalizeText(text);
-        if (string.IsNullOrWhiteSpace(text))
-            throw new InvalidOperationException("The uploaded document contains no readable text.");
         var contentHash = Convert.ToHexString(SHA256.HashData(request.Bytes)).ToLowerInvariant();
-        var now = DateTimeOffset.UtcNow;
-        var run = new RagIngestRunRecord
+        var runKey = $"{contentHash}:{request.SourceKey}";
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        // Imports for the same source share a lock even before its row exists.
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            SELECT pg_advisory_xact_lock(hashtextextended({request.SourceKey}, 70501))
+            """, ct);
+        var completed = await FindCompletedAsync(request.SourceKey, contentHash, ct);
+        if (completed is not null)
         {
-            Id = Guid.NewGuid(),
-            RunKey = $"{contentHash}:{request.SourceKey}",
-            Phase = "Chunking",
-            Status = "Running",
-            IngestorVersion = "rag-ingestor-1",
-            SourceCount = 0,
-            DocumentCount = 0,
-            ChunkCount = 0,
-            StartedAt = now
-        };
-        db.RagIngestRuns.Add(run);
-        await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return completed;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var run = await db.RagIngestRuns.SingleOrDefaultAsync(row => row.RunKey == runKey, ct);
+        if (run is null)
+        {
+            run = new RagIngestRunRecord
+            {
+                Id = Guid.NewGuid(), RunKey = runKey, Phase = "Chunking", Status = "Running",
+                IngestorVersion = "rag-ingestor-1", StartedAt = now
+            };
+            db.RagIngestRuns.Add(run);
+            await db.SaveChangesAsync(ct);
+        }
+
+        const string importSavepoint = "rag_import";
+        await transaction.CreateSavepointAsync(importSavepoint, ct);
+        RagImportResult result;
         try
         {
+            var extension = Path.GetExtension(request.FileName).ToLowerInvariant();
+            var text = NormalizeText(ExtractText(extension, request.Bytes));
+            if (string.IsNullOrWhiteSpace(text))
+                throw new InvalidOperationException("The uploaded document contains no readable text.");
+
             var source = await db.RagSources.SingleOrDefaultAsync(x => x.SourceKey == request.SourceKey, ct);
             if (source is null)
             {
@@ -118,19 +132,37 @@ public sealed class RagIngestionService(FatewakeDbContext db) : IRagIngestionSer
             }
             run.ChunkCount = reused ? await db.RagChunks.CountAsync(x => x.DocumentId == document.Id, ct) : chunks.Count;
             run.Status = "Completed";
+            run.ErrorDetail = null;
             run.Phase = "IndexReady";
             run.CompletedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(ct);
-            return new RagImportResult(run.Id, source.Id, document.Id, run.ChunkCount, reused);
+            result = new RagImportResult(run.Id, source.Id, document.Id, run.ChunkCount, reused);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!ct.IsCancellationRequested)
         {
-            run.Status = "Failed";
-            run.ErrorDetail = ex.Message;
-            run.CompletedAt = DateTimeOffset.UtcNow;
-            await db.SaveChangesAsync(ct);
+            await transaction.RollbackToSavepointAsync(importSavepoint, ct);
+            await db.RagIngestRuns.Where(row => row.Id == run.Id).ExecuteUpdateAsync(update => update
+                .SetProperty(row => row.Status, "Failed").SetProperty(row => row.ErrorDetail, ex.Message)
+                .SetProperty(row => row.CompletedAt, DateTimeOffset.UtcNow), ct);
+            await transaction.CommitAsync(ct);
             throw;
         }
+
+        await transaction.CommitAsync(ct);
+        return result;
+    }
+
+    public Task<RagImportResult?> FindCompletedAsync(string sourceKey, string contentHash, CancellationToken ct = default)
+    {
+        var runKey = $"{contentHash}:{sourceKey}";
+        return (from run in db.RagIngestRuns.AsNoTracking()
+                from source in db.RagSources.AsNoTracking()
+                join document in db.RagDocuments.AsNoTracking() on source.Id equals document.SourceId
+                where run.RunKey == runKey && run.Status == "Completed" &&
+                    source.SourceKey == sourceKey && document.ContentHash == contentHash
+                orderby document.CreatedAt, document.Id
+                select new RagImportResult(run.Id, source.Id, document.Id, run.ChunkCount, true))
+            .FirstOrDefaultAsync(ct);
     }
 
     public async Task<RagStatusResult> StatusAsync(CancellationToken ct = default)

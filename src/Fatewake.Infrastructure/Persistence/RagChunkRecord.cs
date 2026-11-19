@@ -76,6 +76,8 @@ public sealed class RagChunkRecord
     {
         get; set;
     }
+    public DateTimeOffset? ClaimsExtractedAt { get; set; }
+
     public DateTimeOffset CreatedAt
     {
         get; set;

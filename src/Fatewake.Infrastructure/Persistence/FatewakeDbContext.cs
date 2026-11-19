@@ -161,6 +161,7 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
             b.HasKey(x => x.Id);
             b.HasIndex(x => x.SourceKey).IsUnique();
             b.HasIndex(x => new { x.SourceType, x.ReviewStatus });
+            b.Property(x => x.ClaimAutoApprovalMinimumConfidence).HasPrecision(5, 4);
             b.Property(x => x.Metadata).HasColumnType("jsonb");
         });
         m.Entity<RagDocumentRecord>(b =>
@@ -204,7 +205,8 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
         {
             b.ToTable("rag_staging");
             b.HasKey(x => x.Id);
-            b.HasIndex(x => new { x.ContentHash, x.FileName }).IsUnique();
+            b.HasIndex(x => new { x.ContentHash, x.FileName }).IsUnique().HasFilter(""" "SourceKey" = '' """);
+            b.HasIndex(x => new { x.ContentHash, x.SourceKey }).IsUnique().HasFilter(""" "SourceKey" <> '' """);
             b.Property(x => x.Bytes).HasColumnType("bytea");
             b.Property(x => x.FileName).HasMaxLength(1024);
             b.Property(x => x.ContentType).HasMaxLength(128);

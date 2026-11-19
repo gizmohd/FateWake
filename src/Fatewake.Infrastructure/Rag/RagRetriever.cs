@@ -24,8 +24,9 @@ public sealed class RagRetriever(FatewakeDbContext db, IEmbeddingProvider provid
             var passages = Array.Empty<RagPassage>();
             if (options.Enabled && !string.IsNullOrWhiteSpace(options.ApiKey))
             {
-                var vector = (await provider.EmbedAsync([query], null, filter.SurvivorId, ct))[0];
-                passages = await SearchByVectorAsync(RagEmbeddingService.FormatVector(vector), filter, limit, ct);
+                var vector = await TryEmbedQueryAsync(query, filter.SurvivorId, ct);
+                if (vector is not null)
+                    passages = await SearchByVectorAsync(vector, filter, limit, ct);
             }
             if (passages.Length == 0)
                 passages = await SearchByTextAsync(query, filter, limit, ct);
@@ -42,6 +43,22 @@ public sealed class RagRetriever(FatewakeDbContext db, IEmbeddingProvider provid
             operation.Fail(ex);
             log.LogWarning(ex, "RAG retrieval failed");
             throw;
+        }
+    }
+
+    private async Task<string?> TryEmbedQueryAsync(string query, Guid? survivorId, CancellationToken ct)
+    {
+        try
+        {
+            var vectors = await provider.EmbedAsync([query], null, survivorId, ct);
+            return vectors.Count == 1 ? RagEmbeddingService.FormatVector(vectors[0]) : null;
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested &&
+            ex is HttpRequestException or InvalidOperationException or InvalidDataException or
+                System.Text.Json.JsonException or OperationCanceledException)
+        {
+            log.LogWarning("RAG query embedding unavailable ({ExceptionType}); using text search", ex.GetType().Name);
+            return null;
         }
     }
 

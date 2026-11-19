@@ -15,8 +15,13 @@ public sealed class RagImportWorkStepHandler(
     {
         var request = JsonSerializer.Deserialize<RagWorkRequest>(context.Input)
             ?? throw new InvalidOperationException("Invalid RAG import work request.");
-        var staged = await staging.GetAsync(request.StagingId, ct)
-            ?? throw new InvalidOperationException("RAG staged upload was not found.");
+        var staged = await staging.GetAsync(request.StagingId, ct);
+        if (staged is null)
+        {
+            var completed = await ingestion.FindCompletedAsync(request.SourceKey, request.ContentHash, ct)
+                ?? throw new InvalidOperationException("RAG staged upload was not found.");
+            return JsonSerializer.Serialize(completed);
+        }
         var result = await ingestion.ImportAsync(new RagImportRequest(
             staged.FileName,
             staged.ContentType,
