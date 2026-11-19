@@ -55,7 +55,7 @@ public sealed class ArtRegenerationWorker(
         var db = scope.ServiceProvider.GetRequiredService<FatewakeDbContext>();
         var jobs = scope.ServiceProvider.GetRequiredService<IArtWorkJobFactory>();
         var now = DateTimeOffset.UtcNow;
-        var pending = await db.ArtRegenerationRequests
+        var pending = await db.ArtRegenerationRequests.AsNoTracking()
             .Where(x => x.Status == "Pending" && (x.NextEligibleAt == null || x.NextEligibleAt <= now))
             .OrderBy(x => x.CreatedAt)
             .Take(10)
@@ -72,12 +72,25 @@ public sealed class ArtRegenerationWorker(
                 Model = item.TargetModel ?? request.Model,
                 ForceProviderRegeneration = true
             };
-            var created = await jobs.CreateAsync(regenerationRequest, ct);
-            item.Status = "Processing";
-            item.RegenerationWorkJobId = created.JobId;
-            item.AttemptCount++;
-            item.UpdatedAt = now;
+            try
+            {
+                await jobs.CreateAsync(regenerationRequest, async (jobId, token) =>
+                {
+                    var updated = await db.ArtRegenerationRequests.Where(row => row.Id == item.Id && row.Status == "Pending")
+                        .ExecuteUpdateAsync(update => update.SetProperty(row => row.Status, "Processing")
+                            .SetProperty(row => row.RegenerationWorkJobId, jobId)
+                            .SetProperty(row => row.AttemptCount, row => row.AttemptCount + 1)
+                            .SetProperty(row => row.UpdatedAt, now), token);
+                    if (updated == 0)
+                        throw new RegenerationAlreadyHandledException();
+                }, ct);
+            }
+            catch (RegenerationAlreadyHandledException)
+            {
+                // Another worker or a debug reset changed this request before it could be queued.
+            }
         }
-        await db.SaveChangesAsync(ct);
     }
+
+    private sealed class RegenerationAlreadyHandledException : Exception;
 }

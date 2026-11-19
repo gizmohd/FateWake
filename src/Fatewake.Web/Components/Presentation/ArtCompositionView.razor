@@ -46,6 +46,7 @@
     private Dictionary<string, SceneAsset> ResolvedAssets = new(StringComparer.Ordinal);
     private readonly HashSet<(string Key, int? Version)> FailedImages = [];
     private static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ReadyPollInterval = TimeSpan.FromSeconds(15);
     private CancellationTokenSource? Loading;
     private (string Keys, Guid? Survivor, string? Action)? Signature;
     private bool StartLoading;
@@ -53,7 +54,8 @@
     private bool Unavailable;
     private string? StatusMessage => Layers.Count == 0 ? null : Unavailable ? "Artwork is temporarily unavailable. Retrying…"
         : ResolvedAssets.Values.Any(x => x.Status is "failed" or "cancelled") ? "Some artwork could not be generated."
-        : ResolvedAssets.Values.Any(x => x.Status == "disabled") ? "Artwork generation is not configured."
+        : ResolvedAssets.Values.Any(x => x.Status == "prompt-disabled") ? "An artwork prompt is unavailable. AI prompt authoring is disabled."
+        : ResolvedAssets.Values.Any(x => x.Status == "disabled") ? "The artwork renderer is not configured."
         : NeedsRetry && !Layers.Any(layer => layer.AssetKey.StartsWith("bg-", StringComparison.Ordinal) &&
             DisplayableAsset(layer.AssetKey) is not null) ? "Preparing artwork…" : null;
 
@@ -64,7 +66,7 @@
     private bool NeedsRetry => FailedImages.Count > 0 || ResolvedAssets.Values.Any(asset => asset.ReplacementPending) ||
         Layers.Any(layer =>
         ResolvedAssets.GetValueOrDefault(layer.AssetKey) is not
-            ({ Status: "ready", Version: > 0 } or { Status: "failed" or "cancelled" or "disabled" }));
+            ({ Status: "ready", Version: > 0 } or { Status: "failed" or "cancelled" or "disabled" or "prompt-disabled" }));
 
     private void RetryImage(SceneAsset asset)
     {
@@ -108,11 +110,15 @@
         try
         {
             if (prefetchKeys.Length > 0) _ = PrefetchAsync(prefetchKeys, ct);
+            var nextReadyPoll = DateTimeOffset.MinValue;
             while (!ct.IsCancellationRequested)
             {
                 if (waitBeforeRequest) await Task.Delay(RetryInterval, ct);
                 waitBeforeRequest = true;
+                if (!Unavailable && !NeedsRetry && DateTimeOffset.UtcNow < nextReadyPoll)
+                    continue;
                 var retrying = FailedImages.ToArray();
+                var changed = false;
                 try
                 {
                     using var client = await ApiClient.CreateAsync();
@@ -120,19 +126,26 @@
                     response.EnsureSuccessStatusCode();
                     var assets = await response.Content.ReadFromJsonAsync<SceneAsset[]>(ct) ?? [];
                     ct.ThrowIfCancellationRequested();
-                    ResolvedAssets = assets.ToDictionary(x => x.Key, StringComparer.Ordinal);
+                    var resolved = assets.ToDictionary(x => x.Key, StringComparer.Ordinal);
+                    changed = Unavailable || retrying.Length > 0 || resolved.Count != ResolvedAssets.Count ||
+                        resolved.Any(pair => pair.Value != ResolvedAssets.GetValueOrDefault(pair.Key));
+                    ResolvedAssets = resolved;
                     FailedImages.ExceptWith(retrying);
                     Unavailable = false;
+                    nextReadyPoll = DateTimeOffset.UtcNow.Add(ReadyPollInterval);
                 }
                 catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException && !ct.IsCancellationRequested)
                 {
+                    changed = !Unavailable;
                     if (!Unavailable) Logger.LogWarning(ex, "Visible artwork resolution failed; retrying");
                     Unavailable = true;
                 }
-                await InvokeAsync(StateHasChanged);
-                if (!Unavailable)
-                    await InvokeAsync(() => ArtworkDisplayed.InvokeAsync(new ArtworkSnapshot(ArtworkKey, ReviewVersions)));
-                if (!Unavailable && !NeedsRetry) return;
+                if (changed)
+                {
+                    await InvokeAsync(StateHasChanged);
+                    if (!Unavailable)
+                        await InvokeAsync(() => ArtworkDisplayed.InvokeAsync(new ArtworkSnapshot(ArtworkKey, ReviewVersions)));
+                }
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }

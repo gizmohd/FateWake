@@ -200,7 +200,7 @@ public sealed class AdminDashboardService(FatewakeDbContext db)
     }
     private IQueryable<ArtAssetRecord> Assets(AdminDashboardFilter f)
     {
-        var q = db.ArtAssets.AsNoTracking();
+        var q = db.ArtAssets.AsNoTracking().Where(asset => asset.Status != ArtAssetStatus.Purged);
         var (from, to) = Bounds(f);
         if (from is { } start)
             q = q.Where(x => x.CreatedAt >= start);

@@ -1,4 +1,4 @@
-# Fatewake Visual Style Bible — v5
+# Fatewake Visual Style Bible — v6
 
 ## Core look
 High-color 32-bit-era console illustration with fine pixel detail in a neon-twilight palette, matching the Fatewake console interface: deep indigo and violet shadows, magenta and coral sunset glow, cyan and electric-blue highlights, and warm rim light on characters. Think a cinematic console scene with a clear focal point, an expressive portrait beside the dialogue, and a short list of choices. The artwork and the interface share one retro-console identity. Keep the interactive graphic-novel pacing. Deliver RGB or RGBA according to the asset's role.
@@ -61,17 +61,17 @@ Tension through restraint. People look scared, exhausted, suspicious, relieved o
 
 ## Prompt guidance
 
-Start each art prompt with its subject, framing, story state and approved continuity references. Apply the shared runtime generation style and exclusions below, then the asset-role and scene-specific requirements. Natural proportions and recognizable materials are expressed through pixel art, never photographic rendering or a muted palette. Anime/manga influence is not categorically prohibited; it must still preserve the approved identity, proportions, world and the shared pixel-art direction. Keep chrome, sprites and atmospheric overlays separate from the scene when they need to be reused.
+Start each provider prompt with the shared illustrated style, layer role and framing. Follow with the subject, story state and approved continuity references. Natural proportions and recognizable materials are expressed through pixel art, never photographic rendering or a muted palette. Anime/manga influence is not categorically prohibited; it must still preserve the approved identity, proportions, world and the shared pixel-art direction. Keep chrome, sprites and atmospheric overlays separate from the scene when they need to be reused.
 
 The API reads the exact two sections below and this document's title version into generation requests. Keep each section a concise plain-text paragraph, with its heading unchanged. Do not place UI instructions, examples or Markdown lists inside them. Missing, empty or duplicate sections and an invalid versioned title are configuration errors, not permission to fall back to an older style.
 
 ## Runtime generation style
 
-High-color 32-bit-era console game illustration with fine pixel detail, clean readable silhouettes and selective dark outlines. Keep facial features, hands and contact poses legible at gameplay size. Use deep indigo and violet shadows, magenta and coral sunset glow, cyan highlights and warm rim light. Reserve selective dithering for skies and smooth palette ramps. Keep background and foreground detail away from the main figures. Preserve character identity, skin tones, canonical clothing and story-specific lighting.
+Hand-pixelled high-color 32-bit-era console game illustration, clearly drawn fine pixel clusters, clean silhouettes and selective dark outlines. Keep facial features, hands and contact poses legible at gameplay size. Use deep indigo and violet shadows, magenta and coral sunset glow, cyan highlights and warm rim light. Reserve selective dithering for skies and smooth palette ramps. Keep background and foreground detail away from the main figures. Preserve character identity, skin tones, canonical clothing and story-specific lighting.
 
 ## Runtime style exclusions
 
-photorealistic photography, smooth digital painting, vector art, anime cel shading, glossy 3D render, plastic skin, oversized pixel blocks on characters, blurry silhouettes, mixed pixel sizes, noise or film grain, muddy gray or brown washes, washed-out color, blown-out highlights, cyberpunk megacity, sci-fi hardware, fashion-editorial posing, superhero costumes, fantasy armor, zombies, excessive gore, unexplained accessories or wardrobe changes, captions, speech balloons, user-interface frames, logos, watermarks
+photograph, photorealism, live action, camera portrait, photographic skin texture, studio photo, smooth digital painting, vector art, anime cel shading, glossy 3D render, plastic skin, oversized pixel blocks on characters, blurry silhouettes, mixed pixel sizes, noise or film grain, muddy gray or brown washes, washed-out color, blown-out highlights, cyberpunk megacity, sci-fi hardware, fashion-editorial posing, superhero costumes, fantasy armor, zombies, excessive gore, unexplained accessories or wardrobe changes, captions, speech balloons, user-interface frames, logos, watermarks
 
 ## Approval guidance
 

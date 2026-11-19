@@ -272,7 +272,7 @@ public sealed class ExternalIdentityRecord
 
 public enum ArtAssetStatus
 {
-    Draft = 0, Approved = 1, Superseded = 2, Rejected = 3
+    Draft = 0, Approved = 1, Superseded = 2, Rejected = 3, Purged = 4
 }
 public enum ArtDerivativeKind
 {

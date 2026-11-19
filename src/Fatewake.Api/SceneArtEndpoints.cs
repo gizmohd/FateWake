@@ -94,7 +94,7 @@ public static class SceneArtEndpoints
                             catalog.Describe(key, reachedVisualContext), ct);
                         results.Add(prior is not null
                             ? new(key, "ready", prior.Version, ReplacementPending: prompt.Status == "pending")
-                            : new(key, prompt.Status, JobId: prompt.JobId));
+                            : new(key, prompt.Status == "disabled" ? "prompt-disabled" : prompt.Status, JobId: prompt.JobId));
                         continue;
                     }
                     var work = prompt.WorkRequest;
@@ -122,6 +122,12 @@ public static class SceneArtEndpoints
                             results.Add(new(key, "ready", prior.Version, ReplacementPending: prompt.ReplacementPending));
                             continue;
                         }
+                    }
+
+                    if (prompt.ReplacementPending)
+                    {
+                        results.Add(new(key, "pending"));
+                        continue;
                     }
 
                     if (!catalog.GenerationEnabled)

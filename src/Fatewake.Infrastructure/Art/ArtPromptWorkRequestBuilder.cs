@@ -9,7 +9,7 @@ namespace Fatewake.Infrastructure.Art;
 /// <remarks><see href="../../../docs/code/src/Fatewake.Infrastructure/Art/ArtPromptWorkRequestBuilder.md">Documentation</see>.</remarks>
 public static class ArtPromptWorkRequestBuilder
 {
-    /// <summary>Appends role, style, framing, and continuity requirements after untrusted subject prompt text.</summary>
+    /// <summary>Places the shared style, role and framing before the subject and continuity details.</summary>
     public static ArtWorkRequest Create(IConfiguration configuration, ArtPromptAuthoringRequest context,
         ArtPromptRevisionRecord revision, Guid? accountId = null, Guid? survivorId = null, int priority = 0)
     {
@@ -23,7 +23,7 @@ public static class ArtPromptWorkRequestBuilder
             _ => "transparent isolated visual effect only; no people or solid background"
         };
         var subject = revision.PositivePrompt.Trim();
-        var resolved = $"Subject details: {subject}\nEnforced role: {roleConstraints}\n{context.RuntimeStyle}\n{context.Framing}\n{context.CanonicalContext}";
+        var resolved = $"{context.RuntimeStyle}\nEnforced role: {roleConstraints}\n{context.Framing}\nSubject details: {subject}\n{context.CanonicalContext}";
         var negative = string.Join(", ", new[] { context.RuntimeExclusions, revision.NegativePrompt, RoleExclusions(context.AssetType) }
             .Where(value => !string.IsNullOrWhiteSpace(value)));
         var fingerprint = Hash($"scene-art-v5\n{context.StyleBibleVersion}\n{context.AssetKey}\n" +

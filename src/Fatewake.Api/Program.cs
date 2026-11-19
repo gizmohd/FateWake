@@ -203,6 +203,9 @@ app.MapArtReviews();
 app.MapStory();
 app.MapTimelines();
 app.MapAdminDashboard();
+#if DEBUG
+DebugArtworkReset.Map(app);
+#endif
 app.MapRagAdmin();
 app.MapOpenIddict();
 AdminApplicationEndpoints.Map(app);
@@ -375,7 +378,7 @@ app.MapPost("/api/day1/resolve", async (
         return Results.Unauthorized();
     if (!await CanAccess(db, request.SurvivorId, AccountId(user), ct) ||
         !await db.EventInstances.AnyAsync(x => x.Id == request.EventInstanceId && x.SurvivorId == request.SurvivorId &&
-            x.TimelineId == request.TimelineId, ct))
+            x.TimelineId == request.TimelineId && x.EventKey != DayOneScenes.GeneratedOpeningKey, ct))
         return Results.NotFound();
     var state = await new TimelineStateStore(db).LoadAsync(
         request.SurvivorId, request.TimelineId, request.EventInstanceId, ct);

@@ -22,15 +22,12 @@
         {
             <NavLink href="/play" Match="NavLinkMatch.All" ActiveClass="play-menu-active"><span aria-hidden="true">▶</span> Scene</NavLink>
         }
-        @if (SurvivorId is not null)
-        {
-            <NavLink href="@($"/novel/{SurvivorId}")" Match="NavLinkMatch.All" ActiveClass="play-menu-active"><span aria-hidden="true">▤</span> Journal</NavLink>
-            <NavLink href="@($"/map/{SurvivorId}")" Match="NavLinkMatch.All" ActiveClass="play-menu-active">Universe map</NavLink>
-        }
         <AuthorizeView>
             <Authorized>
                 @if (SurvivorId is not null)
                 {
+                    <NavLink href="@($"/novel/{SurvivorId}")" Match="NavLinkMatch.All" ActiveClass="play-menu-active"><span aria-hidden="true">▤</span> Journal</NavLink>
+                    <NavLink href="@($"/map/{SurvivorId}")" Match="NavLinkMatch.All" ActiveClass="play-menu-active">Universe map</NavLink>
                     <NavLink href="@($"/timelines/{SurvivorId}")" Match="NavLinkMatch.All" ActiveClass="play-menu-active">Threads</NavLink>
                 }
                 <NavLink href="/account" Match="NavLinkMatch.All" ActiveClass="play-menu-active"><span aria-hidden="true">◇</span> Account</NavLink>

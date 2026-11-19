@@ -1,0 +1,90 @@
+@using System.Net
+@using Microsoft.AspNetCore.Hosting
+@inject IServiceProvider Services
+@inject Fatewake.Web.Authentication.AuthenticatedApiClient Api
+
+@if (DebugBuild && IsDevelopment)
+{
+    <details class="artwork-reset">
+        <summary>Reset generated artwork (Debug)</summary>
+        <p><strong>Permanent deletion.</strong> This removes generated artwork across the app, including pictures pinned to earlier journal entries. Opening scenes afterward queues fresh renders and may use provider credits.</p>
+        <label>
+            Type <strong>DELETE GENERATED ARTWORK</strong> to confirm
+            <input @bind="_confirmation" @bind:event="oninput" autocomplete="off" disabled="@_busy" />
+        </label>
+        <button type="button" class="reset-button" disabled="@(_busy || _confirmation != Confirmation)" @onclick="ResetAsync">
+            @(_busy ? "Resetting artwork…" : "Delete generated artwork and reset")
+        </button>
+        @if (_message is not null)
+        {
+            <p role="@(_failed ? "alert" : "status")">@_message</p>
+        }
+    </details>
+}
+
+@code {
+    private const string Confirmation = "DELETE GENERATED ARTWORK";
+    private static bool DebugBuild =>
+#if DEBUG
+        true;
+#else
+        false;
+#endif
+
+    private bool IsDevelopment => Services.GetService<IWebHostEnvironment>()?.IsDevelopment() == true;
+
+    [Parameter] public EventCallback ResetCompleted { get; set; }
+    private string _confirmation = "";
+    private string? _message;
+    private bool _busy;
+    private bool _failed;
+
+    private async Task ResetAsync()
+    {
+        if (!DebugBuild || !IsDevelopment || _busy || _confirmation != Confirmation)
+            return;
+        _busy = true;
+        _message = null;
+        _failed = false;
+        try
+        {
+            using var client = await Api.CreateAsync();
+            using var response = await client.PostAsJsonAsync("/api/admin/artwork/reset", new { Confirmation = _confirmation });
+            if (response.StatusCode == HttpStatusCode.Conflict)
+            {
+                Fail("Artwork work is active. Wait for the artwork queue to finish, then retry.");
+                return;
+            }
+            if (!response.IsSuccessStatusCode)
+            {
+                Fail(response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
+                    ? "Sign in with an administrator account to reset artwork."
+                    : "The artwork reset could not be confirmed. Refresh the dashboard before trying again.");
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<ResetResult>();
+            _confirmation = "";
+            _message = result is { FileErrors: > 0 }
+                ? $"Reset {result.AssetCount} image versions. {result.FileErrors} local files could not be removed. Review the API log and retry cleanup."
+                : $"Reset {result?.AssetCount ?? 0} generated image versions. Reopen a scene to queue fresh artwork.";
+            await ResetCompleted.InvokeAsync();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
+        {
+            Fail("The artwork reset could not be confirmed. Refresh the dashboard before trying again.");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Fail(string message)
+    {
+        _failed = true;
+        _message = message;
+    }
+
+    private sealed record ResetResult(int AssetCount, int FileErrors);
+}

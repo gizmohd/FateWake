@@ -23,7 +23,7 @@ public sealed class ArtworkRetryTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(25));
+        timeout.CancelAfter(TimeSpan.FromSeconds(45));
         var services = new ServiceCollection().AddLogging();
         services.AddSingleton<AuthenticationStateProvider, Guest>();
         services.AddSingleton<IHttpClientFactory, ArtResponses>();
@@ -65,6 +65,9 @@ public sealed class ArtworkRetryTests
         Assert.NotEqual(0UL, retried.ErrorHandler);
         Assert.NotEqual(ready.ErrorHandler, retried.ErrorHandler);
         Assert.True(await renderer.Dispatcher.InvokeAsync(() => renderer.HasImage(id, "/art/light-day1-power-flicker/1/png")));
+
+        await updates.Reader.ReadAsync(timeout.Token);
+        Assert.True(await renderer.Dispatcher.InvokeAsync(() => renderer.HasImage(id, "/art/bg-day1-house-hallway/2/png")));
     }
 
     private sealed class Guest : AuthenticationStateProvider
@@ -93,13 +96,13 @@ public sealed class ArtworkRetryTests
             {
                 Content = JsonContent.Create(new[]
                 {
-                    Asset("bg-day1-house-hallway", attempt >= 2),
+                    Asset("bg-day1-house-hallway", attempt >= 2, attempt >= 4 ? 2 : 1),
                     Asset("light-day1-power-flicker", attempt >= 3)
                 })
             });
 
-            static object Asset(string key, bool ready) =>
-                new { key, status = ready ? "ready" : "pending", version = ready ? 1 : (int?)null };
+            static object Asset(string key, bool ready, int version = 1) =>
+                new { key, status = ready ? "ready" : "pending", version = ready ? version : (int?)null };
         }
     }
 

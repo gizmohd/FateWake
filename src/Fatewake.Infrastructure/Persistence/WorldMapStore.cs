@@ -96,6 +96,12 @@ public sealed class WorldMapStore(FatewakeDbContext db)
 
     private static WorldVisitRecord? AuthoredPosition(SessionState state)
     {
+        if (state.EventKey == DayOneScenes.GeneratedOpeningKey)
+        {
+            var arrival = state.Arrival ?? DayOneArrival.Original;
+            return new() { SurvivorId = state.SurvivorId, TimelineId = state.TimelineId, CellId = arrival.StartCellId,
+                ClockKey = SilenceClock, Tick = arrival.Minute, Authored = true };
+        }
         var opening = state.Arrival?.Opening() ?? DayOneScenes.Opening;
         if (state.SceneKey != opening.Key || state.SurvivorDay != opening.SurvivorDay)
             return null;

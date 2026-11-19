@@ -64,7 +64,7 @@ public sealed class ArtPromptAuthoringWorkStepHandlerTests
         Assert.Equal(1, imageJobs.Calls);
         var imageRequest = imageJobs.Request
             ?? throw new InvalidOperationException("The prompt authoring workflow did not create an image request.");
-        Assert.Equal("Subject details: A quiet lived-in bedroom.\nEnforced role: environment only; no people, characters, faces or bodies\nCaptured shared style.\nOpaque portrait environment.\nCaptured canonical facts at queue time.",
+        Assert.Equal("Captured shared style.\nEnforced role: environment only; no people, characters, faces or bodies\nOpaque portrait environment.\nSubject details: A quiet lived-in bedroom.\nCaptured canonical facts at queue time.",
             imageRequest.ResolvedPrompt);
         Assert.Contains("No new people.", imageRequest.NegativeInstructions);
         Assert.Equal(1, imageRequest.PromptRevisionNumber);

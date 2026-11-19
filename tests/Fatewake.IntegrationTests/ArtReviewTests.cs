@@ -219,13 +219,87 @@ public sealed class ArtReviewTests
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync(
             "/api/art/reviews/prompt?assetKey=bg-day1-bedroom-dark&version=1",
             TestContext.Current.CancellationToken)).StatusCode);
+        using var reset = await client.PostAsJsonAsync("/api/admin/artwork/reset",
+            new { Confirmation = "DELETE GENERATED ARTWORK" }, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.NotFound, reset.StatusCode);
     }
 
-    private static async Task<WebApplication> CreateAsync(string connection)
+#if DEBUG
+    /// <summary>Only a confirmed, idle admin reset purges generated binaries and frees regeneration keys.</summary>
+    [Fact]
+    public async Task Debug_reset_is_gated_and_preserves_archival_versions()
+    {
+        var connection = Environment.GetEnvironmentVariable("FATEWAKE_ART_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection))
+            Assert.Skip("A disposable PostgreSQL artwork test database is required.");
+        var ct = TestContext.Current.CancellationToken;
+        var confirm = new { Confirmation = "DELETE GENERATED ARTWORK" };
+        const string route = "/api/admin/artwork/reset";
+        var resetDatabase = new Npgsql.NpgsqlConnectionStringBuilder(connection)
+        {
+            Database = $"fatewake_reset_{Guid.NewGuid():N}"
+        };
+        await using var app = await CreateAsync(resetDatabase.ConnectionString, development: true);
+        using var admin = app.GetTestClient();
+        admin.DefaultRequestHeaders.Add("X-Test-Role", "Admin");
+        using var ordinary = app.GetTestClient();
+        ordinary.DefaultRequestHeaders.Add("X-Test-Role", "User");
+        Assert.Equal(HttpStatusCode.Forbidden, (await ordinary.PostAsJsonAsync(route, confirm, ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync(route, new { Confirmation = "delete" }, ct)).StatusCode);
+
+        var fixture = app.Services.GetRequiredService<Fixture>();
+        var generated = await fixture.CreateAssetAsync(withProvenance: false);
+        var archive = await fixture.CreateAssetAsync(withProvenance: false);
+        var jobId = Guid.NewGuid();
+        var generatedKey = $"art/staging/{jobId:N}/master.png";
+        const string archiveKey = "art/archived-reference/test.png";
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FatewakeDbContext>();
+        await db.ArtAssets.Where(row => row.Id == generated.AssetId)
+            .ExecuteUpdateAsync(update => update.SetProperty(row => row.MasterPngStorageKey, generatedKey), ct);
+        await db.ArtAssets.Where(row => row.Id == archive.AssetId)
+            .ExecuteUpdateAsync(update => update.SetProperty(row => row.MasterPngStorageKey, archiveKey), ct);
+        var now = DateTimeOffset.UtcNow;
+        db.WorkJobs.Add(new()
+        {
+            Id = jobId, JobType = "art.asset", IdempotencyKey = "test-fingerprint:" + jobId,
+            Status = WorkJobStatus.Running, Payload = "{}", CreatedAt = now, UpdatedAt = now
+        });
+        foreach (var key in new[] { generatedKey, archiveKey })
+            db.ArtBinaries.Add(new()
+            {
+                StorageKey = key, ContentType = "image/png", ContentHash = "test", Bytes = [1],
+                ByteSize = 1, CreatedAt = now, UpdatedAt = now
+            });
+        await db.SaveChangesAsync(ct);
+        Assert.Equal(HttpStatusCode.Conflict, (await admin.PostAsJsonAsync(route, confirm, ct)).StatusCode);
+        Assert.True(await db.ArtBinaries.AnyAsync(row => row.StorageKey == generatedKey, ct));
+
+        await db.WorkJobs.Where(row => row.Id == jobId)
+            .ExecuteUpdateAsync(update => update.SetProperty(row => row.Status, WorkJobStatus.Completed), ct);
+        using var reset = await admin.PostAsJsonAsync(route, confirm, ct);
+        reset.EnsureSuccessStatusCode();
+        Assert.False(await db.ArtBinaries.AnyAsync(row => row.StorageKey == generatedKey, ct));
+        Assert.True(await db.ArtBinaries.AnyAsync(row => row.StorageKey == archiveKey, ct));
+        Assert.Equal(ArtAssetStatus.Purged, await db.ArtAssets.Where(row => row.Id == generated.AssetId)
+            .Select(row => row.Status).SingleAsync(ct));
+        Assert.Equal(ArtAssetStatus.Approved, await db.ArtAssets.Where(row => row.Id == archive.AssetId)
+            .Select(row => row.Status).SingleAsync(ct));
+        Assert.StartsWith("artwork-reset:", await db.WorkJobs.Where(row => row.Id == jobId)
+            .Select(row => row.IdempotencyKey).SingleAsync(ct));
+        using var retry = await admin.PostAsJsonAsync(route, confirm, ct);
+        retry.EnsureSuccessStatusCode();
+    }
+#endif
+
+    private static async Task<WebApplication> CreateAsync(string connection, bool development = false)
     {
         var accountId = Guid.NewGuid();
         var userAccountId = Guid.NewGuid();
-        var builder = WebApplication.CreateBuilder();
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            EnvironmentName = development ? "Development" : "Production"
+        });
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -237,6 +311,8 @@ public sealed class ArtReviewTests
         builder.Services.AddAuthentication("test").AddScheme<AuthenticationSchemeOptions, TestAuthentication>(
             "test", _ => { });
         builder.Services.AddArtReviewAuthorization(builder.Configuration);
+        builder.Services.AddAuthorization(options => options.AddPolicy("IdentityAdministrator",
+            policy => policy.RequireAuthenticatedUser().RequireRole("Admin")));
         builder.Services.AddSingleton<SceneArtCatalog>();
         builder.Services.AddScoped<IWorkJobBuilder, WorkJobBuilder>();
         builder.Services.AddScoped<IArtWorkJobFactory, ArtWorkJobFactory>();
@@ -246,6 +322,9 @@ public sealed class ArtReviewTests
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapArtReviews();
+#if DEBUG
+        DebugArtworkReset.Map(app);
+#endif
         await app.StartAsync(TestContext.Current.CancellationToken);
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FatewakeDbContext>();

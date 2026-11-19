@@ -207,6 +207,7 @@ public static class ArtReviewEndpoints
             versions.Any(layer => !catalog.Contains(layer.Key) || layer.Value is <= 0) ||
             request.Critique?.Length > 4000 || request.Correction?.Length > 4000 ||
             (!request.Regenerate && string.IsNullOrWhiteSpace(request.Critique)) ||
+            (request.RejectSource && (!request.Regenerate || request.AssetKey is null)) ||
             (request.AssetKey is { } selectedKey && (request.Version is null || versions.GetValueOrDefault(selectedKey) != request.Version)))
             return Results.BadRequest(new { error = "Select a rendered layer or composition and provide a critique to save." });
 
@@ -311,16 +312,18 @@ public static class ArtReviewEndpoints
             db.Add(revision);
             prompt.LatestRevisionId = revision.Id;
             prompt.LatestRevisionNumber = revision.RevisionNumber;
-            var created = await jobs.CreateAsync(work, (jobId, _) =>
+            var created = await jobs.CreateAsync(work, async (jobId, token) =>
             {
                 BindReplacement(db, prompt, revision, asset.Id, work, jobId, "admin-scene-regeneration");
+                if (request.RejectSource)
+                    await db.ArtAssets.Where(row => row.Id == asset.Id && row.Status == ArtAssetStatus.Approved)
+                        .ExecuteUpdateAsync(update => update.SetProperty(row => row.Status, ArtAssetStatus.Rejected), token);
                 if (request.AssetKey is not null)
                 {
                     review.SourceArtAssetId = asset.Id;
                     review.PromptRevisionId = revision.Id;
                     review.RegenerationWorkJobId = jobId;
                 }
-                return Task.CompletedTask;
             }, ct);
             jobIds.Add(created.JobId);
         }

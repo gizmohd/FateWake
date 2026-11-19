@@ -4,12 +4,14 @@ using Fatewake.Story;
 using Fatewake.Observability;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 
 namespace Fatewake.Infrastructure.Persistence;
 
 /// <summary>Resumes the selected branch and atomically records reached presentation history and checkpoints.</summary>
 /// <see href="../../../docs/code/src/Fatewake.Infrastructure/Persistence/SessionStore.md">Documentation</see>
-public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? log = null) : ISessionStore
+public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? log = null,
+    IConfiguration? configuration = null) : ISessionStore
 {
     /// <summary>Resumes only the selected account-owned branch and records reached history/checkpoints in the same transaction.</summary>
     public async Task<SessionState> StartOrResumeAsync(Guid? survivorId, string broadRegion, CancellationToken ct = default, Guid? accountId = null)
@@ -67,21 +69,8 @@ public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? lo
                     CreatedAt = now,
                     UpdatedAt = now
                 };
-                episode = new()
-                {
-                    Id = Guid.NewGuid(),
-                    TimelineId = timeline.Id,
-                    SurvivorId = survivor.Id,
-                    EventKey = "day-001-injured-stranger",
-                    Status = EventInstanceStatus.Active,
-                    SurvivorDay = 1,
-                    StartedAt = now,
-                    State = JsonSerializer.Serialize(new
-                    {
-                        sceneKey = StartSceneKey,
-                        beatKey = StartBeatKey
-                    })
-                };
+                episode = NewOpening(survivor.Id, timeline.Id, now,
+                    configuration?.GetValue<bool>("SceneAuthoring:Enabled") == true);
                 db.Add(timeline);
                 db.Add(survivor);
                 db.Add(episode);
@@ -119,6 +108,8 @@ public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? lo
                 row.SurvivorId == survivorId && row.TimelineId == survivor.TimelineId, ct)
                 ?? throw new TimelineConflictException("Your active timeline changed. Reload to continue.");
             await db.Entry(episode).ReloadAsync(ct);
+            if (episode.EventKey == DayOneScenes.GeneratedOpeningKey)
+                return null;
             var state = ReadState(episode.State);
             var scene = Fatewake.Story.DayOneScenes.Opening;
             var target = scene.Beats.ToList().FindIndex(row => row.Key == beatKey);
@@ -174,6 +165,8 @@ public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? lo
                 return null;
             }
             await db.Entry(episode).ReloadAsync(ct);
+            if (episode.EventKey == DayOneScenes.GeneratedOpeningKey)
+                throw new TimelineConflictException("Start a fresh Day 1 Thread to generate a new opening.");
             if (await db.Set<TimelineBranchRecord>().AnyAsync(row => row.ParentTimelineId == survivor.TimelineId, ct))
                 throw new TimelineConflictException("This chapter has durable checkpoints or branches. Start a fresh Day 1 branch instead.");
             if (await db.Set<WorldVisitRecord>().AnyAsync(row => row.SurvivorId == survivorId &&
@@ -225,6 +218,22 @@ public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? lo
 
     private const string StartSceneKey = "day1-0617-0643";
     private const string StartBeatKey = "phone-0617";
+
+    internal static EventInstanceRecord NewOpening(Guid survivorId, Guid timelineId, DateTimeOffset now, bool generated) => new()
+    {
+        Id = Guid.NewGuid(),
+        TimelineId = timelineId,
+        SurvivorId = survivorId,
+        EventKey = generated ? DayOneScenes.GeneratedOpeningKey : "day-001-injured-stranger",
+        Status = EventInstanceStatus.Active,
+        SurvivorDay = 1,
+        StartedAt = now,
+        State = JsonSerializer.Serialize(new
+        {
+            sceneKey = generated ? DayOneScenes.GeneratedOpeningKey : StartSceneKey,
+            beatKey = generated ? "arrival" : StartBeatKey
+        })
+    };
 
     internal static SessionState ToState(SurvivorRecord survivor, EventInstanceRecord episode)
     {

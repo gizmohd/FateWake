@@ -76,7 +76,8 @@ public sealed class SceneArtworkTests
 
         var request = SceneArtRevision.Create(catalog, "bg-day1-bedroom-dark", revision);
 
-        Assert.StartsWith("Subject details: An intact bedroom at dawn.", request.ResolvedPrompt);
+        Assert.StartsWith("Hand-pixelled high-color 32-bit-era console game illustration", request.ResolvedPrompt);
+        Assert.Contains("Subject details: An intact bedroom at dawn.", request.ResolvedPrompt);
         Assert.Equal(revision.Id, request.PromptRevisionId);
         Assert.NotNull(request.LegacyVisualFingerprint);
     }
@@ -109,7 +110,8 @@ public sealed class SceneArtworkTests
         };
         var second = ArtPromptWorkRequestBuilder.Create(configuration, context, secondRevision);
 
-        Assert.StartsWith("Subject details: An empty bedroom at dawn.", first.ResolvedPrompt);
+        Assert.StartsWith("Late-1990s high-color 2D console style.", first.ResolvedPrompt);
+        Assert.Contains("Subject details: An empty bedroom at dawn.", first.ResolvedPrompt);
         Assert.Contains("Enforced role: environment only", first.ResolvedPrompt);
         Assert.Contains("Late-1990s high-color 2D console style.", first.ResolvedPrompt);
         Assert.Contains("portrait background", first.ResolvedPrompt);

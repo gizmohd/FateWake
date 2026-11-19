@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Fatewake.Infrastructure.Authentication;
 using Fatewake.Infrastructure.Persistence;
@@ -16,6 +18,8 @@ public sealed class StoryJournalService(FatewakeDbContext db, ILogger<StoryJourn
     /// <summary>Recovers already-reached legacy beats once, then records the current beat.</summary>
     public async Task RecordProgressAsync(SessionState state, CancellationToken ct = default)
     {
+        if (state.EventKey == DayOneScenes.GeneratedOpeningKey)
+            return;
         var opening = state.Arrival?.Opening() ?? DayOneScenes.Opening;
         if (state.SceneKey != opening.Key)
             return;
@@ -120,7 +124,7 @@ public sealed class StoryJournalService(FatewakeDbContext db, ILogger<StoryJourn
                 x.TimelineId == active.TimelineId && x.VisibleFromDay <= active.SurvivorDay)
                 .OrderBy(x => x.Sequence).ToArrayAsync(ct);
             var level = await ContentLevelAsync(survivorId, ct);
-            return entries.Select(x =>
+            var panels = entries.Select(x =>
             {
                 var narration = VisibleNarration(x);
                 var visible = StoryContentPolicy.Allows(level, x.Title) && StoryContentPolicy.Allows(level, x.TimeLabel) &&
@@ -131,7 +135,12 @@ public sealed class StoryJournalService(FatewakeDbContext db, ILogger<StoryJourn
                         x.DialogueSpeaker, x.DialogueText, JsonSerializer.Deserialize<ArtLayer[]>(x.Layers) ?? [], x.Reconstructed)
                     : new NovelPanel(x.Id, x.Sequence, x.SurvivorDay, "narration", "Hidden journal entry", null,
                         "This entry is unavailable at your current content level.", null, null, [], x.Reconstructed);
-            }).ToArray();
+            }).ToList();
+
+            if (await db.EventInstances.AnyAsync(row => row.SurvivorId == survivorId && row.TimelineId == active.TimelineId &&
+                row.EventKey == DayOneScenes.GeneratedOpeningKey, ct))
+                await AddGeneratedPanelsAsync(active, level, panels, ct);
+            return panels.ToArray();
         }
         catch (Exception ex)
         {
@@ -139,6 +148,41 @@ public sealed class StoryJournalService(FatewakeDbContext db, ILogger<StoryJourn
             throw;
         }
     }
+
+    private async Task AddGeneratedPanelsAsync(SurvivorTimelineStateRecord active, ContentLevel level,
+        List<NovelPanel> panels, CancellationToken ct)
+    {
+        var scenes = db.Set<GeneratedSceneRecord>().AsNoTracking()
+            .Where(row => row.SurvivorId == active.SurvivorId && row.TimelineId == active.TimelineId);
+        var reached = await scenes.Where(row => row.CompletedAt == null).MinAsync(row => (int?)row.Sequence, ct);
+        var ready = await scenes.Where(row => row.Status == GeneratedSceneStatus.Ready &&
+                (row.CompletedAt != null || row.Sequence == reached))
+            .OrderBy(row => row.Sequence).ToArrayAsync(ct);
+        var sequence = panels.Count == 0 ? 0 : panels[^1].Sequence;
+        foreach (var scene in ready)
+        {
+            var day = scene.SurvivorDay;
+            if (day > active.SurvivorDay)
+                continue;
+            var spec = StoryPlayService.VisibleSpec(scene, level);
+            if (spec is null)
+            {
+                panels.Add(new(GeneratedPanelId(scene.Id, 0), ++sequence, day, "narration", "Hidden journal entry",
+                    null, "This entry is unavailable at your current content level.", null, null, [], false));
+                continue;
+            }
+
+            for (var index = 0; index < spec.Beats.Count; index++)
+            {
+                var beat = spec.Beats[index];
+                panels.Add(new(GeneratedPanelId(scene.Id, index), ++sequence, day, beat.Kind, spec.Title,
+                    spec.TimeLabel, beat.Narration, beat.Speaker, beat.Dialogue, [], false));
+            }
+        }
+    }
+
+    private static Guid GeneratedPanelId(Guid scene, int index) =>
+        new(SHA256.HashData(Encoding.UTF8.GetBytes($"generated-scene:{scene:N}:{index}")).AsSpan(0, 16));
 
     /// <summary>Engine-facing integration for an external user, NPC, group or world event affecting this survivor.</summary>
     /// <remarks>Observable narration must already be approved for this audience. Hidden cause text is never returned until explicitly revealed.</remarks>

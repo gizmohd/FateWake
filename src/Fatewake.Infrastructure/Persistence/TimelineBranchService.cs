@@ -2,12 +2,15 @@ using System.Text.Json;
 using Fatewake.Observability;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
+using Fatewake.Story;
 
 namespace Fatewake.Infrastructure.Persistence;
 
 /// <summary>Forks or selects personal branches atomically while retaining stable account-owned survivor identity.</summary>
 /// <see href="../../../docs/code/src/Fatewake.Infrastructure/Persistence/TimelineBranchService.md">Documentation</see>
-public sealed class TimelineBranchService(FatewakeDbContext db, ILogger<TimelineBranchService> log)
+public sealed class TimelineBranchService(FatewakeDbContext db, ILogger<TimelineBranchService> log,
+    IConfiguration? configuration = null)
 {
     /// <summary>Creates and selects an owner-only branch atomically; a matching retry reuses its branch without replaying ancestor effects.</summary>
     public async Task<SessionState> ForkAsync(Guid accountId, Guid survivorId, Guid expectedTimelineId,
@@ -56,8 +59,12 @@ public sealed class TimelineBranchService(FatewakeDbContext db, ILogger<Timeline
             else
             {
                 var visual = await db.SurvivorVisualIdentities.AsNoTracking().SingleOrDefaultAsync(row => row.SurvivorId == survivorId, ct);
+                var generated = configuration?.GetValue<bool>("SceneAuthoring:Enabled") == true ||
+                    await db.EventInstances.AnyAsync(episode => episode.TimelineId == expectedTimelineId &&
+                        episode.EventKey == DayOneScenes.GeneratedOpeningKey, ct);
                 snapshot = new(1, TimelineSnapshotCodec.RulesVersion, TimelineSnapshotCodec.ContentVersion, 1,
-                    SurvivorStatus.Active, "{}", Opening(survivorId, expectedTimelineId), [], [], visual);
+                    SurvivorStatus.Active, "{}", SessionStore.NewOpening(survivorId, expectedTimelineId,
+                        DateTimeOffset.UtcNow, generated), [], [], visual);
             }
             var now = DateTimeOffset.UtcNow;
             var timeline = new TimelineRecord
@@ -200,14 +207,4 @@ public sealed class TimelineBranchService(FatewakeDbContext db, ILogger<Timeline
             throw new TimelineConflictException("Your story progressed while this page was open. Refresh before changing timelines.");
     }
 
-    private static EventInstanceRecord Opening(Guid survivorId, Guid timelineId) => new()
-    {
-        Id = Guid.NewGuid(),
-        SurvivorId = survivorId,
-        TimelineId = timelineId,
-        EventKey = "day-001-injured-stranger",
-        SurvivorDay = 1,
-        Status = EventInstanceStatus.Active,
-        State = """{"sceneKey":"day1-0617-0643","beatKey":"phone-0617"}"""
-    };
 }

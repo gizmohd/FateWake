@@ -61,7 +61,10 @@ public sealed class SceneWorkStepHandler(FatewakeDbContext db, IRagRetriever ret
                 .OrderByDescending(x => x.Sequence).Take(4).Select(x => x.Summary!).ToListAsync(ct);
             recent = recent.Where(text => StoryContentPolicy.Allows(level, text)).ToList();
             recent.Reverse();
-            var dayOne = scene.Sequence == 1
+            var generatedOpening = scene.Sequence == 1 && await db.EventInstances.AnyAsync(episode =>
+                episode.SurvivorId == scene.SurvivorId && episode.TimelineId == scene.TimelineId &&
+                episode.EventKey == DayOneScenes.GeneratedOpeningKey, ct);
+            var dayOne = scene.Sequence == 1 && !generatedOpening
                 ? await (from episode in db.EventInstances
                          join attempt in db.ActionAttempts on episode.Id equals attempt.EventInstanceId
                          join result in db.ActionResolutions on attempt.Id equals result.ActionAttemptId
@@ -95,8 +98,10 @@ public sealed class SceneWorkStepHandler(FatewakeDbContext db, IRagRetriever ret
                 select matches.Key).FirstOrDefaultAsync(ct);
             if (!StoryBranch.Focuses.Contains(focus))
                 focus = null;
-            var query = $"{arrival.SiteName} day {survivor.SurvivorDay} " +
-                (recent.Count > 0 ? recent[^1] : "opening scene setting characters world");
+            var query = generatedOpening
+                ? $""" "{arrival.SiteName}" OR "Day 1" OR "The Silence" OR communications OR "power outage" """
+                : $"{arrival.SiteName} day {survivor.SurvivorDay} " +
+                    (recent.Count > 0 ? recent[^1] : "opening scene setting characters world");
             var filter = new RagSearchFilter(scene.SurvivorId, SceneWork.TimelineKey(scene.TimelineId),
                 1, survivor.SurvivorDay);
             var passages = await retriever.SearchAsync(query, filter, options.RetrievalLimit, ct);
@@ -109,10 +114,13 @@ public sealed class SceneWorkStepHandler(FatewakeDbContext db, IRagRetriever ret
                 .Distinct(StringComparer.Ordinal).ToArray();
 
             var spec = await author.AuthorAsync(new SceneAuthoringContext(survivor.DisplayName, survivor.SurvivorDay,
-                scene.Sequence, SceneDecisionPolicy.RequiresDecision(streak),
+                scene.Sequence, generatedOpening || SceneDecisionPolicy.RequiresDecision(streak),
                 canon, recent,
-                survivor.AccountId, survivor.Id, playerChoice, level, focus, arrival), context.JobId, context.Attempt, ct);
-            if (!StoryContentPolicy.AllowsScene(level, spec) ||
+                survivor.AccountId, survivor.Id, playerChoice, level, focus, arrival, generatedOpening),
+                context.JobId, context.Attempt, ct);
+            if (generatedOpening)
+                spec = spec with { TimeLabel = arrival.TimeLabel };
+            if (!StoryContentPolicy.AllowsScene(level, spec) || (generatedOpening && !spec.HasDecision) ||
                 spec.Choices.Count > 2 || spec.Choices.Any(x => x.AllowFreeform || x.ActionType == SceneChoiceResolver.Freeform))
                 throw new InvalidDataException("The scene did not pass content or choice checks.");
 
@@ -131,7 +139,7 @@ public sealed class SceneWorkStepHandler(FatewakeDbContext db, IRagRetriever ret
             scene.Status = GeneratedSceneStatus.Ready;
             scene.Error = null;
             scene.UpdatedAt = DateTimeOffset.UtcNow;
-            if (approvedCanon.Length == 0)
+            if (generatedOpening || approvedCanon.Length == 0)
                 ThreadCanon.Add(db, scene, scene.Summary);
             await db.SaveChangesAsync(ct);
             log.LogInformation("Scene {SceneSequence} is ready with decision {HasDecision}", scene.Sequence, scene.HasDecision);

@@ -93,6 +93,12 @@
         {
             <p>Regenerates each rendered layer using the critique. Layer positions follow the scene’s authored layout.</p>
         }
+        else
+        {
+            <label class="review-checkbox">
+                <input type="checkbox" @bind="RejectSource" /> Hide this version from scenes and journals when queuing its replacement
+            </label>
+        }
         @if (Message is not null) { <p role="status">@Message</p> }
         @if (SignInRequired) { <a href="/login">Sign in again</a> }
         @if (History.Length > 0)
@@ -115,6 +121,7 @@
     [Parameter] public EventCallback ReplacementRequested { get; set; }
     private bool Allowed, Busy, SignInRequired;
     private bool UseForFutureArtwork = true;
+    private bool RejectSource;
     private bool HasRenderedTarget => string.IsNullOrEmpty(Target)
         ? Versions.Values.Any(version => version is > 0)
         : Versions.GetValueOrDefault(Target) is > 0;
@@ -132,6 +139,7 @@
         Prompt = null;
         Allowed = false;
         UseForFutureArtwork = true;
+        RejectSource = false;
         SignInRequired = false;
         Message = null;
         await LoadHistoryAsync();
@@ -161,7 +169,8 @@
             using var client = await ApiClients.CreateAsync();
             using var response = await client.PostAsJsonAsync("/api/art/reviews", new { SceneKey, AssetKey = asset,
                 Version = asset is null ? (int?)null : snapshot.GetValueOrDefault(asset), Versions = snapshot, Critique,
-                Correction = (string?)null, Regenerate = regenerate, UseForFutureArtwork });
+                Correction = (string?)null, Regenerate = regenerate, UseForFutureArtwork,
+                RejectSource = regenerate && asset is not null && RejectSource });
             if (!response.IsSuccessStatusCode)
             {
                 await SetReviewErrorAsync(response, "The critique could not be saved. Refresh the scene and try again.");
@@ -181,6 +190,7 @@
     {
         Prompt = null;
         Preview = null;
+        RejectSource = false;
         PromptPositive = PromptNegative = "";
         if (string.IsNullOrEmpty(Target) || Versions.GetValueOrDefault(Target) is not { } version) return;
         try

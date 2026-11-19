@@ -17,6 +17,8 @@ namespace Fatewake.Infrastructure.Story;
 /// <param name="ContentLevel">Effective age-capped level for the narrator and reviewer.</param>
 /// <param name="BranchFocus">Optional generic focus from a compatible branch.</param>
 /// <param name="Arrival">Authoritative starting site and minute, independent of the scene’s generated time label.</param>
+/// <param name="IsGeneratedOpening">Whether this is the first playable scene of a new Thread.</param>
 public sealed record SceneAuthoringContext(string SurvivorName, int SurvivorDay, int Sequence, bool RequiresDecision,
     IReadOnlyList<string> CanonPassages, IReadOnlyList<string> RecentSummaries, Guid? OwnerAccountId, Guid SurvivorId,
-    string? PlayerChoice = null, ContentLevel ContentLevel = ContentLevel.Under14, string? BranchFocus = null, DayOneArrival? Arrival = null);
+    string? PlayerChoice = null, ContentLevel ContentLevel = ContentLevel.Under14, string? BranchFocus = null, DayOneArrival? Arrival = null,
+    bool IsGeneratedOpening = false);

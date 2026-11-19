@@ -38,7 +38,7 @@ public sealed class BrandIdentityRenderTests
         Assert.Equal(!authenticated, html.Contains("href=\"/login\"", StringComparison.Ordinal));
     }
 
-    /// <summary>Verifies the Threads link appears only for accounts while saved survivor routes keep their paths.</summary>
+    /// <summary>Verifies that Journal, Universe Map and Threads links are limited to signed-in players.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -55,7 +55,8 @@ public sealed class BrandIdentityRenderTests
         });
         var html = await RenderAsync<SiteShell>(renderer, parameters);
         Assert.Contains("Pathweaver home", html);
-        Assert.Contains($"/novel/{survivor}", html);
+        Assert.Equal(authenticated, html.Contains($"/novel/{survivor}", StringComparison.Ordinal));
+        Assert.Equal(authenticated, html.Contains($"/map/{survivor}", StringComparison.Ordinal));
         Assert.Equal(authenticated, html.Contains($"/timelines/{survivor}", StringComparison.Ordinal));
         if (authenticated)
             Assert.Contains(">Threads</a>", html);

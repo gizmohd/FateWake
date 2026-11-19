@@ -94,7 +94,8 @@
                     {
                         @if (_actionMessage is null)
                         {
-                            <p role="status">Preparing your next scene…</p>
+                            <p role="status">@(_session?.EventKey == DayOneScenes.GeneratedOpeningKey &&
+                                _generated?.Sequence is null or 1 ? "Preparing your opening scene…" : "Preparing your next scene…")</p>
                         }
                         <button class="play-primary" type="button" disabled="@_submitting" @onclick="() => LoadGeneratedAsync()">Check for scene</button>
                     }
@@ -236,17 +237,23 @@
             using var response = await StartSessionAsync(client, survivorId);
             response.EnsureSuccessStatusCode();
             _session = await response.Content.ReadFromJsonAsync<SessionDto>();
-            Scene = _session?.Arrival?.Opening() ?? DayOneScenes.Opening;
             if (_session is not null)
             {
                 if (user.Identity?.IsAuthenticated != true)
                     await JS.InvokeVoidAsync("localStorage.setItem", "fatewake.survivorId", _session.SurvivorId.ToString());
-                _beatIndex = Scene.IndexOf(_session.BeatKey);
-                if (!string.IsNullOrWhiteSpace(_session.LastOutcome))
+                _showGenerated = _session.EventKey == DayOneScenes.GeneratedOpeningKey;
+                if (!_showGenerated)
+                {
+                    Scene = _session.Arrival?.Opening() ?? DayOneScenes.Opening;
+                    _beatIndex = Scene.IndexOf(_session.BeatKey);
+                }
+                if (!_showGenerated && !string.IsNullOrWhiteSpace(_session.LastOutcome))
                     _resolutionText = DayOneOutcomes.Text(_session.LastOutcome, _session.NarrativeFacts);
             }
             _ready = true;
             StateHasChanged();
+            if (_showGenerated)
+                await LoadGeneratedAsync();
         }
         catch (HttpRequestException ex)
         {
@@ -351,10 +358,10 @@
             else
                 _generated = await client.GetFromJsonAsync<StorySceneView>(retry ? path + "?retry=true" : path, ct);
 
-            for (var attempt = 0; attempt < 15 && _generated?.Status == "Pending"; attempt++)
+            for (var attempt = 0; _generated?.Status == "Pending"; attempt++)
             {
                 StateHasChanged();
-                await Task.Delay(TimeSpan.FromSeconds(2), ct);
+                await Task.Delay(TimeSpan.FromSeconds(attempt < 15 ? 2 : 5), ct);
                 _generated = await client.GetFromJsonAsync<StorySceneView>(path, ct);
             }
         }

@@ -3,6 +3,7 @@ using Fatewake.GameEngine;
 using Fatewake.Infrastructure.Authentication;
 using Fatewake.Infrastructure.Persistence;
 using Fatewake.Observability;
+using Fatewake.Story;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -91,10 +92,13 @@ public sealed class StoryPlayService(FatewakeDbContext db, ISceneScheduler sched
                 .SetProperty(x => x.ChosenActionType, action).SetProperty(x => x.ChosenText, text), ct);
         if (updated != 1)
             throw new InvalidOperationException("This scene has already been completed.");
+        await db.EventInstances.Where(episode => episode.SurvivorId == scene.SurvivorId &&
+                episode.TimelineId == scene.TimelineId && episode.EventKey == DayOneScenes.GeneratedOpeningKey)
+            .ExecuteUpdateAsync(update => update.SetProperty(episode => episode.Version, episode => episode.Version + 1), ct);
         await transaction.CommitAsync(ct);
     }
 
-    private static SceneSpec? VisibleSpec(GeneratedSceneRecord scene, ContentLevel level)
+    internal static SceneSpec? VisibleSpec(GeneratedSceneRecord scene, ContentLevel level)
     {
         if (scene.ContentLevel is not { } recordedLevel || recordedLevel > level || scene.Spec is null)
             return null;

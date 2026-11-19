@@ -21,6 +21,7 @@ public static class TimelineEndpoints
             var survivor = await db.Survivors.AsNoTracking().SingleAsync(row => row.Id == survivorId, ct);
             var current = await db.EventInstances.AsNoTracking().SingleAsync(row => row.SurvivorId == survivorId &&
                 row.TimelineId == survivor.TimelineId && row.Status == EventInstanceStatus.Active, ct);
+            var arrival = SessionStore.Arrival(survivor) ?? DayOneArrival.Original;
             var opening = SessionStore.Arrival(survivor)?.Opening() ?? DayOneScenes.Opening;
             var index = Math.Clamp(page ?? 0, 0, 100000);
             var branches = await db.Set<TimelineBranchRecord>().AsNoTracking()
@@ -49,7 +50,7 @@ public static class TimelineEndpoints
                 eligible = await new TimelineStateStore(db).EligibleAsync(survivor.TimelineId, ct),
                 version = current.Version,
                 currentSurvivorDay = current.SurvivorDay,
-                currentTimeLabel = ReachedTime(current.State, opening),
+                currentTimeLabel = ReachedTime(current.State, opening, arrival.TimeLabel),
                 page = index,
                 hasMore = branches.Length > 20,
                 branches = branches.Take(20).Select(row => new
@@ -61,7 +62,7 @@ public static class TimelineEndpoints
                     row.CreatedAt,
                     row.CheckpointLabel,
                     row.SurvivorDay,
-                    timeLabel = episodes.TryGetValue(row.TimelineId, out var state) ? ReachedTime(state, opening) : null
+                    timeLabel = episodes.TryGetValue(row.TimelineId, out var state) ? ReachedTime(state, opening, arrival.TimeLabel) : null
                 })
             });
         });
@@ -116,11 +117,14 @@ public static class TimelineEndpoints
 
     private static Guid Account(ClaimsPrincipal user) => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-    private static string? ReachedTime(string state, SceneDefinition opening)
+    private static string? ReachedTime(string state, SceneDefinition opening, string arrivalTime)
     {
         using var document = JsonDocument.Parse(state);
-        if (!document.RootElement.TryGetProperty("sceneKey", out var scene) || scene.ValueKind != JsonValueKind.String ||
-            scene.GetString() != opening.Key ||
+        if (!document.RootElement.TryGetProperty("sceneKey", out var scene) || scene.ValueKind != JsonValueKind.String)
+            return null;
+        if (scene.GetString() == DayOneScenes.GeneratedOpeningKey)
+            return arrivalTime;
+        if (scene.GetString() != opening.Key ||
             !document.RootElement.TryGetProperty("beatKey", out var beat) || beat.ValueKind != JsonValueKind.String)
             return null;
         return opening.Beats.SingleOrDefault(row => row.Key == beat.GetString())?.Time;

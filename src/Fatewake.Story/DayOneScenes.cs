@@ -4,6 +4,9 @@ namespace Fatewake.Story;
 /// <see href="../../../docs/code/src/Fatewake.Web/Presentation/DayOneScenes.md">DayOneScenes documentation</see>
 public static class DayOneScenes
 {
+    /// <summary>Persistent episode key for Threads whose opening is authored by the narrator.</summary>
+    public const string GeneratedOpeningKey = "day-001-generated-opening";
+
     /// <summary>The opening scene covering the initial day-one events and choices.</summary>
     public static readonly SceneDefinition Opening = new(
         "day1-0617-0643", "the-silence-day1", 1, "The Silence",

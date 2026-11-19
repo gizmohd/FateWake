@@ -75,7 +75,7 @@ dotnet user-secrets set "ClaimExtraction:ApiKey" "<api-key>" --project src\Fatew
 
 The worker processes eligible existing and new imports. In **Admin → RAG corpus → Canon claim review**, admins can approve or reject a fact alongside its supporting quote. **Source auto-approval** lets admins set a minimum confidence per authorized source. This also approves matching pending claims from that source. Clearing the threshold returns future claims to manual review. Existing approvals remain in effect until reviewed again. Approved facts are available to the narrator subject to scope and audience limits.
 
-Every scene, including the first, is authored by the AI narrator from retrieved canon (worker queue `story.scene`). The server enforces that no more than four consecutive scenes omit a decision. Scene authoring is off until configured, and it fails explicitly if the RAG corpus has no approved canon:
+With scene authoring enabled, new games start with an AI-authored opening at the survivor’s assigned location and time. The narrator retrieves approved RAG passages and claims, then creates a local encounter with a decision. Existing games keep their saved opening. The worker queue is `story.scene`. The server enforces that no more than four consecutive scenes omit a decision. Scene authoring is off until configured, and it fails explicitly if the RAG corpus has no approved canon:
 
 ```powershell
 dotnet user-secrets set "SceneAuthoring:Enabled" "true" --project src\Fatewake.AppHost

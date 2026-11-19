@@ -1,0 +1,13 @@
+.artwork-reset {
+    margin-top: 1.25rem;
+    padding: 1rem;
+    border: 1px solid #e49a86;
+    background: #2b1721;
+    color: #ffe5dd;
+}
+
+.artwork-reset summary { cursor: pointer; font-weight: 700; }
+.artwork-reset label { display: block; }
+.artwork-reset input { display: block; box-sizing: border-box; width: min(100%, 26rem); margin: .4rem 0 .65rem; padding: .55rem; }
+.reset-button { padding: .6rem .85rem; background: #713744; color: #fff; border: 1px solid #e49a86; }
+.reset-button:disabled { opacity: .55; }

@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Fatewake.Infrastructure.Art;
 using Fatewake.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -41,6 +39,11 @@ public sealed class SceneArtPromptService(FatewakeDbContext db, SceneArtCatalog 
         }
         var authoringEnabled = configuration.GetValue<bool>(ArtPromptAuthoringOptions.SectionName + ":Enabled") &&
             !string.IsNullOrWhiteSpace(configuration[ArtPromptAuthoringOptions.SectionName + ":ApiKey"]);
+        if (!authoringEnabled && reachedVisualContext is not null &&
+            (existing is null || existing.Status == "disabled") &&
+            await TryUseContextualSeedAsync(metadata, ct))
+            return await ResolveAsync(key, accountId, survivorId, priority, ct, reachedVisualContext);
+
         if (existing is not null && (existing.Status != "disabled" || !authoringEnabled))
             return new(existing.Status is "pending" or "disabled" or "failed" ? existing.Status : "failed",
                 JobId: existing.AuthoringJobId);
@@ -62,19 +65,8 @@ public sealed class SceneArtPromptService(FatewakeDbContext db, SceneArtCatalog 
             if (prompt is null)
             {
                 var now = DateTimeOffset.UtcNow;
-                prompt = new ArtPromptRecord
-                {
-                    Id = Guid.NewGuid(),
-                    IdentityKey = metadata.IdentityKey,
-                    AssetKey = metadata.AssetKey,
-                    ContextFingerprint = metadata.ContextFingerprint,
-                    StyleBibleVersion = metadata.StyleBibleVersion,
-                    ReachedVisualContext = metadata.ReachedVisualContext,
-                    Status = "pending",
-                    AuthoringJobId = jobId,
-                    CreatedAt = now,
-                    UpdatedAt = now
-                };
+                prompt = NewPrompt(metadata, now);
+                prompt.AuthoringJobId = jobId;
                 db.Add(prompt);
             }
             else if (prompt.Status != "ready")
@@ -94,33 +86,90 @@ public sealed class SceneArtPromptService(FatewakeDbContext db, SceneArtCatalog 
             : new(state.Status, JobId: job.JobId);
     }
 
+    private async Task<bool> TryUseContextualSeedAsync(SceneArtPromptMetadata metadata, CancellationToken ct)
+    {
+        var baseIdentity = catalog.Describe(metadata.AssetKey).IdentityKey;
+        var seed = await (from prompt in db.Set<ArtPromptRecord>().AsNoTracking()
+                          join baseRevision in db.Set<ArtPromptRevisionRecord>().AsNoTracking()
+                              on prompt.Id equals baseRevision.ArtPromptId
+                          where prompt.IdentityKey == baseIdentity && baseRevision.Source == "seed"
+                          orderby baseRevision.RevisionNumber descending
+                          select baseRevision).FirstOrDefaultAsync(ct);
+        if (seed is null)
+            return false;
+
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await LockPromptIdentityAsync(metadata.IdentityKey, ct);
+        var current = await db.Set<ArtPromptRecord>().SingleOrDefaultAsync(row => row.IdentityKey == metadata.IdentityKey, ct);
+        if (current is { Status: "ready", CurrentRevisionId: not null })
+            return true;
+        if (current is not null && current.Status != "disabled")
+            return false;
+
+        var now = DateTimeOffset.UtcNow;
+        if (current is null)
+        {
+            current = NewPrompt(metadata, now);
+            db.Add(current);
+        }
+
+        var revision = new ArtPromptRevisionRecord
+        {
+            Id = Guid.NewGuid(),
+            ArtPromptId = current.Id,
+            RevisionNumber = (current.LatestRevisionNumber ?? 0) + 1,
+            ParentRevisionId = current.LatestRevisionId,
+            PositivePrompt = seed.PositivePrompt,
+            NegativePrompt = seed.NegativePrompt,
+            Source = "contextual-seed",
+            RequestContextFingerprint = metadata.ContextFingerprint,
+            CreatedAt = now
+        };
+        db.Add(revision);
+        await db.SaveChangesAsync(ct);
+
+        current.Status = "ready";
+        current.CurrentRevisionId = current.LatestRevisionId = revision.Id;
+        current.CurrentRevisionNumber = current.LatestRevisionNumber = revision.RevisionNumber;
+        current.FailureCode = null;
+        current.AuthoringJobId = null;
+        current.UpdatedAt = now;
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return true;
+    }
+
+    private Task LockPromptIdentityAsync(string identity, CancellationToken ct) =>
+        db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtextextended({"art.prompt:" + identity}, 0))", ct);
+
     private async Task StoreDisabledAsync(SceneArtPromptMetadata metadata, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var lockKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(metadata.IdentityKey)));
-        var advisoryKey = "art-prompt:" + lockKey;
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT pg_advisory_xact_lock(hashtextextended({advisoryKey}, 0))", ct);
+        await LockPromptIdentityAsync(metadata.IdentityKey, ct);
         var prompt = await db.Set<ArtPromptRecord>()
             .SingleOrDefaultAsync(row => row.IdentityKey == metadata.IdentityKey, ct);
         if (prompt is null)
         {
             var now = DateTimeOffset.UtcNow;
-            db.Add(new ArtPromptRecord
-            {
-                Id = Guid.NewGuid(),
-                IdentityKey = metadata.IdentityKey,
-                AssetKey = metadata.AssetKey,
-                ContextFingerprint = metadata.ContextFingerprint,
-                StyleBibleVersion = metadata.StyleBibleVersion,
-                ReachedVisualContext = metadata.ReachedVisualContext,
-                Status = "disabled",
-                FailureCode = "authoring-disabled",
-                CreatedAt = now,
-                UpdatedAt = now
-            });
+            prompt = NewPrompt(metadata, now);
+            prompt.Status = "disabled";
+            prompt.FailureCode = "authoring-disabled";
+            db.Add(prompt);
             await db.SaveChangesAsync(ct);
         }
         await transaction.CommitAsync(ct);
     }
+
+    private static ArtPromptRecord NewPrompt(SceneArtPromptMetadata metadata, DateTimeOffset now) => new()
+    {
+        Id = Guid.NewGuid(),
+        IdentityKey = metadata.IdentityKey,
+        AssetKey = metadata.AssetKey,
+        ContextFingerprint = metadata.ContextFingerprint,
+        StyleBibleVersion = metadata.StyleBibleVersion,
+        ReachedVisualContext = metadata.ReachedVisualContext,
+        CreatedAt = now,
+        UpdatedAt = now
+    };
 }

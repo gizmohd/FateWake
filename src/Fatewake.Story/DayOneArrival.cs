@@ -40,6 +40,10 @@ public sealed record DayOneArrival(string SiteKey, int Minute)
     /// <summary>Human-readable starting location.</summary>
     public string SiteName => Location.Name;
 
+    /// <summary>Registered grid cell for the start of an opening at this site.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Guid StartCellId => Guid.Parse($"10000000-0000-0000-0001-{Location.FirstCell:D12}");
+
     /// <summary>Clock label for the first beat.</summary>
     public string TimeLabel => FormatMinute(Minute);
 
