@@ -7,7 +7,7 @@
 {
     <details class="artwork-reset">
         <summary>Reset generated artwork (Debug)</summary>
-        <p><strong>Permanent deletion.</strong> This removes generated artwork across the app, including pictures pinned to earlier journal entries. Opening scenes afterward queues fresh renders and may use provider credits.</p>
+        <p><strong>Permanent deletion.</strong> This removes generated artwork and artwork job history across the app, including pictures pinned to earlier journal entries. Opening scenes afterward queues fresh renders and may use provider credits.</p>
         <label>
             Type <strong>DELETE GENERATED ARTWORK</strong> to confirm
             <input @bind="_confirmation" @bind:event="oninput" autocomplete="off" disabled="@_busy" />
@@ -66,8 +66,8 @@
             var result = await response.Content.ReadFromJsonAsync<ResetResult>();
             _confirmation = "";
             _message = result is { FileErrors: > 0 }
-                ? $"Reset {result.AssetCount} image versions. {result.FileErrors} local files could not be removed. Review the API log and retry cleanup."
-                : $"Reset {result?.AssetCount ?? 0} generated image versions. Reopen a scene to queue fresh artwork.";
+                ? $"Reset {result.AssetCount} image versions and deleted {result.JobCount} artwork jobs. {result.FileErrors} local files could not be removed. Review the API log and retry cleanup."
+                : $"Reset {result?.AssetCount ?? 0} generated image versions and deleted {result?.JobCount ?? 0} artwork jobs. Reopen a scene to queue fresh artwork.";
             await ResetCompleted.InvokeAsync();
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
@@ -86,5 +86,5 @@
         _message = message;
     }
 
-    private sealed record ResetResult(int AssetCount, int FileErrors);
+    private sealed record ResetResult(int AssetCount, int JobCount, int FileErrors);
 }

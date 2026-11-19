@@ -249,8 +249,11 @@ public sealed class ArtReviewTests
 
         var fixture = app.Services.GetRequiredService<Fixture>();
         var generated = await fixture.CreateAssetAsync(withProvenance: false);
-        var archive = await fixture.CreateAssetAsync(withProvenance: false);
+        var archive = await fixture.CreateAssetAsync();
         var jobId = Guid.NewGuid();
+        var promptJobId = Guid.NewGuid();
+        var otherJobId = Guid.NewGuid();
+        var reviewId = Guid.NewGuid();
         var generatedKey = $"art/staging/{jobId:N}/master.png";
         const string archiveKey = "art/archived-reference/test.png";
         using var scope = app.Services.CreateScope();
@@ -265,6 +268,28 @@ public sealed class ArtReviewTests
             Id = jobId, JobType = "art.asset", IdempotencyKey = "test-fingerprint:" + jobId,
             Status = WorkJobStatus.Running, Payload = "{}", CreatedAt = now, UpdatedAt = now
         });
+        db.WorkJobs.AddRange(
+            new WorkJobRecord { Id = promptJobId, JobType = "art.prompt", IdempotencyKey = $"artwork-reset:{promptJobId}",
+                Status = WorkJobStatus.Failed, Payload = "{}", CreatedAt = now, UpdatedAt = now },
+            new WorkJobRecord { Id = otherJobId, JobType = "rag.import", IdempotencyKey = otherJobId.ToString(),
+                Status = WorkJobStatus.Pending, Payload = "{}", CreatedAt = now, UpdatedAt = now });
+        var resolveStep = Guid.NewGuid();
+        var generateStep = Guid.NewGuid();
+        db.WorkSteps.AddRange(
+            new WorkStepRecord { Id = resolveStep, JobId = jobId, StepType = ArtWorkStepTypes.Resolve, Queue = ArtWorkQueues.Generate,
+                Status = WorkStepStatus.Completed, CreatedAt = now, UpdatedAt = now },
+            new WorkStepRecord { Id = generateStep, JobId = jobId, StepType = ArtWorkStepTypes.GenerateMaster, Queue = ArtWorkQueues.Generate,
+                Status = WorkStepStatus.Completed, CreatedAt = now, UpdatedAt = now });
+        db.WorkStepDependencies.Add(new() { StepId = generateStep, DependsOnStepId = resolveStep });
+        db.WorkArtifacts.Add(new() { Id = Guid.NewGuid(), JobId = jobId, Key = "art.master", Value = "{}", CreatedAt = now, UpdatedAt = now });
+        db.Set<ArtReviewRecord>().Add(new()
+        {
+            Id = reviewId, AccountId = fixture.AccountId, SceneKey = "day1-phone-0617", Critique = "Keep the dawn lighting.",
+            CompositionVersions = "{}", RegenerationWorkJobId = jobId, CreatedAt = now
+        });
+        var prompt = await db.Set<ArtPromptRecord>().SingleAsync(row => row.AssetKey == generated.Key, ct);
+        prompt.AuthoringJobId = promptJobId;
+        prompt.RequestedWorkJobId = jobId;
         foreach (var key in new[] { generatedKey, archiveKey })
             db.ArtBinaries.Add(new()
             {
@@ -279,16 +304,27 @@ public sealed class ArtReviewTests
             .ExecuteUpdateAsync(update => update.SetProperty(row => row.Status, WorkJobStatus.Completed), ct);
         using var reset = await admin.PostAsJsonAsync(route, confirm, ct);
         reset.EnsureSuccessStatusCode();
+        Assert.Equal(3, (await reset.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("jobCount").GetInt32());
         Assert.False(await db.ArtBinaries.AnyAsync(row => row.StorageKey == generatedKey, ct));
         Assert.True(await db.ArtBinaries.AnyAsync(row => row.StorageKey == archiveKey, ct));
         Assert.Equal(ArtAssetStatus.Purged, await db.ArtAssets.Where(row => row.Id == generated.AssetId)
             .Select(row => row.Status).SingleAsync(ct));
         Assert.Equal(ArtAssetStatus.Approved, await db.ArtAssets.Where(row => row.Id == archive.AssetId)
             .Select(row => row.Status).SingleAsync(ct));
-        Assert.StartsWith("artwork-reset:", await db.WorkJobs.Where(row => row.Id == jobId)
-            .Select(row => row.IdempotencyKey).SingleAsync(ct));
+        Assert.Equal(otherJobId, await db.WorkJobs.Select(row => row.Id).SingleAsync(ct));
+        Assert.False(await db.WorkSteps.AnyAsync(row => row.JobId == jobId, ct));
+        Assert.False(await db.WorkStepDependencies.AnyAsync(row => row.StepId == generateStep, ct));
+        Assert.False(await db.WorkArtifacts.AnyAsync(row => row.JobId == jobId, ct));
+        Assert.Null(await db.Set<ArtReviewRecord>().Where(row => row.Id == reviewId).Select(row => row.RegenerationWorkJobId).SingleAsync(ct));
+        var updatedPrompt = await db.Set<ArtPromptRecord>().AsNoTracking().SingleAsync(row => row.Id == prompt.Id, ct);
+        Assert.Null(updatedPrompt.AuthoringJobId);
+        Assert.Null(updatedPrompt.RequestedWorkJobId);
+        var provenance = await db.ArtGenerations.SingleAsync(row => row.ArtAssetId == archive.AssetId, ct);
+        Assert.Null(provenance.WorkJobId);
+        Assert.Equal("Exact source prompt used for this immutable image.", provenance.ResolvedPrompt);
         using var retry = await admin.PostAsJsonAsync(route, confirm, ct);
         retry.EnsureSuccessStatusCode();
+        Assert.Equal(0, (await retry.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("jobCount").GetInt32());
     }
 #endif
 
