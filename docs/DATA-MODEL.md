@@ -584,3 +584,7 @@ Visual appearance is a projection of canonical survivor/item state, but historic
 - captured_at timestamptz
 
 The inventory/equipment domain remains authoritative. These records are presentation projections/provenance and must not grant ownership or gameplay capabilities.
+
+## Artwork Assets
+
+`art_asset` stores approved versioned visual metadata; `art_asset_derivative` references WebP and optimized PNG delivery keys; `art_binary` stores the corresponding PNG masters and delivery bytes as PostgreSQL `bytea`. `art_asset.OwnerAccountId` is null for globally reusable shared artwork and references `account.Id` for private survivor artwork. Fingerprint reuse includes shared assets and only the requesting account's own private assets. Private binaries are served only after owner verification; public caching applies only to shared assets.

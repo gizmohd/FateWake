@@ -29,7 +29,7 @@ public static class BrowserAccountSession
         {
             IsPersistent = false, ExpiresUtc = started.AddSeconds(token.ExpiresIn), AllowRefresh = false
         });
-        return account.HasPassword ? "/" : "/set-password";
+        return account.HasPassword ? "/play" : "/set-password";
     }
 }
 

@@ -12,6 +12,7 @@ public sealed class ArtFinalizeWorkStepHandler(FatewakeDbContext db,IWorkArtifac
  {
   var prior=await artifacts.GetAsync(context.JobId,"art.finalize",ct);if(prior is not null)return prior;
   var request=JsonSerializer.Deserialize<ArtWorkRequest>(context.Input)??throw new InvalidOperationException("Invalid art request.");
+  if(request.IsPrivate&&request.AccountId is null)throw new InvalidOperationException("Private artwork requires an owning account.");
   var validation=JsonSerializer.Deserialize<ArtValidationArtifact>(await Required("art.validation"))!;
   if(!validation.Valid)throw new InvalidOperationException(validation.Error??"Artwork validation failed.");
   var master=JsonSerializer.Deserialize<ArtMasterArtifact>(await Required("art.master"))!;
@@ -19,12 +20,14 @@ public sealed class ArtFinalizeWorkStepHandler(FatewakeDbContext db,IWorkArtifac
   var webp=JsonSerializer.Deserialize<ArtDerivativeArtifact>(await Required("art.webp"))!;
   var png=JsonSerializer.Deserialize<ArtDerivativeArtifact>(await Required("art.png"))!;
   await using var tx=await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable,ct);
-  var existing=await db.ArtAssets.Where(x=>x.VisualFingerprint==request.VisualFingerprint&&x.Status==ArtAssetStatus.Approved).OrderByDescending(x=>x.Version).FirstOrDefaultAsync(ct);
+  var existing=await db.ArtAssets.Where(x=>x.VisualFingerprint==request.VisualFingerprint&&x.Status==ArtAssetStatus.Approved&&
+   (x.OwnerAccountId==null||request.IsPrivate&&x.OwnerAccountId==request.AccountId))
+   .OrderBy(x=>x.OwnerAccountId==request.AccountId?0:1).ThenByDescending(x=>x.Version).FirstOrDefaultAsync(ct);
   var assetId=existing?.Id??Guid.NewGuid();var reused=existing is not null;var now=DateTimeOffset.UtcNow;
   if(existing is null)
   {
    var version=(await db.ArtAssets.Where(x=>x.Key==request.AssetKey).MaxAsync(x=>(int?)x.Version,ct)??0)+1;
-   db.ArtAssets.Add(new ArtAssetRecord{Id=assetId,Key=request.AssetKey,Version=version,AssetType=request.AssetType,Status=ArtAssetStatus.Approved,CharacterKey=request.CharacterKey,LocationKey=request.LocationKey,VisualFingerprint=request.VisualFingerprint,ContentHash=metadata.ContentHash,MasterPngStorageKey=master.StorageKey,Width=metadata.Width,Height=metadata.Height,HasAlpha=metadata.HasAlpha,CreatedAt=now,ApprovedAt=now});
+   db.ArtAssets.Add(new ArtAssetRecord{Id=assetId,Key=request.AssetKey,Version=version,AssetType=request.AssetType,Status=ArtAssetStatus.Approved,CharacterKey=request.CharacterKey,LocationKey=request.LocationKey,OwnerAccountId=request.IsPrivate?request.AccountId:null,VisualFingerprint=request.VisualFingerprint,ContentHash=metadata.ContentHash,MasterPngStorageKey=master.StorageKey,Width=metadata.Width,Height=metadata.Height,HasAlpha=metadata.HasAlpha,CreatedAt=now,ApprovedAt=now});
    db.ArtAssetDerivatives.Add(new ArtAssetDerivativeRecord{Id=Guid.NewGuid(),ArtAssetId=assetId,Kind=ArtDerivativeKind.WebP,StorageKey=webp.StorageKey,ContentType=webp.ContentType,ContentHash=webp.ContentHash,Width=webp.Width,Height=webp.Height,ByteSize=webp.ByteSize,EncoderMetadata=webp.EncoderMetadata,CreatedAt=now});
    db.ArtAssetDerivatives.Add(new ArtAssetDerivativeRecord{Id=Guid.NewGuid(),ArtAssetId=assetId,Kind=ArtDerivativeKind.OptimizedPng,StorageKey=png.StorageKey,ContentType=png.ContentType,ContentHash=png.ContentHash,Width=png.Width,Height=png.Height,ByteSize=png.ByteSize,EncoderMetadata=png.EncoderMetadata,CreatedAt=now});
   }

@@ -1,0 +1,66 @@
+# Retro Presentation and Local Narrative AI Requirements
+
+Status: requirements baseline; not a claim of implemented functionality.
+Added: 2026-11-18.
+Source: [shared design conversation](https://chatgpt.com/share/6afe27f5-593c-83ea-8b70-9f7af7741503).
+
+## Scope and precedence
+
+The current visual direction is **32-bit-era high-color 2D adventure art**, using late-1990s console/VGA games as a reference and superseding the earlier 16-bit pixel-art direction. The user also identified an **RTX Spark with 128 GB unified memory** as the intended AI host. This document captures that direction and the accompanying technical blueprint as implementation requirements. Model/framework suggestions remain evaluation candidates, not verified compatibility or performance claims.
+
+Use a polished, high-color 2D raster style with nuanced gradients, fine material detail, crisp silhouettes, and controlled natural lighting. Avoid both low-color pixel-grid constraints and modern photorealistic/3D rendering. Preserve the existing episode/scene/beat model, mobile-first access, persistent graphic-novel archive, approved-asset reuse, and deterministic gameplay authority. Existing approved artwork remains versioned legacy content; do not silently mix styles or overwrite approved history. New assets should follow the 32-bit-era direction, with explicit versioned replacements where migration is intended.
+
+**GameEngine decides outcomes; AI renders or proposes content.** Source examples mentioning AI decisions or state changes do not authorize direct AI state mutation. The sample APIs, project layout, orbital colonies, and moons are illustrative—not new endpoints, required service splits, or additions to Season One canon. Retain existing Blazor Web App/InteractiveServer and .NET Aspire architecture unless a separate decision justifies change; WebAssembly is not required by this update.
+
+## Visual and interaction requirements
+
+- **VIS-01 — Retro identity:** Present Fatewake as a high-color 32-bit-era 2D adventure with late-1990s console/VGA influence, not a chatbot. Use fine raster detail, nuanced gradients, expressive silhouettes, and controlled lighting. Preserve the grounded, newly disrupted suburban setting of The Silence; retro styling does not imply neon scenery or space travel. “32-bit” describes the visual target, not a mandatory file encoding; use RGB or RGBA as the asset requires.
+- **VIS-02 — Design tokens:** Establish the proposed “Neon Frontier” UI palette: Void Black #090817, Deep Space #17123B, Nebula #38217E, Electric Violet #A449EA, Signal Cyan #21D9F3, Neon Rose #FF4C91, Sunset Amber #FFAA56, Starlight #E9E8FF. Validate contrast before adoption; accents need not dominate scene art.
+- **VIS-03 — Resolution:** Target 640×360 logical scene backgrounds. Preserve fine detail and tonal transitions when producing delivery sizes; use suitable high-quality resampling rather than mandatory nearest-neighbor scaling or palette reduction.
+- **VIS-04 — Responsive composition:** Keep mobile portrait usable: stack the scene, dialogue, and choices rather than shrinking the entire interface into a fixed desktop bitmap. Use letterboxing or authored safe crops; important subjects and clues must remain visible. UI text scales independently of artwork.
+- **VIS-05 — Story surface:** Provide reusable Razor shell, scene viewport, portrait, dialogue, and choice components, adapting existing components where possible. Show speaker attribution, concise narration, and normally 2–4 meaningful authored choices at decision beats, plus existing free-form input. Keep buttons/text interactive DOM content, never baked into images.
+- **VIS-06 — Portraits:** Use approved 128×128 or 192×192 portrait families with stable character IDs, visual references, palettes, outfits, and neutral/concerned/angry/surprised/injured variants. Injury and wardrobe variants require applicable story state. Do not redesign a character each time they speak.
+- **VIS-07 — Typography and access:** Evaluate Press Start 2P-style display typography and IBM Plex Mono-style readable dialogue typography; verify font licensing. Support keyboard navigation, visible focus, readable text scaling, text alternatives, and reduced motion. Typewriter text must have an immediate-reveal option and must not force screen readers through character-by-character announcements.
+- **VIS-08 — Effects:** Support optional CRT scanlines/glow/subtle curvature with an off setting. Use restrained blinking lights, ambient effects, expression swaps, and occasional parallax. Reduced-motion mode suppresses distracting animation; effects must not obscure text or clues.
+
+## Player-facing screen requirements
+
+- **UX-01 — Story:** Preserve choices, server-authorized outcomes, resumable progress, and the story archive while applying the retro presentation.
+- **UX-02 — People/characters:** Display discovered biographies, qualitative relationships, and known changes resulting from play. Never reveal hidden NPC knowledge or raw private consequence logic.
+- **UX-03 — Journal/inventory:** Show known clues, documents, possessions, discoveries, and past choices. Narrative summaries must be grounded in the survivor's recorded history. Player-authored notes remain separate from canonical facts, as specified in AI-DESIGN.md and MVP-SPEC.md.
+- **UX-04 — Map/timeline:** Provide a view of discovered locations and known story paths when those systems exist. Parallel-timeline visualization is later scope, gated by discovery and existing convergence rules; never expose unchosen future branches or spoilers merely to populate a map.
+
+## ComfyUI and artwork requirements
+
+- **ART-01 — Specialized workflows:** Maintain separate versioned background and portrait workflows. Sprite-sheet/animation generation is a later optional workflow; initially prioritize portraits and environmental animation over walking/exploration systems.
+- **ART-02 — Conditioning:** Combine an appropriate checkpoint, optional style LoRA, approved character/location references, canonical scene constraints, and recorded seed. Evaluate high-color 2D workflows for composition, identity continuity, tonal range, and fine-detail quality. Verify model, LoRA, and checkpoint licenses before commercial use.
+- **ART-03 — Processing/validation:** Preserve rich color, gradients, and fine detail while normalizing dimensions. Validate silhouettes, transparency, character continuity, and absence of generated interface text. Do not RGB565-quantize or force pixel-grid scaling for the target style. Sprite sheets require frame cleanup/normalization before approval.
+- **ART-04 — Provenance/reuse:** Record prompt/workflow/style/canon versions, model and adapter identity, seed, reference assets, dimensions, approval state, and output version. Include material style/workflow inputs in reuse fingerprints. Reuse compatible approved backgrounds and portraits before generating; preserve pinned historical artwork and old appearance combinations.
+- **ART-05 — Async delivery:** Extend the existing durable PostgreSQL jobs and RabbitMQ wakeup pipeline rather than replacing it with broker-only state. Submit ComfyUI workflows, track completion, validate outputs, and store PNG/WebP derivatives. Display pending/failure status and a safe fallback without blocking choices or progress. Clients must not talk directly to ComfyUI; keep inference services on a private network behind application services.
+
+## Local narrative AI, canon, and training
+
+- **AI-01 — Three-part architecture:** Combine style/task fine-tuning, source-grounded canon retrieval, and structured authoritative game state. Weight updates are not the canon database. Use the Wayfinder manuscripts only when supplied and authorized; this update does not ingest or upload them.
+- **AI-02 — Candidate models:** Benchmark Qwen3-14B as the leading narrative candidate against Qwen3-8B as a performance baseline on the intended host. Select using measured quality, memory, latency, and licensing; do not assume 128 GB guarantees concurrent performance. Larger models are optional later comparisons.
+- **AI-03 — Canon extraction:** Extract characters, relationships, motivations, speech patterns, locations, technology, factions, fictional rules, chronology, character knowledge, mysteries, future threads, and scene summaries. Preserve book/chapter/passage references and canon versions. Human review governs promotion of extracted or generated claims into approved canon.
+- **AI-04 — Retrieval:** Prefer PostgreSQL + pgvector, subject to extension/deployment validation. Index approved canon and allow new books to be added without retraining. Filter retrieval by survivor knowledge, timeline, chronology, and spoiler permissions; future-series secrets must not leak through narration or summaries. Select/version an embedding model and reindex strategy during implementation.
+- **AI-05 — Training data:** Build authored, high-quality task examples for scene narration, dialogue, constrained branching proposals, and structured output—not raw chapters alone. Keep source provenance, dataset versions, and held-out evaluation material separate. Evaluate LoRA/QLoRA using compatible NeMo AutoModel, Unsloth, or PEFT tooling; version adapters in a safe artifact format such as safetensors.
+- **AI-06 — Application contract:** Put prompt assembly, retrieval, and validation behind a .NET narrative interface. Evaluate Ollama initially and vLLM where supported. Return schema-validated narrative/dialogue and candidate content; reject contradictory or malformed output. GameEngine alone validates actions and commits state. Use authored fallback content on unavailable/invalid AI output; never change a committed result to accommodate prose.
+- **AI-07 — Evaluation and provenance:** Evaluate voice, prose quality, continuity, factual grounding, spoiler safety, structured-output validity, and attempted unauthorized state changes on held-out examples. Record model/adapter/prompt/canon versions and available timing/token/cost data, extending current observability. Generated story trees must be validated/versioned before deterministic use.
+- **AI-08 — Separate creative agent:** OpenClaw supports development, canon review, draft content, and contradiction checking. It is not the live gameplay authority. Restrict manuscript/repository access to approved scope and preserve original manuscripts. Do not automatically grant training or inference services agent filesystem/command privileges.
+
+## Hardware and scheduling
+
+- **OPS-01:** Treat RTX Spark 128 GB as the target supplied by the user, not a verified installation. Confirm exact hardware, OS/architecture, drivers, CUDA/runtime support, and model/tool compatibility before deployment.
+- **OPS-02:** Budget unified memory for OS, model weights, caches, activations, and image workloads together. Aim for persistent quantized narrative inference and on-demand image loading only if benchmarks support it.
+- **OPS-03:** Schedule training separately from interactive inference/image generation. Use durable queued work with explicit concurrency and memory limits; prioritize player-facing latency, prevent GPU contention, and recover failed jobs. Keep any additional model workload unspecified until selected.
+
+## Delivery and acceptance gates
+
+1. **Retro Day 1:** Adapt the existing nine-beat slice (not a new game). Demonstrate Michelle's approved portrait, a 32-bit-era high-color background, dialogue/choices, saved progress, readable mobile/desktop layouts, keyboard operation, and reduced-motion/CRT settings. Finish with an explicit end-of-available-content state, not an inert Continue button.
+2. **High-color art pipeline:** Demonstrate asynchronous background/portrait generation, validation, delivery, approved reuse with no duplicate generation, and playable provider-failure fallback. Verify old journal artwork stays pinned after style migration.
+3. **Narrative pilot:** Compare 8B and 14B on the same held-out tasks; publish measured results before model selection. Demonstrate cited canon retrieval, valid structured output, rejection/fallback for contradictions and spoilers, and no direct AI mutation of state.
+4. **Continuity/screens:** Add people, journal/inventory, and known-location views with the corresponding deterministic gameplay systems. Prove choices affect later episodes; keep Days 1–7 MVP goals and later multiplayer/convergence scope intact.
+5. **Polish/operations:** Benchmark concurrent text/image loads on the actual host, establish measured latency/memory budgets, test recovery, and validate accessible effects and typography.
+
+Numerical performance targets, exact inference/training tools, model licenses, embedding model, final portrait size, and high-color art checkpoint remain implementation decisions. No model download, training run, runtime migration, or paid generation is authorized merely by recording these requirements.

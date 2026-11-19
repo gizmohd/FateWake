@@ -13,7 +13,7 @@ She wears her baseline Day 1 clothing: dark neutral hoodie or practical jacket o
 
 Pose her in a natural three-quarter standing presentation suitable for reuse in story compositions, with a calm but alert expression and readable silhouette. Keep hands anatomically believable and visible where composition permits. Use restrained neutral environmental grounding rather than a narrative action scene.
 
-Fatewake visual language: grounded near-future American cinematic graphic novel, realistic anatomy, natural materials, restrained painterly rendering with confident inked detail, believable lighting, ordinary modern survivor rather than fantasy or superhero styling.
+Fatewake visual language: grounded high-color 32-bit-era 2D adventure art, realistic anatomy, natural materials, nuanced gradients, fine raster detail, confident inked edges, and believable lighting. Keep Michelle an ordinary modern survivor rather than fantasy or superhero styling.
 
 Use the approved Michelle Summers identity reference whenever available. This asset establishes Day 1 appearance continuity but does not override later canonical condition, inventory, or clothing changes.
 

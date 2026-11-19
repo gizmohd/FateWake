@@ -1,4 +1,4 @@
-@page "/"
+@page "/play"
 @rendermode InteractiveServer
 @using System.Net.Http.Json
 @using Fatewake.Web.Presentation
@@ -10,61 +10,148 @@
 @inject Microsoft.Extensions.Hosting.IHostEnvironment Environment
 
 <PageTitle>Fatewake — The Silence</PageTitle>
-<main class="scene">
-<nav aria-label="Account">
-    <Microsoft.AspNetCore.Components.Authorization.AuthorizeView>
-        <Authorized><a href="/account">@context.User.Identity?.Name</a></Authorized>
-        <NotAuthorized><a href="/login">Sign in</a> | <a href="/register">Create an account</a></NotAuthorized>
-    </Microsoft.AspNetCore.Components.Authorization.AuthorizeView>
-</nav>
-<Microsoft.AspNetCore.Components.Authorization.AuthorizeView Roles="Admin"><Authorized><nav><a href="/admin">Admin dashboard</a></nav></Authorized></Microsoft.AspNetCore.Components.Authorization.AuthorizeView>
-@if (_session is not null) { <nav aria-label="Story"><a href="/novel/@_session.SurvivorId">Read your story so far</a></nav> }
-<section class="episode">
-@if(_error is not null){<div class="interaction" role="alert">@_error <a href="/login">Sign in again</a> or <a href="/">reload</a>.</div>}
-else if(!_ready){<div class="interaction"><div class="wake">REMEMBERING…</div></div>}
-else
-{
-    <ArtCompositionView ArtworkKey="@Beat.ArtworkKey" Layers="@DayOneArt.For(Beat.ArtworkKey)" ArtworkDisplayed="RememberArtwork" SurvivorId="_session?.SurvivorId">
-        <div class="panel-overlay">
-            <div class="panel-label">THE SILENCE · SURVIVOR DAY 1</div>
-            @if(Beat.Time is not null){<div class="beat-time">@Beat.Time</div>}
-            @if(Beat.Status is not null){<div class="signal">@Beat.Status</div>}
-            <div class="panel-spacer"></div>
-            @if(DisplayedNarration is not null){<div class="caption">@DisplayedNarration</div>}
-            @if(Beat.Dialogue is not null){<div class="dialogue"><div class="speaker">@Beat.Dialogue.Speaker</div><div class="line">“@Beat.Dialogue.Text”</div></div>}
-        </div>
-    </ArtCompositionView>
-    <div class="interaction">
-        @if(Beat.Kind==BeatKind.Interaction)
-        {
-            @if(_actionMessage is not null){<p role="alert">@_actionMessage</p>}
-            <div class="choices">
-            @foreach(var choice in Beat.Interactions.Where(x=>!x.AllowFreeform))
-            { <button disabled="@_submitting" @onclick="()=>Act(choice.ActionType)">@choice.Label</button> }
+<main class="play-shell">
+    <header class="play-masthead play-frame">
+        <div class="play-brand">
+            <span class="play-star" aria-hidden="true">✦</span>
+            <div>
+                <h1>Fatewake</h1>
+                <p>A Wayfinder Universe experience</p>
             </div>
-            <button class="other-toggle" disabled="@_submitting" @onclick="()=>_showOther=!_showOther">Do something else…</button>
-            @if(_showOther){<div class="composer"><textarea @bind="_freeform" placeholder="What do you do?"></textarea><button disabled="@(_submitting||string.IsNullOrWhiteSpace(_freeform))" @onclick="SubmitFreeform">Do it</button></div>}
+        </div>
+        <div class="play-chapter">
+            <strong>@Scene.Title</strong>
+            <span>Survivor Day @(_session?.SurvivorDay ?? Scene.SurvivorDay)</span>
+        </div>
+    </header>
+
+    <nav class="play-navigation play-frame" aria-label="Game menu">
+        <span class="play-menu-title">Game menu</span>
+        <a class="play-menu-active" href="#play-controls"><span aria-hidden="true">▶</span> Scene</a>
+        @if (_session is not null)
+        {
+            <a href="/novel/@_session.SurvivorId"><span aria-hidden="true">▤</span> Journal</a>
+        }
+        <Microsoft.AspNetCore.Components.Authorization.AuthorizeView>
+            <Authorized><a href="/account"><span aria-hidden="true">◇</span> Account</a></Authorized>
+            <NotAuthorized>
+                <a href="/login"><span aria-hidden="true">◇</span> Sign in</a>
+                <a href="/register"><span aria-hidden="true">+</span> Create account</a>
+            </NotAuthorized>
+        </Microsoft.AspNetCore.Components.Authorization.AuthorizeView>
+        <Microsoft.AspNetCore.Components.Authorization.AuthorizeView Roles="Admin">
+            <Authorized><a href="/admin"><span aria-hidden="true">⚙</span> Admin dashboard</a></Authorized>
+        </Microsoft.AspNetCore.Components.Authorization.AuthorizeView>
+        <a class="play-exit" href="/"><span aria-hidden="true">↶</span> Main menu</a>
+        @if (Environment.IsDevelopment() && _ready && _session is not null)
+        {
+            <button class="play-reset" type="button" title="Development only: discard this chapter's choices and restart it"
+                    disabled="@_submitting" @onclick="ResetChapter">Reset chapter</button>
+        }
+    </nav>
+
+    <section class="play-episode" aria-label="Current scene">
+        @if (_error is not null)
+        {
+            <div id="play-controls" class="play-frame play-message" role="alert" tabindex="-1">
+                @ErrorMessage
+            </div>
+        }
+        else if (!_ready)
+        {
+            <div id="play-controls" class="play-frame play-message" role="status" tabindex="-1">Remembering your session…</div>
         }
         else
         {
+            <div class="play-viewport play-frame">
+                <ArtCompositionView ArtworkKey="@Beat.ArtworkKey" Layers="@DayOneArt.For(Beat.ArtworkKey)"
+                                    ArtworkDisplayed="RememberArtwork" SurvivorId="_session?.SurvivorId"
+                                    PrefetchKeys="UpcomingArtKeys" SelectedActionType="_selectedActionType">
+                    <div class="play-scene-hud">
+                        @if (Beat.Time is not null) { <span>@Beat.Time</span> }
+                        @if (Beat.Status is not null) { <span class="play-signal">@Beat.Status</span> }
+                    </div>
+                </ArtCompositionView>
+            </div>
 
-            <button class="continue" disabled="@_submitting" @onclick="NextBeat">Continue</button>
+            <section class="play-dialogue play-frame" aria-label="Scene text" aria-live="polite">
+                @if (Beat.Dialogue is { } dialogue)
+                {
+                    <div class="play-portrait" aria-hidden="true">
+                        <span>@(dialogue.Speaker == "RADIO" ? "RF" : "MS")</span>
+                        @if (SpeakerPortrait is { } portrait)
+                        {
+                            <img @key="portrait" src="@portrait" alt="" />
+                        }
+                    </div>
+                    <div class="play-dialogue-copy">
+                        <h2>@dialogue.Speaker</h2>
+                        @if (DisplayedNarration is { } narration) { <p class="play-narration">@narration</p> }
+                        <p>“@dialogue.Text”</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="play-dialogue-copy">
+                        <h2>@(Beat.Kind == BeatKind.Interaction ? "Your move" : "Narration")</h2>
+                        <p>@(DisplayedNarration ?? "What will you do?")</p>
+                    </div>
+                }
+            </section>
+
+            <section id="play-controls" class="play-controls play-frame" aria-labelledby="play-control-title" tabindex="-1">
+                <div class="play-controls-header">
+                    <h2 id="play-control-title">@(Beat.Kind == BeatKind.Interaction ? "Choose an action" : AtChapterEnd ? "Chapter complete" : "Story controls")</h2>
+                    <span>Beat @(_beatIndex + 1) / @Scene.Beats.Count</span>
+                </div>
+                @if (Beat.Kind == BeatKind.Interaction)
+                {
+                    @if (_actionMessage is not null) { <p class="play-action-alert" role="alert">@_actionMessage</p> }
+                    <ol class="play-choices">
+                        @foreach (var choice in Beat.Interactions.Where(x => !x.AllowFreeform))
+                        {
+                            <li><button type="button" disabled="@_submitting" @onclick="() => Act(choice.ActionType)">@choice.Label</button></li>
+                        }
+                    </ol>
+                    <button class="play-text-button" type="button" disabled="@_submitting" aria-expanded="@(_showOther ? "true" : "false")"
+                            @onclick="() => _showOther = !_showOther">Do something else…</button>
+                    @if (_showOther)
+                    {
+                        <div class="play-composer">
+                            <label for="play-freeform">Describe your action</label>
+                            <textarea id="play-freeform" @bind="_freeform" @bind:event="oninput" placeholder="What do you do?"></textarea>
+                            <button class="play-primary" type="button" disabled="@(_submitting || string.IsNullOrWhiteSpace(_freeform))"
+                                    @onclick="SubmitFreeform">Do it</button>
+                        </div>
+                    }
+                }
+                else if (AtChapterEnd)
+                {
+                    <p>You’ve reached the end of the available story.</p>
+                    @if (_session is not null) { <a class="play-primary" href="/novel/@_session.SurvivorId">Read your journal</a> }
+                }
+                else
+                {
+                    <button class="play-primary" type="button" disabled="@_submitting" @onclick="NextBeat"><span aria-hidden="true">▶</span> Continue</button>
+                }
+            </section>
         }
-        <div class="beat-progress">@(_beatIndex+1) / @Scene.Beats.Count</div>
-    </div>
-}
-</section>
-@if(Environment.IsDevelopment() && _ready && _session is not null)
-{
-    <button class="debug-reset" title="Development only: discard this chapter's choices and restart it" disabled="@_submitting" @onclick="ResetChapter">⟲ Reset chapter</button>
-}
+    </section>
 </main>
 @if (_session is not null) { <StoryToasts @key="_session.SurvivorId" SurvivorId="_session.SurvivorId" /> }
 
 @code {
     private static SceneDefinition Scene=>DayOneScenes.Opening;
     private BeatDefinition Beat=>Scene.Beats[Math.Clamp(_beatIndex,0,Scene.Beats.Count-1)];
+    private bool AtChapterEnd => _beatIndex == Scene.Beats.Count - 1;
+    private RenderFragment ErrorMessage => @<p>@_error <a href="/login">Sign in again</a> or <a href="/play">reload</a>.</p>;
+    private string? SpeakerPortrait =>
+        Beat.Dialogue?.Speaker == "MICHELLE SUMMERS" && _artwork?.ArtworkKey == Beat.ArtworkKey &&
+        _artwork.Versions.GetValueOrDefault("char-michelle-day1-supporting") is > 0 and var version
+            ? $"/art/char-michelle-day1-supporting/{version}/webp"
+            : null;
     private bool _ready,_showOther,_submitting; private int _beatIndex; private string _freeform="",_resolutionText="";
+    private string? _selectedActionType;
     private SessionDto? _session; private Guid? _inflightKey;
     private string? _error, _actionMessage;
     private ArtworkSnapshot? _artwork;
@@ -85,6 +172,9 @@ else
     }
 
     private string? DisplayedNarration => Beat.Kind == BeatKind.Consequence && !string.IsNullOrWhiteSpace(_resolutionText) ? _resolutionText : Beat.Narration;
+    private string[] UpcomingArtKeys => Scene.Beats.Skip(_beatIndex + 1).Take(2)
+        .SelectMany(x => DayOneArt.For(x.ArtworkKey)).Select(x => x.AssetKey).Distinct(StringComparer.Ordinal)
+        .Except(DayOneArt.For(Beat.ArtworkKey).Select(x => x.AssetKey), StringComparer.Ordinal).Take(16).ToArray();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -119,6 +209,7 @@ else
         if(_beatIndex>=Scene.Beats.Count-1)return;
         try
         {
+            if (Beat.Key == "choice-wake") _selectedActionType = "";
             _beatIndex++;_showOther=false;await SaveProgressAsync();StateHasChanged();
         }
         catch(HttpRequestException ex){Logger.LogWarning(ex,"Presentation progress could not be saved");_error="Unable to save your progress. Your session may have expired.";}
@@ -168,7 +259,7 @@ else
             var result=await response.Content.ReadFromJsonAsync<ResolutionDto>();
             if(result?.Accepted==true)
             {
-                _resolutionText=DayOneOutcomes.Text(result.OutcomeKey,result.NarrativeFacts);_inflightKey=null;
+                _resolutionText=DayOneOutcomes.Text(result.OutcomeKey,result.NarrativeFacts);_inflightKey=null;_selectedActionType=actionType;
                 _beatIndex=Scene.IndexOf("choice-wake");await SaveProgressAsync();
             }
             else

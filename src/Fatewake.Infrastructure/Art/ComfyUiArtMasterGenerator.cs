@@ -24,6 +24,12 @@ public sealed class ComfyUiArtMasterGenerator(HttpClient http,IOptions<ComfyUiAr
   var workflow=template.Replace(o.PromptToken,JsonEncodedText.Encode(invocation.Request.ResolvedPrompt).ToString(),StringComparison.Ordinal)
    .Replace(o.NegativePromptToken,JsonEncodedText.Encode(invocation.Request.NegativeInstructions??string.Empty).ToString(),StringComparison.Ordinal)
    .Replace(o.SeedToken,StableSeed(invocation.IdempotencyKey).ToString(),StringComparison.Ordinal);
+  if(workflow.Contains(ComfyUiArtGenerationOptions.ModelToken,StringComparison.Ordinal))
+  {
+   if(string.IsNullOrWhiteSpace(invocation.Request.Model))
+    throw new InvalidOperationException("A ComfyUI model is required when the workflow contains the model token.");
+   workflow=workflow.Replace(ComfyUiArtGenerationOptions.ModelToken,JsonEncodedText.Encode(invocation.Request.Model).ToString(),StringComparison.Ordinal);
+  }
   if(invocation.Request.ReferenceImages is not null)
    foreach(var reference in invocation.Request.ReferenceImages)
    {

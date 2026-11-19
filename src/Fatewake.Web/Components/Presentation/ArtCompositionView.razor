@@ -1,16 +1,21 @@
 @using Fatewake.Web.Presentation
 @implements IDisposable
 @inject Fatewake.Web.Authentication.AuthenticatedApiClient ApiClient
+@inject Microsoft.Extensions.Logging.ILogger<ArtCompositionView> Logger
 <div class="art-composition" data-artwork="@ArtworkKey">
-    @foreach(var layer in Layers.Where(x => ResolvedAssets.GetValueOrDefault(x.AssetKey)?.Status == "ready").OrderBy(x=>x.Z))
+    @foreach (var layer in Layers.OrderBy(x => x.Z))
     {
-        <picture class="art-layer-picture" style="@LayerStyle(layer)">
-            <source srcset="@WebPUrl(layer)" type="image/webp" />
-            <img class="art-layer @(layer.AssetKey.StartsWith("bg-", StringComparison.Ordinal) ? "art-background" : "art-overlay")" src="@PngUrl(layer)" alt="" aria-hidden="true"
-                 onerror="this.closest('picture').style.display='none'" />
+        if (ResolvedAssets.GetValueOrDefault(layer.AssetKey) is not { Status: "ready", Version: > 0 } asset ||
+            FailedImages.Contains((layer.AssetKey, asset.Version))) continue;
+        <picture @key="(layer, asset.Version)" class="art-layer-picture" style="@LayerStyle(layer)">
+            <source srcset="@ArtUrl(asset, "webp")" type="image/webp" />
+            <img class="art-layer @(layer.AssetKey.StartsWith("bg-", StringComparison.Ordinal) ? "art-background" : "art-overlay")"
+                 src="@ArtUrl(asset, "png")" alt="" aria-hidden="true" @onerror="() => RetryImage(asset)" />
         </picture>
     }
-    <div class="art-placeholder" aria-hidden="true"><span>@ArtworkKey</span></div>
+    <div class="art-placeholder" aria-hidden="true">
+        <img src="/images/art-generating.svg" alt="" />
+    </div>
     @if (StatusMessage is {} message)
     {
         <div class="art-generation-status" role="status">@message</div>
@@ -24,6 +29,8 @@
     private void ReloadArtwork()
     {
         Loading?.Cancel(); Loading?.Dispose(); Loading = new();
+        Polling = false;
+        FailedImages.Clear();
         StartLoading = true;
     }
     [Parameter,EditorRequired] public string ArtworkKey {get;set;}="";
@@ -31,25 +38,43 @@
     [Parameter] public RenderFragment? ChildContent {get;set;}
     [Parameter] public EventCallback<ArtworkSnapshot> ArtworkDisplayed { get; set; }
     [Parameter] public Guid? SurvivorId { get; set; }
+    [Parameter] public string[] PrefetchKeys { get; set; } = [];
+    [Parameter] public string? SelectedActionType { get; set; }
     private Dictionary<string, SceneAsset> ResolvedAssets = new(StringComparer.Ordinal);
+    private readonly HashSet<(string Key, int? Version)> FailedImages = [];
+    private static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(5);
     private CancellationTokenSource? Loading;
-    private string? Signature;
+    private (string Keys, Guid? Survivor, string? Action)? Signature;
     private bool StartLoading;
+    private bool Polling;
     private bool Unavailable;
     private string? StatusMessage => Layers.Count == 0 ? null : Unavailable ? "Artwork is temporarily unavailable. Retrying…"
         : ResolvedAssets.Values.Any(x => x.Status is "failed" or "cancelled") ? "Some artwork could not be generated."
         : ResolvedAssets.Values.Any(x => x.Status == "disabled") ? "Artwork generation is not configured."
-        : ResolvedAssets.Count == 0 || ResolvedAssets.Values.Any(x => x.Status == "pending") ? "Preparing artwork…" : null;
+        : NeedsRetry ? "Preparing artwork…" : null;
+
+    private bool NeedsRetry => FailedImages.Count > 0 || Layers.Any(layer =>
+        ResolvedAssets.GetValueOrDefault(layer.AssetKey) is not
+            ({ Status: "ready", Version: > 0 } or { Status: "failed" or "cancelled" or "disabled" }));
+
+    private void RetryImage(SceneAsset asset)
+    {
+        if (ResolvedAssets.GetValueOrDefault(asset.Key) != asset || !FailedImages.Add((asset.Key, asset.Version))) return;
+        if (!Polling) StartLoading = true;
+    }
 
     protected override void OnParametersSet()
     {
-        var signature = string.Join("|", Layers.Select(x => x.AssetKey).Distinct().Order());
+        var signature = (string.Join("|", Layers.Select(x => x.AssetKey).Distinct().Order()) + "#" +
+            string.Join("|", PrefetchKeys.Distinct(StringComparer.Ordinal).Order()), SurvivorId, SelectedActionType);
         if (signature == Signature) return;
         Signature = signature;
         Loading?.Cancel();
         Loading?.Dispose();
         Loading = new();
         ResolvedAssets = new(StringComparer.Ordinal);
+        FailedImages.Clear();
+        Polling = false;
         Unavailable = false;
         StartLoading = Layers.Count > 0;
     }
@@ -59,44 +84,73 @@
         if (StartLoading)
         {
             StartLoading = false;
-            _ = LoadAsync(Layers.Select(x => x.AssetKey).Distinct().ToArray(), Loading!.Token);
+            Polling = true;
+            var retryingImage = FailedImages.Count > 0;
+            _ = LoadAsync(Layers.Select(x => x.AssetKey).Distinct().ToArray(),
+                retryingImage ? [] : PrefetchKeys.Distinct(StringComparer.Ordinal)
+                    .Except(Layers.Select(x => x.AssetKey), StringComparer.Ordinal).Take(24).ToArray(),
+                retryingImage, Loading!.Token);
         }
         return Task.CompletedTask;
     }
 
-    private async Task LoadAsync(string[] keys, CancellationToken ct)
+    private async Task LoadAsync(string[] keys, string[] prefetchKeys, bool waitBeforeRequest, CancellationToken ct)
     {
         try
         {
+            if (prefetchKeys.Length > 0) _ = PrefetchAsync(prefetchKeys, ct);
             while (!ct.IsCancellationRequested)
             {
+                var retrying = FailedImages.ToArray();
+                if (waitBeforeRequest) await Task.Delay(RetryInterval, ct);
+                waitBeforeRequest = true;
                 try
                 {
                     using var client = await ApiClient.CreateAsync();
-                    using var response = await client.PostAsJsonAsync("/api/art/scene/resolve", new { keys, SurvivorId }, ct);
+                    using var response = await client.PostAsJsonAsync("/api/art/scene/resolve", new { keys, SurvivorId, SelectedActionType }, ct);
                     response.EnsureSuccessStatusCode();
                     var assets = await response.Content.ReadFromJsonAsync<SceneAsset[]>(ct) ?? [];
                     ct.ThrowIfCancellationRequested();
                     ResolvedAssets = assets.ToDictionary(x => x.Key, StringComparer.Ordinal);
+                    FailedImages.ExceptWith(retrying);
                     Unavailable = false;
                 }
                 catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException && !ct.IsCancellationRequested)
                 {
+                    if (!Unavailable) Logger.LogWarning(ex, "Visible artwork resolution failed; retrying");
                     Unavailable = true;
                 }
                 await InvokeAsync(StateHasChanged);
                 if (!Unavailable)
                     await InvokeAsync(() => ArtworkDisplayed.InvokeAsync(new ArtworkSnapshot(ArtworkKey, ReviewVersions)));
-                if (!Unavailable && ResolvedAssets.Values.All(x => x.Status != "pending")) return;
-                await Task.Delay(TimeSpan.FromSeconds(5), ct);
+                if (!Unavailable && !NeedsRetry) return;
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        finally
+        {
+            if (!ct.IsCancellationRequested) Polling = false;
+        }
+    }
+
+    private async Task PrefetchAsync(string[] keys, CancellationToken ct)
+    {
+        try
+        {
+            using var client = await ApiClient.CreateAsync();
+            using var response = await client.PostAsJsonAsync("/api/art/scene/resolve",
+                new { keys, SurvivorId, SelectedActionType }, ct);
+            response.EnsureSuccessStatusCode();
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            Logger.LogWarning(ex, "Predictive artwork prefetch failed; visible artwork will continue normally");
+        }
     }
 
     public void Dispose() { Loading?.Cancel(); Loading?.Dispose(); }
-    private string WebPUrl(ArtLayer x)=>$"/art/{x.AssetKey}/{ResolvedAssets[x.AssetKey].Version}/webp";
-    private string PngUrl(ArtLayer x)=>$"/art/{x.AssetKey}/{ResolvedAssets[x.AssetKey].Version}/png";
+    private static string ArtUrl(SceneAsset asset, string format) => $"/art/{asset.Key}/{asset.Version}/{format}";
     private sealed record SceneAsset(string Key, string Status, int? Version);
     private static string LayerStyle(ArtLayer x)=>$"z-index:{x.Z};left:{x.X*100:F2}%;top:{x.Y*100:F2}%;width:{x.Width*100:F2}%;height:{x.Height*100:F2}%;opacity:{x.Opacity:F2};transform:translate(-50%,-50%) scale({x.Scale:F3}) rotate({x.Rotation:F2}deg);";
 }

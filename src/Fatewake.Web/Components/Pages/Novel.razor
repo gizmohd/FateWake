@@ -6,7 +6,7 @@
 @inject ILogger<Novel> Logger
 <PageTitle>Your story — Fatewake</PageTitle>
 <main class="novel">
-    <nav><a href="/">Continue your story</a></nav>
+    <nav><a href="/play">Continue your story</a></nav>
     <header><div class="eyebrow">FATEWAKE · THE STORY SO FAR</div><h1>Your story</h1><p>Every remembered moment, in the order it happened.</p></header>
     @if (_error is not null) { <p role="alert">@_error</p> }
     else if (_panels is null) { <p role="status">Opening your story…</p> }

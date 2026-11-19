@@ -18,12 +18,19 @@ builder.Services.Configure<ComfyUiArtGenerationOptions>(builder.Configuration.Ge
 builder.Services.Configure<OpenAiArtGenerationOptions>(builder.Configuration.GetSection(OpenAiArtGenerationOptions.SectionName));
 
 var storage=builder.Configuration.GetSection(ArtStorageOptions.SectionName).Get<ArtStorageOptions>()??new ArtStorageOptions();
-if(!string.Equals(storage.Provider,"FileSystem",StringComparison.OrdinalIgnoreCase))
-    throw new InvalidOperationException($"Unsupported ArtStorage provider '{storage.Provider}'.");
-if(string.IsNullOrWhiteSpace(storage.RootPath))
-    throw new InvalidOperationException("ArtStorage:RootPath must be explicitly configured. Use a shared persistent volume when running multiple Kubernetes pods.");
-
-builder.Services.AddSingleton<IArtBinaryStorage>(_=>new FileSystemArtBinaryStorage(Path.GetFullPath(storage.RootPath)));
+switch(storage.Provider.ToLowerInvariant())
+{
+    case "postgres":
+        builder.Services.AddScoped<IArtBinaryStorage,PostgresArtBinaryStorage>();
+        break;
+    case "filesystem":
+        if(string.IsNullOrWhiteSpace(storage.RootPath))
+            throw new InvalidOperationException("ArtStorage:RootPath must be explicitly configured for filesystem storage.");
+        builder.Services.AddScoped<IArtBinaryStorage>(_=>new FileSystemArtBinaryStorage(Path.GetFullPath(storage.RootPath)));
+        break;
+    default:
+        throw new InvalidOperationException($"Unsupported ArtStorage provider '{storage.Provider}'.");
+}
 builder.Services.AddSingleton<IArtImageProcessor,SkiaArtImageProcessor>();
 builder.Services.AddSingleton<IWorkSignalBus,RabbitMqWorkSignalBus>();
 builder.Services.AddSingleton<WorkQueueWakeup>();

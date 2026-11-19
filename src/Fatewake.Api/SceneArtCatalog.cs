@@ -5,6 +5,7 @@ using Fatewake.Infrastructure.Art;
 namespace Fatewake.Api;
 
 /// <summary>Builds generation requests only for authored scene layers shipped with the API.</summary>
+/// <see href="../../../docs/code/src/Fatewake.Api/SceneArtCatalog.md">SceneArtCatalog documentation</see>
 public sealed class SceneArtCatalog(IConfiguration configuration)
 {
     private static readonly string[] Keys = [
@@ -49,13 +50,13 @@ public sealed class SceneArtCatalog(IConfiguration configuration)
             "prop-phone-0617-noservice" => "A single contemporary black smartphone, upright front view, large dark glass screen with a faint cold blue glow, isolated product close-up, centered, entire phone visible, plain white backdrop for background removal.",
             _ => PromptBody(prompt)
         };
-        var negative = "anime, manga, superhero, fantasy armor, zombies, gore, glossy 3D render, watermark, logo, captions, speech balloons";
+        var negative = "anime, manga, superhero, fantasy armor, zombies, gore, photorealism, glossy 3D render, low-resolution pixel art, pixelation, watermark, logo, captions, speech balloons";
         if (type != "CharacterPose") negative += ", person, people, man, woman, child, human, face, body, hands, character portrait";
         if (type == "Background") negative += ", smartphone, phone, text, ruined building, rubble, post-apocalyptic decay";
         if (type == "Prop") negative += ", room, furniture, scenery, multiple objects, text, letters, numbers";
         var continuity = type is "CharacterPose" or "Background" ? context : string.Empty;
-        var resolved = $"{subject}\nGrounded digitally painted graphic-novel illustration, restrained ink texture, believable materials, subdued warm gray and charcoal palette, cinematic natural light.\n{framing}\n{continuity}";
-        var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"scene-art-v2\n{key}\n{resolved}\n{negative}"))).ToLowerInvariant();
+        var resolved = $"{subject}\nHigh-color 32-bit-era 2D adventure illustration with late-1990s console and VGA influence; nuanced gradients, fine material detail, crisp silhouettes, expressive composition, grounded saturated colors, controlled cinematic light. Avoid photorealism and visible pixel-grid effects.\n{framing}\n{continuity}";
+        var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"scene-art-v3\n{key}\n{resolved}\n{negative}"))).ToLowerInvariant();
         var provider = configuration["ArtGeneration:Provider"] ?? "None";
         var model = provider.ToLowerInvariant() switch
         {
@@ -67,7 +68,7 @@ public sealed class SceneArtCatalog(IConfiguration configuration)
         return new(key, type, fingerprint, resolved, provider, model,
             CharacterKey: type == "CharacterPose" ? key : null,
             LocationKey: type == "Background" ? key : null,
-            NegativeInstructions: negative, PromptTemplateId: key, PromptTemplateVersion: "2", StyleBibleVersion: "1");
+            NegativeInstructions: negative, PromptTemplateId: key, PromptTemplateVersion: "3", StyleBibleVersion: "2");
     }
 
     private static string PromptBody(string document)

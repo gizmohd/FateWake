@@ -26,7 +26,7 @@ public static class LocalAuthenticationEndpoints
             app.MapPost("/auth/external/" + provider.ToLowerInvariant(), async (HttpContext context, IAntiforgery antiforgery, ILoggerFactory logs) =>
             {
                 if (!await ValidateFormAsync(context, antiforgery, logs)) return Results.BadRequest("Invalid form token.");
-                return Results.Challenge(new AuthenticationProperties { RedirectUri = "/" }, [provider]);
+                return Results.Challenge(new AuthenticationProperties { RedirectUri = "/play" }, [provider]);
             }).RequireRateLimiting("local-auth");
         }
         app.MapPost("/auth/verify-email", (HttpContext context, IAntiforgery antiforgery, IHttpClientFactory clients, ILoggerFactory logs) =>

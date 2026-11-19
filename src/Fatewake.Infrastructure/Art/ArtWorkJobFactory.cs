@@ -9,6 +9,8 @@ public sealed class ArtWorkJobFactory(IWorkJobBuilder jobs):IArtWorkJobFactory
     /// <inheritdoc/>
     public Task<CreatedWorkJob> CreateAsync(ArtWorkRequest request,CancellationToken ct=default)
     {
+        if (request.IsPrivate && request.AccountId is null)
+            throw new ArgumentException("Private artwork requires an owning account.", nameof(request));
         var input=JsonSerializer.Serialize(request);
         var steps=new WorkStepDefinition[]
         {
@@ -20,6 +22,9 @@ public sealed class ArtWorkJobFactory(IWorkJobBuilder jobs):IArtWorkJobFactory
             new("validate",ArtWorkStepTypes.Validate,ArtWorkQueues.Validate,input,request.Priority,3,["webp","png","metadata"]),
             new("finalize",ArtWorkStepTypes.Finalize,ArtWorkQueues.Finalize,input,request.Priority,3,["validate"])
         };
-        return jobs.CreateAsync(new("art.asset",request.VisualFingerprint,input,steps,request.Priority),ct);
+        var idempotencyKey = request.IsPrivate
+            ? $"{request.VisualFingerprint}:account:{request.AccountId:N}"
+            : request.VisualFingerprint;
+        return jobs.CreateAsync(new("art.asset",idempotencyKey,input,steps,request.Priority),ct);
     }
 }

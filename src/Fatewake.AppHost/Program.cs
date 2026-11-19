@@ -17,7 +17,7 @@ IResourceBuilder<RabbitMQServerResource> rabbit = builder.AddRabbitMQ("rabbitmq"
     .WithLifetime(ContainerLifetime.Persistent);
 
 string artStorageRoot = Path.GetFullPath(builder.Configuration["ArtStorage:RootPath"] ??
-    Path.Combine("src", "Fatewake.Web", "wwwroot", "art"), Path.Combine(builder.AppHostDirectory, "..", ".."));
+    Path.Combine("data", "art"), Path.Combine(builder.AppHostDirectory, "..", ".."));
 string emailsRoot = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "emails"));
 
 IResourceBuilder<ProjectResource> api = builder.AddProject<Projects.Fatewake_Api>("api")
@@ -40,8 +40,10 @@ IResourceBuilder<ProjectResource> worker = builder.AddProject<Projects.Fatewake_
     .WaitFor(api);
 
 api.WithForwardedSection(builder, "ArtGeneration");
+api.WithForwardedSection(builder, "ArtStorage");
 
 worker.WithForwardedSection(builder, "ArtGeneration");
+worker.WithForwardedSection(builder, "ArtStorage");
 
 IResourceBuilder<ProjectResource> web = builder.AddProject<Projects.Fatewake_Web>("web")
     .WithReference(api)

@@ -19,6 +19,17 @@ public sealed class WorkJobBuilder(FatewakeDbContext db,IWorkSignalBus signals,I
         var existing=await db.WorkJobs.AsNoTracking().SingleOrDefaultAsync(x=>x.JobType==definition.JobType&&x.IdempotencyKey==definition.IdempotencyKey,ct);
         if(existing is not null)
         {
+            if(definition.Priority>existing.Priority)
+            {
+                var promotedAt=DateTimeOffset.UtcNow;
+                await db.WorkJobs.Where(x=>x.Id==existing.Id)
+                    .ExecuteUpdateAsync(setters=>setters.SetProperty(x=>x.Priority,definition.Priority)
+                        .SetProperty(x=>x.UpdatedAt,promotedAt),ct);
+                await db.WorkSteps.Where(x=>x.JobId==existing.Id&&x.Status!=WorkStepStatus.Completed&&x.Status!=WorkStepStatus.Failed&&x.Status!=WorkStepStatus.Cancelled)
+                    .ExecuteUpdateAsync(setters=>setters.SetProperty(x=>x.Priority,x=>x.Priority<definition.Priority?definition.Priority:x.Priority)
+                        .SetProperty(x=>x.UpdatedAt,promotedAt),ct);
+                log.LogInformation("Raised priority of existing work job {WorkJobId} to {WorkPriority}",existing.Id,definition.Priority);
+            }
             var existingSteps=await db.WorkSteps.AsNoTracking().Where(x=>x.JobId==existing.Id).ToDictionaryAsync(x=>x.StepType+"|"+x.Queue+"|"+x.Id,x=>x.Id,ct);
             await tx.CommitAsync(ct);
             return new(existing.Id,true,existingSteps);

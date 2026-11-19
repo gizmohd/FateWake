@@ -1,5 +1,9 @@
 # Fatewake MVP Specification — Days 1–7
 
+## Additional Requirements Baseline
+
+[Retro Presentation and Local Narrative AI Requirements](RETRO-AI-REQUIREMENTS.md) adds the selected 32-bit-era high-color visual direction and local narrative AI/art pipeline requirements. Apply its phased acceptance gates to the existing slice; it does not mark Days 1–7, people/inventory screens, or narrative AI as implemented. Parallel-timeline visualization and sprite exploration remain later scope.
+
 ## Goal
 Prove that Fatewake's core loop is compelling before building the full social simulation:
 

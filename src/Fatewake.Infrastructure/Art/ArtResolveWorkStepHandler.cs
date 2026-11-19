@@ -10,7 +10,8 @@ public sealed class ArtResolveWorkStepHandler(IArtAssetStore assets,IWorkArtifac
     public async Task<string?> ExecuteAsync(WorkStepExecutionContext context,CancellationToken ct)
     {
         var request=JsonSerializer.Deserialize<ArtWorkRequest>(context.Input)??throw new InvalidOperationException("Invalid art work request.");
-        var match=await assets.FindApprovedByFingerprintAsync(request.VisualFingerprint,ct);
+        if(request.IsPrivate&&request.AccountId is null)throw new InvalidOperationException("Private artwork requires an owning account.");
+        var match=await assets.FindApprovedByFingerprintAsync(request.VisualFingerprint,ct,request.IsPrivate?request.AccountId:null);
         var output=JsonSerializer.Serialize(new ArtResolveResult(match is not null,match?.Id,match?.MasterPngStorageKey,match?.WebPStorageKey,match?.OptimizedPngStorageKey));
         await artifacts.PutAsync(context.JobId,"art.resolve",output,ct);
         return output;

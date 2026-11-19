@@ -1,0 +1,85 @@
+@page "/"
+@using Fatewake.Web.Presentation
+@using Microsoft.AspNetCore.Components.Authorization
+
+<PageTitle>Fatewake — The Silence</PageTitle>
+
+<main class="landing-page">
+    <header class="landing-header">
+        <a class="landing-brand" href="/" aria-label="Fatewake home">FATEWAKE</a>
+        <nav aria-label="Account">
+            <AuthorizeView>
+                <Authorized>
+                    <a href="/account">Account</a>
+                    <a href="/play">Continue story</a>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="/login">Sign in</a>
+                    <a class="landing-nav-cta" href="/register">Create account</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </nav>
+    </header>
+
+    <section class="landing-hero" aria-labelledby="landing-title">
+        <p class="landing-kicker">A 32-BIT-ERA NARRATIVE ADVENTURE</p>
+        <h1 id="landing-title">The world fell silent.</h1>
+        <p class="landing-intro">@GameGuideCatalog.Introduction</p>
+        <div class="landing-actions">
+            <a class="landing-primary" href="/play">Start playing</a>
+            <AuthorizeView>
+                <NotAuthorized>
+                    <a class="landing-secondary" href="/login">Sign in</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+        <p class="landing-note">Start as a guest, or create an account to keep your survivor tied to your account.</p>
+    </section>
+
+    <section class="landing-section" aria-labelledby="story-title">
+        <div class="landing-section-heading">
+            <p class="landing-kicker">CURRENTLY AVAILABLE</p>
+            <h2 id="story-title">@GameGuideCatalog.CurrentStoryTitle</h2>
+        </div>
+        <div class="landing-story-card">
+            <p class="landing-story-meta">SURVIVOR DAY @GameGuideCatalog.CurrentStoryDay · @GameGuideCatalog.CurrentStoryBeatCount STORY BEATS</p>
+            <p>Begin at 6:17 AM, when a familiar morning stops behaving like one. Read the scene, decide how you respond, and see the authoritative game outcome unfold.</p>
+            <a href="/play">Enter the story <span aria-hidden="true">→</span></a>
+        </div>
+    </section>
+
+    <section class="landing-section" aria-labelledby="getting-started-title">
+        <p class="landing-kicker">GETTING STARTED</p>
+        <h2 id="getting-started-title">Your first few minutes</h2>
+        <div class="landing-guide-grid">
+            <article class="landing-guide-card">
+                <span class="landing-step">01</span>
+                <h3>Start the opening</h3>
+                <p>Choose <strong>Start playing</strong> to continue an existing survivor or begin as a guest. No setup is required.</p>
+            </article>
+            <article class="landing-guide-card">
+                <span class="landing-step">02</span>
+                <h3>Read the scene</h3>
+                <p>Move through the opening beats at your own pace. The story presents the people and events your survivor can currently observe.</p>
+            </article>
+            <article class="landing-guide-card">
+                <span class="landing-step">03</span>
+                <h3>Choose how to respond</h3>
+                <p>Select an authored action or describe another response. The game engine determines consequences; narration presents what happened.</p>
+            </article>
+        </div>
+    </section>
+
+    <section class="landing-section landing-appearance" aria-labelledby="appearance-title">
+        <div>
+            <p class="landing-kicker">YOUR SURVIVOR</p>
+            <h2 id="appearance-title">A character shaped by the story</h2>
+        </div>
+        <p>@GameGuideCatalog.CharacterAppearanceStatus</p>
+    </section>
+
+    <footer class="landing-footer">
+        <span>FATEWAKE · THE SILENCE</span>
+        <a href="/play">Play the opening</a>
+    </footer>
+</main>

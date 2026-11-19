@@ -267,3 +267,18 @@ When a major choice is made: update this log, update the canonical document, and
 | DEC-139 | Appearance assets and complete scene renders use separate reuse layers so one approved appearance can be projected into many loadouts, conditions, poses and scenes. | Accepted |
 | DEC-140 | New survivors use approved default male/female visual identities until custom identity/appearance generation completes and is approved, at which point the requested visual identity is automatically activated without blocking gameplay. | Accepted |
 | DEC-141 | Approved visual identity artwork survives character death and may be explicitly reused for a successor/new character without regeneration. | Accepted |
+
+
+## Retro Presentation and Local Narrative AI (2026-11-18)
+
+Source and acceptance gates: [requirements baseline](../RETRO-AI-REQUIREMENTS.md). These decisions describe target direction, not completed implementation.
+
+| ID | Decision | Status |
+|---|---|---|
+| DEC-142 | Target 16-bit cinematic adventure pixel art and a 1990s VGA-style interface while retaining mobile access and the scene/beat/story-archive structure. | Superseded by DEC-148 for art style; VGA/UI direction retained |
+| DEC-143 | Introduce the retro style through versioned assets/workflows; preserve existing approved assets, appearance reuse, and pinned story history. | Required migration constraint |
+| DEC-144 | Develop local narrative AI using style/task fine-tuning, source-grounded canon retrieval, and separate deterministic game state; AI never commits outcomes. | Accepted architecture direction |
+| DEC-145 | Target the user-specified RTX Spark 128 GB host; benchmark Qwen3-14B against Qwen3-8B before selecting the narrative model and runtime. | Target and evaluation requirement; compatibility unverified |
+| DEC-146 | Extend the existing durable artwork pipeline with specialized pixel-art backgrounds/portraits, private ComfyUI access, validation, caching, and nonblocking fallbacks. | Pipeline architecture retained; pixel-art style superseded by DEC-148 |
+| DEC-147 | Keep OpenClaw as a restricted creative/development assistant, separate from live gameplay authority; schedule training apart from interactive GPU workloads. | Accepted boundary |
+| DEC-148 | Adopt high-color 32-bit-era 2D adventure art, with late-1990s console/VGA influence, as the visual target for new assets. Preserve existing approved artwork as immutable versions. | Accepted; supersedes the 16-bit palette and pixel-grid constraints in DEC-142 and the style-specific portion of DEC-146 |

@@ -145,6 +145,14 @@ The asset record should capture at minimum:
 
 If a delivery derivative is missing or its encoding policy changes, it should be recreated from the archival master without invoking the AI image provider again.
 
+### PostgreSQL persistence and cache delivery
+
+The PostgreSQL `art_binary` table stores masters and derivatives by their stable storage key. The API startup backfill imports every registered legacy filesystem binary and verifies its bytes against the recorded hash before readiness. API and Worker retain the configured legacy directory as a read fallback during migration; retain the old files until backfill succeeds. Backups include binary payloads, so monitor database and backup growth.
+
+The browser-facing `/art/{key}/{version}/{format}` URL is a same-origin Web proxy to the API. Content-hash ETags provide conditional `304` responses, and the proxy forwards cache validators. Runtime delivery serves only registered WebP/optimized-PNG derivatives, never archival masters. Globally shared approved assets use immutable public caching. Assets with an account owner require matching authentication and use private, cookie-varied caching; never publish them to a shared CDN cache.
+
+The scene renderer may enqueue a bounded set of upcoming authored scene-layer keys without waiting for generation. A selected authored action raises the priority of pending work, including a job already enqueued by prediction. Only allowlisted scene keys may be requested; predictions must remain reuse-first and avoid generating every hypothetical branch.
+
 
 ## Generation Prompt Audit Trail
 

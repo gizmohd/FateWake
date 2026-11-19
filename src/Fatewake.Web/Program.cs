@@ -1,5 +1,6 @@
 using Fatewake.Web.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using System.Net.Http.Headers;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -47,11 +48,32 @@ app.MapGet("/art/{key}/{version:int}/{format}", async (string key, int version, 
     IHttpClientFactory clients, HttpContext context, CancellationToken ct) =>
 {
     if (version < 1 || format is not ("png" or "webp")) return Results.NotFound();
-    using var response = await clients.CreateClient("fatewake-api").GetAsync(
-        $"/api/art/{Uri.EscapeDataString(key)}/{version}/{format}", HttpCompletionOption.ResponseHeadersRead, ct);
-    if (!response.IsSuccessStatusCode) return Results.StatusCode((int)response.StatusCode);
-    context.Response.ContentType = "image/" + format;
-    context.Response.Headers.CacheControl = "public,max-age=31536000,immutable";
+    using var request = new HttpRequestMessage(HttpMethod.Get,
+        $"/api/art/{Uri.EscapeDataString(key)}/{version}/{format}");
+    if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("fatewake.api_token") is { } token)
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Value);
+    foreach (var header in new[] { "If-None-Match", "If-Modified-Since" })
+        if (context.Request.Headers.TryGetValue(header, out var values))
+            request.Headers.TryAddWithoutValidation(header, values.ToArray());
+
+    using var response = await clients.CreateClient("fatewake-api").SendAsync(
+        request, HttpCompletionOption.ResponseHeadersRead, ct);
+    context.Response.StatusCode = (int)response.StatusCode;
+    if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotModified)
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        return Results.Empty;
+    }
+    foreach (var header in new[] { "Cache-Control", "ETag", "Last-Modified", "Expires", "Content-Length" })
+    {
+        if (response.Headers.TryGetValues(header, out var values) ||
+            response.Content.Headers.TryGetValues(header, out values))
+            context.Response.Headers[header] = values.ToArray();
+    }
+    if (!response.IsSuccessStatusCode) return Results.Empty;
+    context.Response.ContentType = response.Content.Headers.ContentType?.ToString() ?? "image/" + format;
+    if (context.Response.Headers.CacheControl.ToString().Contains("private", StringComparison.OrdinalIgnoreCase))
+        context.Response.Headers.Vary = "Cookie";
     await response.Content.CopyToAsync(context.Response.Body, ct);
     return Results.Empty;
 });

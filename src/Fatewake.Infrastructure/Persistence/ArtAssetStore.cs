@@ -7,15 +7,18 @@ namespace Fatewake.Infrastructure.Persistence;
 public sealed class ArtAssetStore(FatewakeDbContext db) : IArtAssetStore
 {
     /// <inheritdoc />
-    public Task<ArtAssetMatch?> FindApprovedByFingerprintAsync(string visualFingerprint, CancellationToken ct = default)
+    public Task<ArtAssetMatch?> FindApprovedByFingerprintAsync(string visualFingerprint, CancellationToken ct = default, Guid? accountId = null)
         => Project(db.ArtAssets.AsNoTracking()
-            .Where(a => a.Status == ArtAssetStatus.Approved && a.VisualFingerprint == visualFingerprint)
-            .OrderByDescending(a => a.Version)).FirstOrDefaultAsync(ct);
+            .Where(a => a.Status == ArtAssetStatus.Approved && a.VisualFingerprint == visualFingerprint &&
+                (a.OwnerAccountId == null || a.OwnerAccountId == accountId))
+            .OrderBy(a => a.OwnerAccountId == accountId ? 0 : 1)
+            .ThenByDescending(a => a.Version)).FirstOrDefaultAsync(ct);
 
     /// <inheritdoc />
-    public Task<ArtAssetMatch?> FindApprovedAsync(string key, int version, CancellationToken ct = default)
+    public Task<ArtAssetMatch?> FindApprovedAsync(string key, int version, CancellationToken ct = default, Guid? accountId = null)
         => Project(db.ArtAssets.AsNoTracking()
-            .Where(a => a.Status == ArtAssetStatus.Approved && a.Key == key && a.Version == version))
+            .Where(a => a.Status == ArtAssetStatus.Approved && a.Key == key && a.Version == version &&
+                (a.OwnerAccountId == null || a.OwnerAccountId == accountId)))
             .FirstOrDefaultAsync(ct);
 
     private IQueryable<ArtAssetMatch> Project(IQueryable<ArtAssetRecord> assets)

@@ -7,29 +7,18 @@ using Microsoft.Extensions.Logging;
 
 namespace Fatewake.Infrastructure.Art;
 
-public sealed record ArtGenerationProvenance(
-    string Operation,string? PromptKey,string? PromptTemplateVersion,string ResolvedPrompt,string? NegativePrompt,
-    string Provider,string Model,string? ProviderJobId,string? PromptBuilderVersion,string? StyleBibleVersion,
-    IReadOnlyList<string> ReferenceAssets,IReadOnlyDictionary<string,object?> GenerationParameters,
-    IReadOnlyDictionary<string,string> ContinuityVersions,decimal? CostUsd);
-
-public sealed record ArtIngestRequest(
-    string Key,string AssetType,string VisualFingerprint,byte[] MasterPng,ArtGenerationProvenance Provenance,
-    string? CharacterKey=null,string? LocationKey=null,Guid? ParentAssetId=null,bool Approve=false);
-
-public sealed record ArtIngestResult(Guid AssetId,string Key,int Version,string MasterPngStorageKey,string WebPStorageKey,string OptimizedPngStorageKey);
-
-public interface IArtAssetIngestionService
-{
-    Task<ArtIngestResult> IngestAsync(ArtIngestRequest request,CancellationToken ct=default);
-}
-
+/// <summary>Registers a validated archival master and its delivery derivatives as an immutable asset version.</summary>
+/// <see href="../../../docs/code/src/Fatewake.Infrastructure/Art/ArtAssetIngestionService.md">ArtAssetIngestionService documentation</see>
 public sealed class ArtAssetIngestionService(FatewakeDbContext db,IArtBinaryStorage storage,IArtImageProcessor images, ILogger<ArtAssetIngestionService>? log = null):IArtAssetIngestionService
 {
+    /// <summary>Persists the master, derivatives, and generation provenance, reusing an existing public approved fingerprint.</summary>
+    /// <param name="request">Canonical asset content and provenance.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The immutable registered asset and delivery storage keys.</returns>
     public async Task<ArtIngestResult> IngestAsync(ArtIngestRequest request,CancellationToken ct=default)
     {
         using var operation = OperationTelemetry.Start("art.ingest", log);
-        var existing=await db.ArtAssets.AsNoTracking().Where(x=>x.VisualFingerprint==request.VisualFingerprint&&x.Status==ArtAssetStatus.Approved)
+        var existing=await db.ArtAssets.AsNoTracking().Where(x=>x.VisualFingerprint==request.VisualFingerprint&&x.Status==ArtAssetStatus.Approved&&x.OwnerAccountId==null)
             .OrderByDescending(x=>x.Version).FirstOrDefaultAsync(ct);
         if(existing is not null)
         {

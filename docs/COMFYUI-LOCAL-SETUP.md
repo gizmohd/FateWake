@@ -18,11 +18,12 @@ Install a checkpoint/workflow appropriate for the available GPU. Fatewake delibe
 Create a normal text-to-image workflow in ComfyUI. It must end in a Save Image/output node.
 
 Use these literal placeholder values in the workflow:
+- model/checkpoint filename: `__FATEWAKE_MODEL__` (optional; substitute the selected model from the artwork request)
 - positive prompt: `__FATEWAKE_PROMPT__`
 - negative prompt: `__FATEWAKE_NEGATIVE__`
 - sampler seed: `__FATEWAKE_SEED__`
 
-The seed placeholder must be a JSON number in the exported API workflow, not a quoted string. Fatewake derives a stable seed from the durable job idempotency key.
+The model placeholder must be a JSON string in a compatible model-loader input. Fatewake replaces it with the requested ComfyUI model/checkpoint filename; the filename must already be installed in ComfyUI. Workflows without this optional token keep their fixed model selection. The seed placeholder must be a JSON number in the exported API workflow, not a quoted string. Fatewake derives a stable seed from the durable job idempotency key.
 
 Export/save the workflow in ComfyUI's API JSON format, not merely the UI graph format. Store it where the Worker can read it, for example:
 `workflows/fatewake-api.json`

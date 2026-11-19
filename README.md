@@ -14,6 +14,10 @@ Fatewake is a persistent narrative survival and social strategy game where playe
 - **Core mechanic:** Wake Effects
 - **Principle:** The game engine decides what happens; AI decides how it is told.
 
+## Initial local AI models
+
+See [model setup scripts](tools/models/README.md) for dry-run-first Qwen3 14B/8B preparation and opt-in local ComfyUI configuration. These prepare installed runtimes; narrative-model game integration remains planned.
+
 ## Running locally
 
 Install the .NET 10 SDK and start Docker or Podman, then run:
@@ -26,7 +30,9 @@ AppHost starts PostgreSQL, RabbitMQ (with its management UI), the API, the backg
 
 The host is a long-running process: after startup, use the printed Aspire dashboard URL to see resource status and service logs. If resources remain waiting, check the host output for container-runtime warnings. To diagnose a silent `dotnet run` during restore/build, run `dotnet build src\Fatewake.AppHost\Fatewake.AppHost.csproj --tl:off --verbosity minimal` first, then run with `--no-build`. When using `--no-launch-profile`, set `ASPIRE_CONTAINER_RUNTIME` explicitly and supply the dashboard/OTLP endpoint settings normally provided by the profile.
 
-The API applies migrations before becoming healthy; Web and Worker wait for it. API and Worker share `src\Fatewake.Web\wwwroot\art` filesystem storage. Generated files live in its ignored `art` subdirectory. AppHost configuration `ArtStorage:RootPath` can override this location. Deployed workers require an explicitly configured `ArtStorage:RootPath` on shared persistent storage.
+The API applies migrations before becoming healthy; Web and Worker wait for it. PostgreSQL stores approved artwork masters and delivery derivatives in `art_binary`, alongside their asset metadata. On startup, the API backfills registered assets from the legacy filesystem configured by `ArtStorage:RootPath`; API and Worker retain that path only as a read fallback while older binaries remain. Keep those source files until backfill succeeds. New artwork writes go to PostgreSQL. Database backups therefore include image binaries and grow with the art library.
+
+The public introduction and current getting-started guide are at `/`; `/play` starts or resumes gameplay. The guide's scene title/day/beat count follow authored story metadata, and it accurately describes character customization as not yet available. Versioned artwork is delivered through the Web app's same-origin `/art/{key}/{version}/{format}` endpoint with ETag validation. Shared approved art is immutable-public; account-owned character art is ownership-checked and privately cached.
 
 `ArtGeneration:Provider` defaults to `None`: approved artwork can be reused without generating new images. For new artwork, configure the worker with `OpenAI`, `Local`, or `ComfyUI` and enable the corresponding provider section. Keep API keys outside tracked configuration files; `src\Fatewake.Worker\appsettings.json` lists every setting with disabled/empty defaults, and the same template appears in `src\Fatewake.AppHost\appsettings.json`. Under AppHost, set them as AppHost user secrets. The same pattern applies to every secret-bearing section (`ArtGeneration`, `Authentication`, `Email`): tracked `appsettings.json` holds empty defaults, and AppHost forwards each non-empty user-secret value to the consuming services with `ApiKey`/`ClientSecret`/`Password`-style keys masked as secret parameters:
 
@@ -40,7 +46,7 @@ For an OpenAI-compatible image server, use `Provider=Local` with `ArtGeneration:
 
 Day 1 scenes now resolve their authored layers through `POST /api/art/scene/resolve`. Approved artwork is reused; missing layers create one durable job per prompt/style fingerprint. The renderer polls pending work every five seconds and displays approved PNG/WebP derivatives through the web app's same-origin `/art/{key}/{version}/{format}` route. Disabled providers and terminal job failures are visible in the scene. Scene requests accept only shipped layer keys, never client-supplied prompts.
 
-When running through AppHost, configure `ArtGeneration:*` in AppHost user-secrets or environment variables; AppHost forwards them to both API and Worker. When running services separately, provide the same provider configuration to both and the same persistent `ArtStorage:RootPath`. Authored prompts, style, character and location context ship with API build/publish output. `ArtGeneration:CatalogRoot` can override the catalog directory. For ComfyUI setup, see [the local generation guide](docs/COMFYUI-LOCAL-SETUP.md). For portrait output, configure the selected provider's size or ComfyUI workflow accordingly; reusable overlays require alpha-capable workflows/models.
+When running through AppHost, configure `ArtGeneration:*` in AppHost user-secrets or environment variables; AppHost forwards them to both API and Worker. When running services separately, provide the same provider configuration and PostgreSQL connection to both, and keep `ArtStorage:RootPath` configured wherever legacy reads are still needed. Authored prompts, style, character and location context ship with API build/publish output. `ArtGeneration:CatalogRoot` can override the catalog directory. For ComfyUI setup, see [the local generation guide](docs/COMFYUI-LOCAL-SETUP.md). For portrait output, configure the selected provider's size or ComfyUI workflow accordingly; reusable overlays require alpha-capable workflows/models.
 
 ComfyUI generation stays disabled until the configured workflow file exists, avoiding failed jobs during initial setup. When running API and Worker separately, make that workflow available at the configured path in both services. After exporting the workflow and starting ComfyUI, reload the scene to request its missing artwork.
 
@@ -91,6 +97,8 @@ To enable real email delivery, configure these settings in AppHost user secrets 
 SMTP failures are logged and returned visibly; enabled SMTP never silently falls back to disk. A persisted pending verification can be retried using resend after one minute. Password recovery and guest-to-account transfer are not implemented.
 
 ## Documentation
+
+- [Retro Presentation and Local Narrative AI Requirements](docs/RETRO-AI-REQUIREMENTS.md) — selected visual direction, training/RAG, ComfyUI, and acceptance gates; requirements, not implemented status.
 
 ### Logging and performance
 

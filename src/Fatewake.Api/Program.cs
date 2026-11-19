@@ -49,10 +49,23 @@ builder.Services.AddScoped<Fatewake.Infrastructure.Usage.AdminDashboardService>(
 builder.Services.AddScoped<ISessionStore, SessionStore>();
 builder.Services.AddScoped<StoryJournalService>();
 builder.Services.AddScoped<IAccountStore, AccountStore>();
-var artStorageRoot=builder.Configuration["ArtStorage:RootPath"] ?? builder.Configuration["Art:StorageRoot"];
-if(string.IsNullOrWhiteSpace(artStorageRoot))
-    artStorageRoot=Path.Combine(builder.Environment.ContentRootPath,"data","art");
-builder.Services.AddSingleton<IArtBinaryStorage>(_=>new FileSystemArtBinaryStorage(artStorageRoot));
+builder.Services.Configure<ArtStorageOptions>(builder.Configuration.GetSection(ArtStorageOptions.SectionName));
+var artStorage = builder.Configuration.GetSection(ArtStorageOptions.SectionName).Get<ArtStorageOptions>() ?? new ArtStorageOptions();
+switch (artStorage.Provider.ToLowerInvariant())
+{
+    case "postgres":
+        builder.Services.AddScoped<IArtBinaryStorage, PostgresArtBinaryStorage>();
+        builder.Services.AddScoped<ArtBinaryBackfillService>();
+        break;
+    case "filesystem":
+        var artStorageRoot = artStorage.RootPath ?? builder.Configuration["Art:StorageRoot"];
+        if (string.IsNullOrWhiteSpace(artStorageRoot))
+            artStorageRoot = Path.Combine(builder.Environment.ContentRootPath, "data", "art");
+        builder.Services.AddScoped<IArtBinaryStorage>(_ => new FileSystemArtBinaryStorage(Path.GetFullPath(artStorageRoot)));
+        break;
+    default:
+        throw new InvalidOperationException($"Unsupported ArtStorage provider '{artStorage.Provider}'.");
+}
 builder.Services.AddScoped<IArtAssetStore, ArtAssetStore>();
 builder.Services.AddScoped<IArtAssetIngestionService, ArtAssetIngestionService>();
 builder.Services.AddScoped<IArtResolutionService, ArtResolutionService>();
@@ -95,6 +108,8 @@ await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<FatewakeDbContext>();
     await DatabaseInitializer.InitializeAsync(db);
+    if (string.Equals(artStorage.Provider, "Postgres", StringComparison.OrdinalIgnoreCase))
+        await scope.ServiceProvider.GetRequiredService<ArtBinaryBackfillService>().BackfillAsync();
 }
 
 app.MapGet("/health", async (FatewakeDbContext db, CancellationToken ct) =>

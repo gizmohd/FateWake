@@ -11,3 +11,8 @@ No step assumes process affinity. Inputs and intermediate identifiers must refer
 
 ## Cost and provenance
 Provider generation is the expensive boundary. Generation handlers must preserve exact prompt/provider/model/reference provenance and must not repeat a provider call when a valid persisted master already exists for the canonical fingerprint.
+
+## Ownership
+Shared authored assets leave `IsPrivate` false and can be reused by all players. Survivor-specific artwork sets `IsPrivate` so finalization records its owning account; private assets are only eligible for reuse by that account and are delivered with private cache directives.
+
+Predictive requests use authored scene keys only and may be promoted when the player selects an action. A private request requires `AccountId`; its durable idempotency key is scoped to that account so one player's request cannot absorb another's work.

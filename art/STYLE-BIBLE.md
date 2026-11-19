@@ -1,27 +1,27 @@
-# Fatewake Visual Style Bible — v1
+# Fatewake Visual Style Bible — v2
 
 ## Core look
-A grounded near-future American graphic novel with cinematic realism and hand-illustrated character. Serious, intimate and believable. The world initially looks completely ordinary; unease comes from composition, silence, interrupted infrastructure and subtle impossible details rather than overt horror imagery.
+A grounded near-future American 2D adventure rendered in a high-color 32-bit-era style, drawing on late-1990s console and VGA games. This supersedes the earlier 16-bit pixel-art direction. “32-bit” describes the visual target, not a required file encoding or color depth. Serious, intimate and believable; the world initially looks ordinary, with unease conveyed through composition, silence, interrupted infrastructure and subtle impossible details.
 
-Think premium serialized graphic novel / prestige survival drama rather than superhero comic, anime, glossy concept art or photorealistic photography.
+Keep the interactive graphic-novel structure, but use refined high-color raster illustration rather than photorealistic photography, glossy 3D, anime or low-color pixel art.
 
 ## Rendering language
-- digitally painted graphic-novel illustration
+- polished high-color 2D raster illustration with late-1990s console/VGA influence
+- nuanced gradients, fine material detail and expressive silhouettes
 - realistic anatomy and believable faces
-- visible but restrained painterly/ink texture
-- confident shape design and selective detail
-- cinematic natural lighting
+- crisp edges and controlled illustrated texture
+- cinematic natural lighting with layered shadows
+- preserve enough detail and tonal range for mobile screens
 - deep blacks and controlled contrast
-- subtle atmospheric grain
 - backgrounds sufficiently detailed to establish a real lived-in place
 - faces remain readable on a phone
 - no exaggerated comic-book musculature or expressions
 - no text rendered into the artwork unless the prompt explicitly requires an in-world physical display
 
 ## Palette
-Early The Silence: subdued warm-gray interiors, asphalt/charcoal shadows, muted vegetation, weathered neutrals, restrained amber morning light. Emergency/anomaly accents may use desaturated red and cold electronic blue sparingly.
+Use a richer high-color range while keeping the setting grounded: warm-gray interiors, asphalt/charcoal shadows, nuanced vegetation and weathered neutrals, restrained amber morning light. Emergency/anomaly accents may use red and cold electronic blue sparingly.
 
-Avoid neon cyberpunk palettes.
+Avoid neon cyberpunk palettes, forced RGB565/low-color quantization, visible pixel grids and nearest-neighbor pixelation.
 
 ## Camera language
 Mobile portrait is primary, but compositions should survive responsive cropping.
@@ -46,7 +46,8 @@ No superhero costumes.
 No fantasy armor.
 No zombies unless future canon explicitly introduces them.
 No excessive gore.
-No glossy 3D render look.
+No glossy 3D render or photorealistic photography.
+No low-resolution 16-bit pixel-art appearance, visible pixel grids or intentional dithering.
 No plastic skin.
 No fashion-editorial posing.
 No random tattoos/accessories.

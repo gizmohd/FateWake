@@ -1,7 +1,7 @@
 # WorkJobBuilder
 
 ## Purpose
-Validates acyclic dependency graphs, creates job/steps/dependencies transactionally, and signals root steps after commit. Duplicate job submissions reuse the durable job by job type plus idempotency key.
+Validates acyclic dependency graphs, creates job/steps/dependencies transactionally, and signals root steps after commit. Duplicate job submissions reuse the durable job by job type plus idempotency key; a higher-priority repeat promotes its unfinished job and steps without duplicating work.
 
 ## Usage
 This type belongs to Fatewake's distributed work subsystem and is designed for horizontally scaled Linux or Windows Kubernetes workloads. See the XML documentation on the source type for its direct code contract.

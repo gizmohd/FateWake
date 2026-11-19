@@ -33,4 +33,13 @@ public sealed class SceneRuntimeTests
     {
         Assert.All(DayOneScenes.Opening.Beats,x=>Assert.False(string.IsNullOrWhiteSpace(x.ArtworkKey)));
     }
+
+    /// <summary>The landing-page availability summary follows the authored opening scene.</summary>
+    [Fact]
+    public void Landing_guide_tracks_current_opening_metadata()
+    {
+        Assert.Equal(DayOneScenes.Opening.Title, GameGuideCatalog.CurrentStoryTitle);
+        Assert.Equal(DayOneScenes.Opening.SurvivorDay, GameGuideCatalog.CurrentStoryDay);
+        Assert.Equal(DayOneScenes.Opening.Beats.Count, GameGuideCatalog.CurrentStoryBeatCount);
+    }
 }

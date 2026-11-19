@@ -15,7 +15,7 @@ Frame Michelle as the clear human focus in a grounded suburban street environmen
 
 Michelle is attentive and assessing her surroundings, not posing for the viewer. Her posture communicates concern, situational awareness, and practical resolve. Use a cinematic medium-to-wide composition that establishes both Michelle and the street around her. Natural daylight, believable atmospheric depth, restrained tension.
 
-Fatewake visual language: grounded near-future American cinematic graphic novel, realistic anatomy and materials, restrained painterly rendering with confident inked detail, natural lighting and ordinary contemporary architecture. The image should communicate that civilization has become uncertain, not that it has already become a fantasy wasteland.
+Fatewake visual language: grounded high-color 32-bit-era 2D adventure art, realistic anatomy and materials, nuanced gradients, fine raster detail, confident inked edges, natural lighting, and ordinary contemporary architecture. The image should communicate that civilization has become uncertain, not that it has already become a fantasy wasteland.
 
 Use the approved Michelle Summers identity reference and Day 1 appearance reference whenever available. Scene state may add only canonical equipment, condition, weather, time-of-day, vehicles, people, or environmental consequences.
 

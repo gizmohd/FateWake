@@ -1,7 +1,7 @@
 # Fatewake Presentation System
 
 ## Direction
-Fatewake is presented as an interactive graphic novel / restrained motion comic, not a text-adventure form.
+Fatewake retains an interactive graphic-novel / restrained motion-comic structure, not a text-adventure form. The current target rendering is **high-color 32-bit-era 2D adventure art with a 1990s console/VGA-style interface**. See [Retro Presentation and Local Narrative AI Requirements](RETRO-AI-REQUIREMENTS.md) for resolution, mobile layout, portraits, accessibility, and acceptance criteria. This supersedes the earlier 16-bit pixel-art direction. Existing approved assets remain versioned legacy content; apply the new style to new assets and explicit versioned replacements rather than silently mixing styles or overwriting history. This direction is not yet fully implemented.
 
 Gameplay authority remains outside presentation:
 **Canonical State → Scene Projection → Panels/Beats → Player Interaction → CandidateAction → GameEngine**
@@ -78,6 +78,6 @@ This metadata belongs to presentation provenance, not canonical game state.
 
 
 ## Implemented vertical-slice runtime
-The Day 1 opening is now authored as runtime beats in `DayOneScenes`. `ArtCompositionView` renders ordered reusable layers with a placeholder fallback when assets have not yet been generated. The server persists `SceneKey` and `BeatKey` in the active event state so presentation resumes at the same beat after refresh/return.
+The Day 1 opening is now authored as runtime beats in `DayOneScenes`. `ArtCompositionView` displays the shared `art-generating.svg` placeholder while queued artwork is being prepared. It checks for ready artwork every five seconds, including after a browser image load fails, and renders approved layers as they become available. Explicit failed, cancelled, or disabled generation statuses end polling for those layers. The server persists `SceneKey` and `BeatKey` in the active event state so presentation resumes at the same beat after refresh/return.
 
 Presentation progression never resolves gameplay. Only an Interaction beat submits a CandidateAction to GameEngine. Motion respects `prefers-reduced-motion`.

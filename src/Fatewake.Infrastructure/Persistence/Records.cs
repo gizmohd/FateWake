@@ -14,26 +14,6 @@ public sealed class ExternalIdentityRecord { public Guid Id { get; set; } public
 public enum ArtAssetStatus { Draft=0, Approved=1, Superseded=2, Rejected=3 }
 public enum ArtDerivativeKind { MasterPng=0, WebP=1, OptimizedPng=2, Responsive=3 }
 
-public sealed class ArtAssetRecord
-{
-    public Guid Id { get; set; }
-    public required string Key { get; set; }
-    public int Version { get; set; } = 1;
-    public required string AssetType { get; set; }
-    public ArtAssetStatus Status { get; set; } = ArtAssetStatus.Draft;
-    public Guid? ParentAssetId { get; set; }
-    public string? CharacterKey { get; set; }
-    public string? LocationKey { get; set; }
-    public required string VisualFingerprint { get; set; }
-    public required string ContentHash { get; set; }
-    public required string MasterPngStorageKey { get; set; }
-    public int Width { get; set; }
-    public int Height { get; set; }
-    public bool HasAlpha { get; set; }
-    public DateTimeOffset CreatedAt { get; set; }
-    public DateTimeOffset? ApprovedAt { get; set; }
-}
-
 public sealed class ArtAssetDerivativeRecord
 {
     public Guid Id { get; set; }

@@ -1,5 +1,9 @@
 # AI Design
 
+## Local Narrative Model Requirements
+
+See [Retro Presentation and Local Narrative AI Requirements](RETRO-AI-REQUIREMENTS.md) for the RTX Spark 128 GB target, Qwen3-14B versus 8B evaluation, manuscript-derived training examples, PostgreSQL/pgvector canon retrieval, structured-output validation, and GPU scheduling. These are planned requirements, not active providers or verified hardware capabilities. Model/tool selections remain benchmark- and license-dependent.
+
 ## Governing Principle
 **The GameEngine decides what happens. AI decides how it is told.**
 

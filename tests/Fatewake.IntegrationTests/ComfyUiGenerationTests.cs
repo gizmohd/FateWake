@@ -72,7 +72,7 @@ public sealed class ComfyUiGenerationTests
         {
             var backgroundPath = Path.Combine(root, "background.json");
             var overlayPath = Path.Combine(root, "overlay.json");
-            var template = "{\"kind\":\"KIND\",\"text\":\"__FATEWAKE_PROMPT__\",\"negative\":\"__FATEWAKE_NEGATIVE__\",\"seed\":__FATEWAKE_SEED__}";
+            var template = "{\"kind\":\"KIND\",\"model\":\"__FATEWAKE_MODEL__\",\"text\":\"__FATEWAKE_PROMPT__\",\"negative\":\"__FATEWAKE_NEGATIVE__\",\"seed\":__FATEWAKE_SEED__}";
             await File.WriteAllTextAsync(backgroundPath, template.Replace("KIND", "background"), ct);
             await File.WriteAllTextAsync(overlayPath, template.Replace("KIND", "overlay"), ct);
             var handler = new Responses();
@@ -81,13 +81,36 @@ public sealed class ComfyUiGenerationTests
             {
                 Enabled = true, WorkflowPath = backgroundPath, OverlayWorkflowPath = overlayPath
             }), new FileSystemArtBinaryStorage(root));
-            var result = await generator.GenerateAsync(new("test", new("asset", type, "fingerprint", "A \"radio\"\nwith texture", "ComfyUI", "workflow", NegativeInstructions: "no logos")), ct);
+            var result = await generator.GenerateAsync(new("test", new("asset", type, "fingerprint", "A \"radio\"\nwith texture", "ComfyUI", "workflow-model.safetensors", NegativeInstructions: "no logos")), ct);
             Assert.Equal(new byte[] { 1, 2, 3 }, result.MasterPng);
             Assert.Contains(overlay ? "overlay" : "background", handler.Submission);
             Assert.DoesNotContain("__FATEWAKE_", handler.Submission);
             using var json = System.Text.Json.JsonDocument.Parse(handler.Submission!);
+            Assert.Equal("workflow-model.safetensors", json.RootElement.GetProperty("prompt").GetProperty("model").GetString());
             Assert.Equal("A \"radio\"\nwith texture", json.RootElement.GetProperty("prompt").GetProperty("text").GetString());
             Assert.True(json.RootElement.GetProperty("prompt").GetProperty("seed").TryGetInt64(out _));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    /// <summary>A model-token workflow rejects requests that do not name an installed model.</summary>
+    [Fact]
+    public async Task Model_token_requires_a_model_name()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "fatewake-comfy-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var workflowPath = Path.Combine(root, "workflow.json");
+        await File.WriteAllTextAsync(workflowPath, "{\"model\":\"__FATEWAKE_MODEL__\"}", TestContext.Current.CancellationToken);
+        try
+        {
+            using var http = new HttpClient(new Responses()) { BaseAddress = new("http://localhost:8188/") };
+            var generator = new ComfyUiArtMasterGenerator(http, Options.Create(new ComfyUiArtGenerationOptions
+            {
+                Enabled = true, WorkflowPath = workflowPath
+            }), new FileSystemArtBinaryStorage(root));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => generator.GenerateAsync(new(
+                "test", new("asset", "Background", "fingerprint", "prompt", "ComfyUI", "")),
+                TestContext.Current.CancellationToken));
         }
         finally { Directory.Delete(root, true); }
     }

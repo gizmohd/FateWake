@@ -4,6 +4,8 @@ namespace Fatewake.Infrastructure.Art;
 public sealed class ComfyUiArtGenerationOptions
 {
  public const string SectionName="ArtGeneration:ComfyUI";
+ /// <summary>Optional API-workflow token replaced with the model filename from the artwork request.</summary>
+ public const string ModelToken="__FATEWAKE_MODEL__";
  public bool Enabled{get;set;}
  /// <summary>History route relative to BaseUrl: history locally or history_v2 on Comfy Cloud.</summary>
  public string HistoryPath{get;set;}="history";

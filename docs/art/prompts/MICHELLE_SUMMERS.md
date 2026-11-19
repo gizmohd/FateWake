@@ -12,7 +12,7 @@ She is practical, alert, protective, and believable as a working nurse and subur
 
 Baseline Day 1 clothing: dark neutral hoodie or practical jacket over a muted gray-blue top, dark utility/cargo-style pants, and sturdy practical footwear. A backpack may appear only when canonical scene/inventory state says she has one. Clothing should look ordinary, modern, worn naturally, and appropriate to the immediate situation.
 
-Render in Fatewake's grounded cinematic graphic-novel visual language: realistic anatomy and materials, restrained painterly rendering with confident inked detail, natural lighting, believable suburban America, near-future but not overtly science-fiction. Maintain continuity with approved Fatewake character and location references.
+Render in Fatewake's grounded high-color 32-bit-era 2D adventure style: realistic anatomy and materials, nuanced gradients, fine raster detail, confident inked edges, and natural lighting. Keep believable suburban America and near-future details restrained, never modern photorealism or 3D. Maintain continuity with approved Fatewake character and location references.
 
 When the scene supplies injuries, dirt, wet clothing, equipment, carried items, hairstyle changes, or other visual-state data, apply only those canonical changes while preserving Michelle's identity.
 
