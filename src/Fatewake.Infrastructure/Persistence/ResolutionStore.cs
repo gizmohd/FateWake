@@ -131,6 +131,7 @@ public sealed class ResolutionStore(FatewakeDbContext db, ILogger<ResolutionStor
             });
             episode.Version++;
             await db.SaveChangesAsync(cancellationToken);
+            await new WorldMapStore(db).RecordAuthoredAsync(SessionStore.ToState(survivor, episode), cancellationToken);
             await new StoryJournalService(db).RecordOutcomeAsync(survivorId, eventInstanceId, resolution, cancellationToken);
             await tx.CommitAsync(cancellationToken);
             return resolution;

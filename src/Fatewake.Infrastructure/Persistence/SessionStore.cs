@@ -88,6 +88,7 @@ public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? lo
             survivor.SurvivorDay = branch.SurvivorDay;
             survivor.Status = branch.Status;
             var state = ToState(survivor, episode);
+            await new WorldMapStore(db).RecordAuthoredAsync(state, ct, onlyIfMissing: true);
             await new StoryJournalService(db).RecordProgressAsync(state, ct);
             await states.CaptureAsync(survivor, episode, ct);
             await db.SaveChangesAsync(ct);
@@ -134,6 +135,8 @@ public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? lo
             episode.Version++;
             await db.SaveChangesAsync(ct);
             var result = ToState(survivor, episode);
+            if (target >= current)
+                await new WorldMapStore(db).RecordAuthoredAsync(result, ct);
             await new StoryJournalService(db).RecordProgressAsync(result, ct);
             await states.CaptureAsync(survivor, episode, ct);
             await tx.CommitAsync(ct);
@@ -169,6 +172,9 @@ public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? lo
             await db.Entry(episode).ReloadAsync(ct);
             if (await db.Set<TimelineBranchRecord>().AnyAsync(row => row.ParentTimelineId == survivor.TimelineId, ct))
                 throw new TimelineConflictException("This chapter has durable checkpoints or branches. Start a fresh Day 1 branch instead.");
+            if (await db.Set<WorldVisitRecord>().AnyAsync(row => row.SurvivorId == survivorId &&
+                row.TimelineId == survivor.TimelineId && !row.Authored, ct))
+                throw new TimelineConflictException("This Thread has recorded hops. Start a fresh Day 1 branch instead.");
             await db.Set<TimelineCheckpointRecord>().Where(row => row.TimelineId == survivor.TimelineId &&
                 row.EventInstanceId == eventInstanceId).ExecuteDeleteAsync(ct);
             var attempts = db.ActionAttempts.Where(row => row.EventInstanceId == eventInstanceId && row.SurvivorId == survivorId);
@@ -191,7 +197,11 @@ public sealed class SessionStore(FatewakeDbContext db, ILogger<SessionStore>? lo
             });
             episode.Version++;
             await db.SaveChangesAsync(ct);
-            await new StoryJournalService(db).RecordProgressAsync(ToState(survivor, episode), ct);
+            await db.Set<WorldVisitRecord>().Where(row => row.SurvivorId == survivorId && row.TimelineId == survivor.TimelineId)
+                .ExecuteDeleteAsync(ct);
+            var reset = ToState(survivor, episode);
+            await new WorldMapStore(db).RecordAuthoredAsync(reset, ct);
+            await new StoryJournalService(db).RecordProgressAsync(reset, ct);
             await new TimelineStateStore(db).CaptureAsync(survivor, episode, ct);
             await tx.CommitAsync(ct);
             log?.LogInformation("Development chapter reset completed for survivor {SurvivorId}", survivorId);

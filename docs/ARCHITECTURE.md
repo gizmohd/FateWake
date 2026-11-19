@@ -39,6 +39,8 @@ The public game is **Pathweaver** in **The Wayfinder Universe**. Technical `Fate
 
 Personal Thread creation/selection is an authenticated owner-only application operation. A stable survivor identity selects branch-owned canonical facts/episodes, while immutable checkpoints freeze the reached rules state and disclosure boundary. Account, survivor and timeline locks coordinate resolution, progression and fork/switch transactions. Source histories remain intact and effects are not replayed. Shared-world/cross-timeline history cannot be rewound by this feature.
 
+The universe map uses separate axial hex grids for each Realm. A recorded position combines a Realm cell, Thread ID, clock key and world minute. The active Thread's location and recent route are available on the survivor map. Co-presence requires a matching active Thread, cell, clock and minute. Day One writes positions from authored beats and outcomes. Future travel rules can record hops across registered cells, Realms and clocks through the server-side map store. Generated scene prose does not set a position.
+
 Private registration profiles remain outside GameEngine and survivor identity. API/Infrastructure validate and persist first/last name and city/state under canonical account ownership. The Web BFF protects form submissions with antiforgery; new external signups complete their details after provider/mailbox proof. Legacy accounts are not forced to backfill. `/api/auth/me` exposes only profile-completion status; tokens carry no private profile fields.
 
 ## Observability boundary

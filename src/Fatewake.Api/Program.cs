@@ -305,6 +305,16 @@ app.MapPost("/api/session/start", async (
     return Results.Ok(state);
 });
 
+app.MapGet("/api/survivors/{survivorId:guid}/map", async (Guid survivorId, HttpContext context,
+    FatewakeDbContext db, CancellationToken ct) =>
+{
+    if (InvalidBearer(context))
+        return Results.Unauthorized();
+    if (!await CanAccess(db, survivorId, AccountId(context.User), ct))
+        return Results.NotFound();
+    return Results.Ok(await new WorldMapStore(db).ReadAsync(survivorId, ct));
+});
+
 app.MapPost("/api/session/progress", async (
     PresentationProgressRequest request,
     ISessionStore sessions,

@@ -1,0 +1,109 @@
+@page "/map/{SurvivorId:guid}"
+@using System.Globalization
+@using Fatewake.Story
+@inject AuthenticatedApiClient Api
+
+<PageTitle>Universe map - @BrandIdentity.GameName</PageTitle>
+
+<SiteShell SurvivorId="SurvivorId">
+<main class="world-map">
+    <h1>Universe map</h1>
+    @if (_error)
+    {
+        <p role="alert">Unable to load this map. Return to your story and try again.</p>
+    }
+    else if (_map?.Current is not { } current)
+    {
+        <p>No confirmed locations have been recorded yet.</p>
+    }
+    else
+    {
+        <p><strong>Last confirmed location:</strong> @current.Place, @current.Realm · @Moment(current.Position)</p>
+        <p>Thread <code>@current.Position.TimelineId.ToString("N")[..8]</code></p>
+        @foreach (var realm in _map.Visits.GroupBy(visit => visit.Position.Cell.RealmId))
+        {
+            var places = realm.DistinctBy(visit => visit.Position.Cell).ToArray();
+            var minQ = places.Min(visit => (double)visit.Position.Cell.Q + visit.Position.Cell.R / 2d);
+            var maxQ = places.Max(visit => (double)visit.Position.Cell.Q + visit.Position.Cell.R / 2d);
+            var minR = places.Min(visit => (long)visit.Position.Cell.R);
+            var maxR = places.Max(visit => (long)visit.Position.Cell.R);
+            var span = Math.Max(1, Math.Max(maxQ - minQ, maxR - minR));
+            <section class="map-region">
+                <h2>@places[0].Realm</h2>
+                <div class="map-cells" aria-hidden="true">
+                    @for (var i = 0; i < places.Length; i++)
+                    {
+                        var cell = places[i].Position.Cell;
+                        var left = 50 + 76 * (cell.Q + cell.R / 2d - (minQ + maxQ) / 2) / span;
+                        var top = 50 + 70 * (cell.R - (minR + maxR) / 2d) / span;
+                        <span class="map-cell @(cell == current.Position.Cell ? "current-cell" : "")"
+                              style="@FormattableString.Invariant($"left:{left:F2}%;top:{top:F2}%")">@(i + 1)</span>
+                    }
+                </div>
+                <ol class="map-legend">
+                    @foreach (var visit in places)
+                    {
+                        <li>@visit.Place (@visit.Position.Cell.Q, @visit.Position.Cell.R)
+                            @if (visit.Position.Cell == current.Position.Cell) { <strong> · current</strong> }
+                        </li>
+                    }
+                </ol>
+            </section>
+        }
+        <section class="map-region">
+            <h2>Recent route</h2>
+            <ol class="map-route">
+                @for (var i = 0; i < _map.Visits.Count; i++)
+                {
+                    var visit = _map.Visits[i];
+                    if (i > 0 && !visit.IsHop && visit.Position.Cell == _map.Visits[i - 1].Position.Cell)
+                        continue;
+                    <li>
+                        @if (i > 0 && visit.IsHop) { <strong>Hop · </strong> }
+                        @visit.Realm / @visit.Place · @Moment(visit.Position)
+                    </li>
+                }
+            </ol>
+        </section>
+        @if (_map.CoPresent.Count > 0)
+        {
+            <section class="map-region">
+                <h2>Here at the same moment</h2>
+                <ul>
+                    @foreach (var name in _map.CoPresent) { <li>@name</li> }
+                </ul>
+            </section>
+        }
+    }
+    <p><a href="/play">Return to the story</a></p>
+</main>
+</SiteShell>
+
+@code {
+    [Parameter] public Guid SurvivorId { get; set; }
+    private WorldMap? _map;
+    private bool _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _error = false;
+        _map = null;
+        try
+        {
+            using var client = await Api.CreateAsync();
+            _map = await client.GetFromJsonAsync<WorldMap>($"/api/survivors/{SurvivorId}/map");
+        }
+        catch (HttpRequestException)
+        {
+            _error = true;
+        }
+    }
+
+    private static string Moment(WorldPosition position)
+    {
+        var day = position.Tick / 1440 + 1;
+        var minute = position.Tick % 1440;
+        var time = new TimeOnly((int)(minute / 60), (int)(minute % 60));
+        return $"Day {day}, {time.ToString("h:mm tt", CultureInfo.InvariantCulture)} ({position.ClockKey})";
+    }
+}

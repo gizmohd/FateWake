@@ -27,6 +27,23 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
     protected override void OnModelCreating(ModelBuilder m)
     {
         TimelineModel.Configure(m);
+        m.Entity<WorldCellRecord>(b =>
+        {
+            b.ToTable("world_cell");
+            b.HasKey(x => x.Id);
+            b.HasIndex(x => new { x.RealmId, x.Q, x.R }).IsUnique();
+            b.HasOne<RealmRecord>().WithMany().HasForeignKey(x => x.RealmId).OnDelete(DeleteBehavior.NoAction);
+        });
+        m.Entity<WorldVisitRecord>(b =>
+        {
+            b.ToTable("world_visit");
+            b.HasKey(x => new { x.SurvivorId, x.TimelineId, x.Sequence });
+            b.Property(x => x.ClockKey).HasMaxLength(80);
+            b.HasIndex(x => new { x.TimelineId, x.CellId, x.ClockKey, x.Tick }).HasDatabaseName("ix_world_visit_position");
+            b.HasOne<SurvivorRecord>().WithMany().HasForeignKey(x => x.SurvivorId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<TimelineRecord>().WithMany().HasForeignKey(x => x.TimelineId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<WorldCellRecord>().WithMany().HasForeignKey(x => x.CellId).OnDelete(DeleteBehavior.NoAction);
+        });
         GeneratedSceneModel.Configure(m);
         ArtPromptModel.Configure(m);
         m.Entity<DataProtectionKey>().ToTable("data_protection_keys");

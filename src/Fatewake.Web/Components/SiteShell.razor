@@ -25,6 +25,7 @@
         @if (SurvivorId is not null)
         {
             <NavLink href="@($"/novel/{SurvivorId}")" Match="NavLinkMatch.All" ActiveClass="play-menu-active"><span aria-hidden="true">▤</span> Journal</NavLink>
+            <NavLink href="@($"/map/{SurvivorId}")" Match="NavLinkMatch.All" ActiveClass="play-menu-active">Universe map</NavLink>
         }
         <AuthorizeView>
             <Authorized>

@@ -120,7 +120,9 @@ public sealed class TimelineBranchService(FatewakeDbContext db, ILogger<Timeline
             survivor.Status = snapshot.Status;
             survivor.UpdatedAt = now;
             await db.SaveChangesAsync(ct);
-            await new Story.StoryJournalService(db).RecordProgressAsync(SessionStore.ToState(survivor, episode), ct);
+            var fork = SessionStore.ToState(survivor, episode);
+            await new WorldMapStore(db).RecordAuthoredAsync(fork, ct);
+            await new Story.StoryJournalService(db).RecordProgressAsync(fork, ct);
             await states.CaptureAsync(survivor, episode, ct);
             await tx.CommitAsync(ct);
             log.LogInformation("Personal timeline branch created for survivor {SurvivorId} in timeline {TimelineId}", survivorId, timeline.Id);
