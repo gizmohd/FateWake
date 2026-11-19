@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Net;
+using Fatewake.Infrastructure.Authentication;
 using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
@@ -44,6 +46,7 @@ public static class LocalAuthenticationEndpoints
             AccountFormAsync(context, antiforgery, clients, logs, "set-password", "/set-password")).RequireAuthorization().RequireRateLimiting("local-auth");
         app.MapPost("/auth/complete-profile", (HttpContext context, IAntiforgery antiforgery, AuthenticatedApiClient clients, ILoggerFactory logs) =>
             AccountFormAsync(context, antiforgery, clients, logs, "complete-profile", "/complete-profile")).RequireAuthorization().RequireRateLimiting("local-auth");
+        app.MapPost("/auth/settings", SaveSettingsAsync).RequireAuthorization().RequireRateLimiting("local-auth");
         app.MapPost("/auth/logout", async (HttpContext context, IAntiforgery antiforgery, ILoggerFactory logs) =>
         {
             if (!await ValidateFormAsync(context, antiforgery, logs))
@@ -129,7 +132,8 @@ public static class LocalAuthenticationEndpoints
                     FirstName = form["firstName"].ToString(),
                     LastName = form["lastName"].ToString(),
                     City = form["city"].ToString(),
-                    State = form["state"].ToString()
+                    State = form["state"].ToString(),
+                    BirthDate = ReadBirthDate(form)
                 }, context.RequestAborted);
                 if (response.StatusCode == HttpStatusCode.Accepted)
                     return Results.LocalRedirect("/check-email");
@@ -164,6 +168,35 @@ public static class LocalAuthenticationEndpoints
         }
     }
 
+    private static DateOnly? ReadBirthDate(IFormCollection form) =>
+        DateOnly.TryParseExact(form["birthDate"].ToString(), "yyyy-MM-dd", CultureInfo.InvariantCulture,
+            DateTimeStyles.None, out var birthDate) ? birthDate : null;
+
+    private static async Task<IResult> SaveSettingsAsync(HttpContext context, IAntiforgery antiforgery,
+        AuthenticatedApiClient clients, ILoggerFactory logs)
+    {
+        if (!await ValidateFormAsync(context, antiforgery, logs))
+            return Results.BadRequest("Invalid form token. Reload your settings.");
+        var form = await context.Request.ReadFormAsync(context.RequestAborted);
+        if (!Enum.TryParse<ContentLevel>(form["level"].ToString(), out var level) || !Enum.IsDefined(level))
+            return Results.LocalRedirect("/settings?error=invalid");
+
+        try
+        {
+            using var client = clients.CreateForUser(context.User, "fatewake-auth");
+            using var response = await client.PutAsJsonAsync("/api/auth/settings",
+                new ContentPreferenceUpdate(level, ReadBirthDate(form)), context.RequestAborted);
+            if (response.StatusCode == HttpStatusCode.BadRequest)
+                return Results.LocalRedirect("/settings?error=invalid");
+            response.EnsureSuccessStatusCode();
+            return Results.LocalRedirect("/settings?saved=true");
+        }
+        catch (HttpRequestException)
+        {
+            return Results.LocalRedirect("/settings?error=unavailable");
+        }
+    }
+
     private static async Task<IResult> AccountFormAsync(HttpContext context, IAntiforgery antiforgery,
         AuthenticatedApiClient clients, ILoggerFactory logs, string operation, string page)
     {
@@ -185,7 +218,8 @@ public static class LocalAuthenticationEndpoints
                     FirstName = form["firstName"].ToString(),
                     LastName = form["lastName"].ToString(),
                     City = form["city"].ToString(),
-                    State = form["state"].ToString()
+                    State = form["state"].ToString(),
+                    BirthDate = ReadBirthDate(form)
                 }, context.RequestAborted);
                 if (updated.StatusCode == HttpStatusCode.BadRequest)
                     return Results.LocalRedirect(page + "?error=invalid");

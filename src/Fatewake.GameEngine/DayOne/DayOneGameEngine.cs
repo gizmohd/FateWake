@@ -23,6 +23,7 @@ public sealed class DayOneGameEngine : IGameEngine
             "call_from_safety" => CallFromSafety(),
             "stay_inside" => StayInside(),
             "investigate_radio" => InvestigateRadio(),
+            "improvise" when !string.IsNullOrWhiteSpace(action.RawInput) => Improvise(),
             _ => Reject("action_not_supported")
         };
     }
@@ -52,6 +53,12 @@ public sealed class DayOneGameEngine : IGameEngine
         [new("knowledge", "radio.future_timestamp", "noticed")],
         [new("anomaly", "Personal", "radio", 2, new Dictionary<string, string> { { "time", "06:17" } })],
         new Dictionary<string, string> { { "radioTimestamp", "The broadcast is timestamped tomorrow at 6:17 AM." } }, "day1-v1");
+
+    private static ActionResolution Improvise() => new(
+        true, "improvised_response",
+        [new("fact", "player.improvised_response", "true")], [],
+        new Dictionary<string, string> { { "michelleReaction", "Michelle adjusted her grip and called for a steady place to set him down." } },
+        "day1-v1");
 
     private static ActionResolution Reject(string reason) => new(
         false, reason, [], [], new Dictionary<string, string>(), "day1-v1");

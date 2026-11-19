@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Fatewake.Infrastructure.Authentication;
 using Fatewake.Infrastructure.Persistence;
 using Fatewake.Story;
 using Microsoft.EntityFrameworkCore;
@@ -122,9 +123,19 @@ public sealed class StoryJournalService(FatewakeDbContext db, ILogger<StoryJourn
             var entries = await db.Set<StoryPanelRecord>().AsNoTracking().Where(x => x.SurvivorId == survivorId &&
                 x.TimelineId == active.TimelineId && x.VisibleFromDay <= active.SurvivorDay)
                 .OrderBy(x => x.Sequence).ToArrayAsync(ct);
-            return entries.Select(x => new NovelPanel(x.Id, x.Sequence, x.SurvivorDay, x.Kind, x.Title, x.TimeLabel,
-                x.CauseRevealed && !string.IsNullOrWhiteSpace(x.HiddenCauseNarration) ? $"{x.Narration}\n\n{x.HiddenCauseNarration}" : x.Narration,
-                x.DialogueSpeaker, x.DialogueText, JsonSerializer.Deserialize<ArtLayer[]>(x.Layers) ?? [], x.Reconstructed)).ToArray();
+            var level = await ContentLevelAsync(survivorId, ct);
+            return entries.Select(x =>
+            {
+                var narration = VisibleNarration(x);
+                var visible = StoryContentPolicy.Allows(level, x.Title) && StoryContentPolicy.Allows(level, x.TimeLabel) &&
+                    StoryContentPolicy.Allows(level, narration) && StoryContentPolicy.Allows(level, x.DialogueSpeaker) &&
+                    StoryContentPolicy.Allows(level, x.DialogueText);
+                return visible
+                    ? new NovelPanel(x.Id, x.Sequence, x.SurvivorDay, x.Kind, x.Title, x.TimeLabel, narration,
+                        x.DialogueSpeaker, x.DialogueText, JsonSerializer.Deserialize<ArtLayer[]>(x.Layers) ?? [], x.Reconstructed)
+                    : new NovelPanel(x.Id, x.Sequence, x.SurvivorDay, "narration", "Hidden journal entry", null,
+                        "This entry is unavailable at your current content level.", null, null, [], x.Reconstructed);
+            }).ToArray();
         }
         catch (Exception ex)
         {
@@ -201,10 +212,25 @@ public sealed class StoryJournalService(FatewakeDbContext db, ILogger<StoryJourn
         var panels = await db.Set<StoryPanelRecord>().AsNoTracking().Where(x => x.SurvivorId == survivorId &&
             x.TimelineId == active.TimelineId && x.VisibleFromDay <= active.SurvivorDay && x.NotificationRevision > x.SeenRevision)
             .OrderBy(x => x.Sequence).Take(10).ToArrayAsync(ct);
-        return panels.Select(x => new StoryNotice(x.Id, x.NotificationRevision,
-            x.CauseRevealed ? "Your story is clearer" : "Your Thread has changed",
-            x.CauseRevealed && !string.IsNullOrWhiteSpace(x.HiddenCauseNarration) ? $"{x.Narration}\n\n{x.HiddenCauseNarration}" : x.Narration)).ToArray();
+        var level = await ContentLevelAsync(survivorId, ct);
+        return panels.Select(x =>
+        {
+            var narration = VisibleNarration(x);
+            return new StoryNotice(x.Id, x.NotificationRevision,
+                x.CauseRevealed ? "Your story is clearer" : "Your Thread has changed",
+                StoryContentPolicy.Allows(level, narration) ? narration : "This update is unavailable at your current content level.");
+        }).ToArray();
     }
+    private static string VisibleNarration(StoryPanelRecord panel) =>
+        panel.CauseRevealed && !string.IsNullOrWhiteSpace(panel.HiddenCauseNarration)
+            ? $"{panel.Narration}\n\n{panel.HiddenCauseNarration}" : panel.Narration;
+
+    private async Task<ContentLevel> ContentLevelAsync(Guid survivorId, CancellationToken ct)
+    {
+        var accountId = await db.Survivors.Where(x => x.Id == survivorId).Select(x => x.AccountId).SingleAsync(ct);
+        return (await AccountProfileService.GetContentAsync(db, accountId, ct)).Level;
+    }
+
     /// <summary>Acknowledges only the displayed revision; a later revelation remains unread.</summary>
     public async Task<bool> AcknowledgeAsync(Guid survivorId, Guid panelId, int revision, CancellationToken ct = default)
     {

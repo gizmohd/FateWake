@@ -32,7 +32,7 @@ public sealed class DevelopmentRegistrationTests
         var accounts = new LocalAccountService(db, hasher, NullLogger<LocalAccountService>.Instance, verification);
         var email = Guid.NewGuid() + "@test.example";
         const string password = "a sufficiently long test password";
-        var profile = new AccountProfileDetails("  Ana-María ", " O’Neill ", " Montréal ", " Québec ");
+        var profile = new AccountProfileDetails("  Ana-María ", " O’Neill ", " Montréal ", " Québec ", new DateOnly(1995, 1, 1));
         var result = await accounts.RegisterAsync(email, password, ct, profile);
         Assert.Equal(!automatic, result.VerificationRequired);
         if (automatic)
@@ -63,11 +63,12 @@ public sealed class DevelopmentRegistrationTests
                 Assert.Null(row.LastName);
                 Assert.Null(row.City);
                 Assert.Null(row.State);
+                Assert.Null(row.BirthDate);
             });
         }
         var owner = await db.Accounts.SingleAsync(row => row.PrimaryEmail == email, ct);
         var persisted = await db.AccountProfiles.AsNoTracking().SingleAsync(row => row.AccountId == owner.Id, ct);
-        Assert.Equal(profile.Normalize(), new(persisted.FirstName, persisted.LastName, persisted.City, persisted.State));
+        Assert.Equal(profile.Normalize(), new(persisted.FirstName, persisted.LastName, persisted.City, persisted.State, persisted.BirthDate));
         Assert.True(persisted.IsComplete);
         Assert.NotNull(persisted.CompletedAt);
     }

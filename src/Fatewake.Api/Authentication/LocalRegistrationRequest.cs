@@ -8,4 +8,5 @@ namespace Fatewake.Api.Authentication;
 /// <param name="City">Self-reported city.</param>
 /// <param name="State">Free-text state or region.</param>
 /// <see href="../../../docs/code/src/Fatewake.Api/Authentication/LocalRegistrationRequest.md">Documentation</see>
-public sealed record LocalRegistrationRequest(string? Email, string? Password, string? FirstName, string? LastName, string? City, string? State);
+/// <param name="BirthDate">The private date of birth used to restrict story content.</param>
+public sealed record LocalRegistrationRequest(string? Email, string? Password, string? FirstName, string? LastName, string? City, string? State, DateOnly? BirthDate = null);

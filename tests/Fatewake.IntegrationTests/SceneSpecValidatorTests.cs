@@ -11,7 +11,7 @@ public sealed class SceneSpecValidatorTests
     private static readonly SceneChoiceSpec[] Two =
     [
         new("open_the_door", "Open the door", false),
-        new("stay_inside", "Stay inside", true)
+        new("freeform", "Do something else", true)
     ];
 
     /// <summary>A decision-free scene extends the streak; a decision resets it.</summary>
@@ -33,6 +33,8 @@ public sealed class SceneSpecValidatorTests
     {
         Assert.Throws<InvalidDataException>(() => SceneSpecValidator.Validate(Scene(Two[0]), 0));
         Assert.Throws<InvalidDataException>(() => SceneSpecValidator.Validate(Scene(Two[0], Two[0]), 0));
+        Assert.Throws<InvalidDataException>(() => SceneSpecValidator.Validate(Scene(Two[0], Two[1],
+            new("hide_inside", "Hide inside", false), new("walk_away", "Walk away", false)), 0));
         Assert.Throws<InvalidDataException>(() => SceneSpecValidator.Validate(
             Scene() with
             {

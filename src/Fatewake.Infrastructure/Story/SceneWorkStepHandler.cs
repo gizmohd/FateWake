@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Fatewake.GameEngine;
+using Fatewake.Infrastructure.Authentication;
+using Fatewake.Story;
 using Fatewake.Infrastructure.Persistence;
 using Fatewake.Infrastructure.Rag;
 using Fatewake.Infrastructure.Work;
@@ -52,22 +54,69 @@ public sealed class SceneWorkStepHandler(FatewakeDbContext db, IRagRetriever ret
                 throw new TimeoutException("The previous scene is not ready yet.");
             var streak = previous?.DecisionFreeStreak ?? 0;
             var survivor = await db.Set<SurvivorRecord>().SingleAsync(x => x.Id == scene.SurvivorId, ct);
+            var level = (await AccountProfileService.GetContentAsync(db, survivor.AccountId, ct)).Level;
             var recent = await db.Set<GeneratedSceneRecord>().Where(x => x.SurvivorId == scene.SurvivorId &&
-                    x.TimelineId == scene.TimelineId && x.Sequence < scene.Sequence && x.Status == GeneratedSceneStatus.Ready)
+                    x.TimelineId == scene.TimelineId && x.Sequence < scene.Sequence && x.Status == GeneratedSceneStatus.Ready &&
+                    x.ContentLevel != null && x.ContentLevel <= level)
                 .OrderByDescending(x => x.Sequence).Take(4).Select(x => x.Summary!).ToListAsync(ct);
+            recent = recent.Where(text => StoryContentPolicy.Allows(level, text)).ToList();
             recent.Reverse();
+            var dayOne = scene.Sequence == 1
+                ? await (from episode in db.EventInstances
+                         join attempt in db.ActionAttempts on episode.Id equals attempt.EventInstanceId
+                         join result in db.ActionResolutions on attempt.Id equals result.ActionAttemptId
+                         where episode.SurvivorId == scene.SurvivorId && episode.TimelineId == scene.TimelineId &&
+                             episode.EventKey == "day-001-injured-stranger"
+                         orderby attempt.SubmittedAt descending
+                         select new { result.OutcomeType, attempt.RawInput }).FirstOrDefaultAsync(ct)
+                : null;
+            if (dayOne is not null)
+                recent.Add(DayOneOutcomes.Text(dayOne.OutcomeType));
+
+            var playerChoice = dayOne?.RawInput ?? (previous?.ContentLevel is { } previousLevel && previousLevel <= level
+                ? PlayerChoiceText(previous) : null);
+            if (!StoryContentPolicy.Allows(level, playerChoice))
+                playerChoice = null;
+            var intent = StoryBranch.DayOneIntent(dayOne?.OutcomeType) ?? StoryBranch.Intent(playerChoice);
+            if (intent is null && previous is { HasDecision: false, ContentLevel: not null } && previous.ContentLevel <= level)
+                intent = "continue_without_decision";
+            var branchKey = StoryBranch.Key(survivor.SurvivorDay, scene.Sequence, intent, previous?.BranchKey);
+            var focus = branchKey is null ? null : await (
+                from candidate in db.Set<GeneratedSceneRecord>()
+                join owner in db.Survivors on candidate.SurvivorId equals owner.Id
+                where candidate.BranchKey == branchKey && candidate.ContentLevel == level && candidate.BranchFocus != null &&
+                    candidate.SurvivorId != survivor.Id && (survivor.AccountId == null || owner.AccountId != survivor.AccountId) &&
+                    candidate.Status == GeneratedSceneStatus.Ready
+                group candidate by candidate.BranchFocus into matches
+                orderby matches.Count() descending, matches.Key
+                select matches.Key).FirstOrDefaultAsync(ct);
+            if (!StoryBranch.Focuses.Contains(focus))
+                focus = null;
             var query = $"{survivor.DisplayName} day {survivor.SurvivorDay} " +
                 (recent.Count > 0 ? recent[^1] : "opening scene setting characters world");
             var passages = await retriever.SearchAsync(query, new RagSearchFilter(scene.SurvivorId,
                 SceneWork.TimelineKey(scene.TimelineId), 1, survivor.SurvivorDay), options.RetrievalLimit, ct);
-            if (passages.Count == 0)
-                return await FailAsync(scene, "No approved story canon was found in the RAG corpus; import and approve the world bible first.", ct);
+            var approvedCanon = passages.Where(x => !string.IsNullOrWhiteSpace(x.Text) && StoryContentPolicy.Allows(level, x.Text))
+                .Select(x => x.Text.Length > 1200 ? x.Text[..1200] : x.Text).ToArray();
+            var threadCanon = await ThreadCanon.ReadAsync(db, scene, survivor.SurvivorDay, level, 8, ct);
+            var canon = approvedCanon.Concat(threadCanon.Where(text => StoryContentPolicy.Allows(level, text)))
+                .Distinct(StringComparer.Ordinal).ToArray();
 
             var spec = await author.AuthorAsync(new SceneAuthoringContext(survivor.DisplayName, survivor.SurvivorDay,
                 scene.Sequence, SceneDecisionPolicy.RequiresDecision(streak),
-                passages.Select(x => x.Text.Length > 1200 ? x.Text[..1200] : x.Text).ToList(), recent,
-                survivor.AccountId, survivor.Id, PlayerChoiceText(previous)), context.JobId, context.Attempt, ct);
+                canon, recent,
+                survivor.AccountId, survivor.Id, playerChoice, level, focus), context.JobId, context.Attempt, ct);
+            if (!StoryContentPolicy.AllowsScene(level, spec) ||
+                spec.Choices.Count > 2 || spec.Choices.Any(x => x.AllowFreeform || x.ActionType == SceneChoiceResolver.Freeform))
+                throw new InvalidDataException("The scene did not pass content or choice checks.");
+
+            if (spec.Choices.Count > 0)
+                spec = spec with { Choices = [..spec.Choices, new(SceneChoiceResolver.Freeform, "Do something else…", true)] };
             scene.DecisionFreeStreak = SceneSpecValidator.Validate(spec, streak);
+            scene.ContentLevel = level;
+            scene.BranchKey = branchKey;
+            scene.BranchFocus = StoryBranch.Focuses.Contains(spec.BranchFocus) ? spec.BranchFocus : null;
+            spec = spec with { BranchFocus = null };
             scene.Title = spec.Title.Trim();
             scene.Summary = spec.Summary.Trim();
             scene.Spec = JsonSerializer.Serialize(spec, Json);
@@ -76,6 +125,8 @@ public sealed class SceneWorkStepHandler(FatewakeDbContext db, IRagRetriever ret
             scene.Status = GeneratedSceneStatus.Ready;
             scene.Error = null;
             scene.UpdatedAt = DateTimeOffset.UtcNow;
+            if (approvedCanon.Length == 0)
+                ThreadCanon.Add(db, scene, scene.Summary);
             await db.SaveChangesAsync(ct);
             log.LogInformation("Scene {SceneSequence} is ready with decision {HasDecision}", scene.Sequence, scene.HasDecision);
             return Result("ready");

@@ -10,6 +10,7 @@
     <AuthorizeView>
         <Authorized>
             <p>Signed in as @context.User.Identity?.Name</p>
+            <p><a href="/settings">Content settings</a></p>
             @if (_account?.RequiresProfile == true)
             {
                 <p><a href="/complete-profile">Complete your registration profile</a> with your name, city, and state/region.</p>

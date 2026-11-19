@@ -13,7 +13,8 @@ public static class SceneArtContextPolicy
             ["remained_inside"] = ("stay_inside", "The resident remained indoors while Michelle supported the injured stranger."),
             ["stayed_inside"] = ("stay_inside", "The resident remained indoors while Michelle supported the injured stranger."),
             ["radio_investigated"] = ("investigate_radio", "The radio was investigated and its tomorrow timestamp was noticed."),
-            ["investigated_radio"] = ("investigate_radio", "The radio was investigated and its tomorrow timestamp was noticed.")
+            ["investigated_radio"] = ("investigate_radio", "The radio was investigated and its tomorrow timestamp was noticed."),
+            ["improvised_response"] = ("freeform", "Michelle continues supporting the injured stranger and looks for a place to set him down.")
         };
 
     private static readonly HashSet<string> ActionTypes = new(StringComparer.Ordinal)

@@ -17,6 +17,7 @@
         <label>First name <input type="text" name="firstName" autocomplete="given-name" maxlength="100" required /></label>
         <label>Last name <input type="text" name="lastName" autocomplete="family-name" maxlength="100" required /></label>
         <label>City <input type="text" name="city" autocomplete="address-level2" maxlength="100" required /></label>
+        <label>Date of birth <input type="date" name="birthDate" autocomplete="bday" max="@BirthDateLimit" required /></label>
         <label>State/region <input type="text" name="state" autocomplete="address-level1" maxlength="100" required /></label>
         <label>Email <input type="email" name="email" autocomplete="username" maxlength="254" required /></label>
         <label>Password <input type="password" name="password" autocomplete="new-password" minlength="12" maxlength="128" required /></label>
@@ -28,12 +29,13 @@
 </main>
 
 @code {
+    private static string BirthDateLimit => DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
     private string Message => Error switch
     {
         "mismatch" => "The passwords do not match.",
         "limited" => "Too many attempts. Wait a minute and try again.",
         "unavailable" => "The account service is unavailable. Please try again.",
-        _ => "Unable to create this account. Enter your first name, last name, city, and state/region (up to 100 characters each), and check the email and password requirements."
+        _ => "Unable to create this account. Enter your first name, last name, city, state/region, and date of birth (up to 100 characters each), and check the email and password requirements."
     };
 }

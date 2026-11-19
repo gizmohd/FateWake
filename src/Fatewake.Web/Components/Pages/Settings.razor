@@ -1,0 +1,79 @@
+@page "/settings"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using Fatewake.Infrastructure.Authentication
+@inject AuthenticatedApiClient Api
+
+<PageTitle>Settings - @BrandIdentity.GameName</PageTitle>
+
+<main class="account-page">
+    <h1>Settings</h1>
+    <p>Choose the story content you want to see. The available levels depend on your age.</p>
+    @if (Saved == "true")
+    {
+        <p role="status">Your content settings were saved.</p>
+    }
+    @if (Error is not null)
+    {
+        <p role="alert">@(Error == "invalid"
+            ? "Check the date of birth and choose a content level available for your age."
+            : "Your settings could not be saved. Please try again.")</p>
+    }
+    @if (_preferences is { } preferences)
+    {
+        <form method="post" action="/auth/settings">
+            <AntiforgeryToken />
+            @if (preferences.NeedsBirthDate)
+            {
+                <label>Date of birth
+                    <input type="date" name="birthDate" autocomplete="bday" max="@BirthDateLimit" required />
+                </label>
+                <p>Your date of birth is used to determine which story settings you can choose.</p>
+            }
+            <label>Story content level
+                <select name="level" required>
+                    @foreach (var level in Enum.GetValues<ContentLevel>())
+                    {
+                        <option value="@level" selected="@(level == preferences.Level)"
+                                disabled="@(!preferences.NeedsBirthDate && level > preferences.MaximumLevel)">@Label(level)</option>
+                    }
+                </select>
+            </label>
+            <button type="submit">Save settings</button>
+        </form>
+    }
+    else
+    {
+        <p role="alert">Unable to load your settings. Try signing in again.</p>
+    }
+    <p><a href="/account">Back to account</a></p>
+</main>
+
+@code {
+    [SupplyParameterFromQuery] public string? Saved { get; set; }
+    [SupplyParameterFromQuery] public string? Error { get; set; }
+    private ContentPreferences? _preferences;
+
+    private static string BirthDateLimit => ContentAgePolicy.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            using var client = await Api.CreateAsync();
+            _preferences = await client.GetFromJsonAsync<ContentPreferences>("/api/auth/settings");
+        }
+        catch (HttpRequestException)
+        {
+            _preferences = null;
+        }
+    }
+
+    private static string Label(ContentLevel level) => level switch
+    {
+        ContentLevel.Under14 => "Under 14",
+        ContentLevel.Teen => "14–17",
+        ContentLevel.AdultClean => "18+ (Clean Language)",
+        ContentLevel.AdultLanguage => "18+ (Adult Language)",
+        _ => throw new ArgumentOutOfRangeException(nameof(level))
+    };
+}

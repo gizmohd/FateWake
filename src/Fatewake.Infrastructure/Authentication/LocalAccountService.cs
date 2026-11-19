@@ -37,6 +37,9 @@ public sealed class LocalAccountService(
         if (normalizedProfile is null)
             return new(null, null, AccountProfileDetails.ValidationError);
 
+        if (!ContentAgePolicy.IsValidBirthDate(normalizedProfile.BirthDate, ContentAgePolicy.Today))
+            return new(null, null, "Enter a valid date of birth.");
+
         var id = Guid.NewGuid();
         var credential = new LocalCredentialRecord { AccountId = id, NormalizedEmail = normalized, PasswordHash = "" };
         credential.PasswordHash = passwords.HashPassword(credential, password);

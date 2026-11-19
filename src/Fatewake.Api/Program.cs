@@ -221,7 +221,7 @@ app.MapGet("/health", async (FatewakeDbContext db, CancellationToken ct) =>
 app.MapPost("/api/auth/register", async (LocalRegistrationRequest request, LocalAccountService accounts, CancellationToken ct) =>
 {
     var result = await accounts.RegisterAsync(request.Email, request.Password, ct,
-        new(request.FirstName, request.LastName, request.City, request.State));
+        new(request.FirstName, request.LastName, request.City, request.State, request.BirthDate));
     return result.VerificationRequired ? Results.Accepted(value: new
     {
         verificationRequired = true
@@ -234,11 +234,26 @@ app.MapPost("/api/auth/register", async (LocalRegistrationRequest request, Local
 
 app.MapPut("/api/auth/profile", async (AccountProfileDetails request, ClaimsPrincipal user, AccountProfileService profiles, CancellationToken ct) =>
 {
-    var error = await profiles.CompleteAsync(AccountId(user)!.Value, request, ct);
+    if (AccountId(user) is not { } accountId)
+        return Results.Unauthorized();
+    var error = await profiles.CompleteAsync(accountId, request, ct);
     return error is null ? Results.NoContent() : Results.BadRequest(new
     {
         error
     });
+}).RequireAuthorization().RequireRateLimiting("local-auth");
+
+app.MapGet("/api/auth/settings", async (ClaimsPrincipal user, FatewakeDbContext db, CancellationToken ct) =>
+    AccountId(user) is { } accountId
+        ? Results.Ok(await AccountProfileService.GetContentAsync(db, accountId, ct))
+        : Results.Unauthorized()).RequireAuthorization();
+
+app.MapPut("/api/auth/settings", async (ContentPreferenceUpdate request, ClaimsPrincipal user, AccountProfileService profiles, CancellationToken ct) =>
+{
+    if (AccountId(user) is not { } accountId)
+        return Results.Unauthorized();
+    var error = await profiles.UpdateContentAsync(accountId, request, ct);
+    return error is null ? Results.NoContent() : Results.BadRequest(new { error });
 }).RequireAuthorization().RequireRateLimiting("local-auth");
 
 app.MapPost("/api/auth/resend-verification", async (EmailRequest request, VerifiedAccountService verification, CancellationToken ct) =>
@@ -347,10 +362,21 @@ app.MapPost("/api/day1/resolve", async (
     var state = await new TimelineStateStore(db).LoadAsync(
         request.SurvivorId, request.TimelineId, request.EventInstanceId, ct);
 
-    var action = request.Action.ActionType == "freeform" &&
-                 !string.IsNullOrWhiteSpace(request.Action.RawInput)
-        ? await intents.InterpretAsync(state, request.Action.RawInput, ct)
-        : request.Action;
+    var action = request.Action;
+    if (action.ActionType == SceneChoiceResolver.Freeform)
+    {
+        var choice = SceneChoiceResolver.Resolve([], true, action.ActionType, action.RawInput);
+        var preferences = await AccountProfileService.GetContentAsync(db, AccountId(user), ct);
+        if (choice.FreeformText is not { } text || !StoryContentPolicy.Allows(preferences.Level, text))
+            return Results.Ok(new ActionResolution(false, "action_content_rejected", [], [],
+                new Dictionary<string, string>(), "day1-v1"));
+
+        action = await intents.InterpretAsync(state, text, ct);
+        if (action.ActionType == "unrecognized_intent")
+            action = action with { ActionType = "improvise" };
+    }
+    else if (action.RawInput is not null || action.ActionType == "improvise")
+        return Results.BadRequest();
 
     ActionResolution resolution;
     using (OperationTelemetry.Start("game.resolve"))

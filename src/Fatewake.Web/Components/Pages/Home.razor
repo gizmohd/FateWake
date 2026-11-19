@@ -1,10 +1,13 @@
 @page "/play"
 @rendermode InteractiveServer
 @using System.Net.Http.Json
+@using Fatewake.GameEngine
+@using Fatewake.Infrastructure.Story
 @using Fatewake.Web.Presentation
 @using Fatewake.Web.Components.Presentation
 @inject Fatewake.Web.Authentication.AuthenticatedApiClient ApiClient
 @inject Microsoft.Extensions.Logging.ILogger<Home> Logger
+@implements IDisposable
 @inject IJSRuntime JS
 @inject Microsoft.Extensions.Hosting.IHostEnvironment Environment
 
@@ -12,13 +15,13 @@
 <SiteShell SurvivorId="_session?.SurvivorId">
     <Chapter>
         <div class="play-chapter">
-            <h1>@Scene.Title</h1>
+            <h1>@(_generated?.Scene?.Title ?? Scene.Title)</h1>
             <span>Chapter @(_session?.SurvivorDay ?? Scene.SurvivorDay)</span>
         </div>
     </Chapter>
 
     <MenuActions>
-        @if (Environment.IsDevelopment() && _ready && _session is not null)
+        @if (!_showGenerated && Environment.IsDevelopment() && _ready && _session is not null)
         {
             <button class="play-reset" type="button" title="Development only: discard this chapter's choices and restart it"
                     disabled="@_submitting" @onclick="ResetChapter">Reset chapter</button>
@@ -36,6 +39,67 @@
             else if (!_ready)
             {
                 <div id="play-controls" class="play-frame play-message" role="status" tabindex="-1">Remembering your session…</div>
+            }
+            else if (_showGenerated)
+            {
+                @if (_generated?.Scene is { } next)
+                {
+                    <section class="play-dialogue play-frame" aria-label="Scene text">
+                        <div class="play-dialogue-copy">
+                            <h2>@next.TimeLabel</h2>
+                            @foreach (var beat in next.Beats)
+                            {
+                                <p>@beat.Narration</p>
+                                @if (!string.IsNullOrWhiteSpace(beat.Dialogue))
+                                {
+                                    <p><strong>@beat.Speaker</strong> “@beat.Dialogue”</p>
+                                }
+                            }
+                        </div>
+                    </section>
+                }
+                <section id="play-controls" class="play-controls play-frame" aria-label="Story controls" tabindex="-1">
+                    @if (_actionMessage is not null)
+                    {
+                        <p class="play-action-alert" role="alert">@_actionMessage</p>
+                    }
+                    @if (_generated?.Scene is { HasDecision: true } decision)
+                    {
+                        <h2 id="play-control-title">Choose an action</h2>
+                        <ol class="play-choices">
+                            @foreach (var choice in decision.Choices.Where(x => !x.AllowFreeform))
+                            {
+                                <li><button type="button" disabled="@_submitting"
+                                            @onclick="() => LoadGeneratedAsync(choice.ActionType)">@choice.Label</button></li>
+                            }
+                            @CustomChoice
+                        </ol>
+                        @FreeformComposer
+                    }
+                    else if (_generated?.Status is "Ready" or "Filtered")
+                    {
+                        @if (_generated.Status == "Filtered")
+                        {
+                            <p>This scene is unavailable at your current content level.</p>
+                        }
+                        <button class="play-primary" type="button" disabled="@_submitting"
+                                @onclick="() => LoadGeneratedAsync(advance: true)">@(_generated.Status == "Filtered" ? "Skip scene" : "Continue")</button>
+                    }
+                    else if (_generated?.Status == "Failed")
+                    {
+                        <p>Story continuation is unavailable right now.</p>
+                        <button class="play-primary" type="button" disabled="@_submitting" @onclick="() => LoadGeneratedAsync(retry: true)">Try again</button>
+                    }
+                    else
+                    {
+                        @if (_actionMessage is null)
+                        {
+                            <p role="status">Preparing your next scene…</p>
+                        }
+                        <button class="play-primary" type="button" disabled="@_submitting" @onclick="() => LoadGeneratedAsync()">Check for scene</button>
+                    }
+                    <p><a href="/novel/@_session?.SurvivorId">Read your journal</a></p>
+                </section>
             }
             else
             {
@@ -88,23 +152,15 @@
                             {
                                 <li><button type="button" disabled="@_submitting" @onclick="() => Act(choice.ActionType)">@choice.Label</button></li>
                             }
+                            @CustomChoice
                         </ol>
-                        <button class="play-text-button" type="button" disabled="@_submitting" aria-expanded="@(_showOther ? "true" : "false")"
-                                @onclick="() => _showOther = !_showOther">Do something else…</button>
-                        @if (_showOther)
-                        {
-                            <div class="play-composer">
-                                <label for="play-freeform">Describe your action</label>
-                                <textarea id="play-freeform" @bind="_freeform" @bind:event="oninput" placeholder="What do you do?"></textarea>
-                                <button class="play-primary" type="button" disabled="@(_submitting || string.IsNullOrWhiteSpace(_freeform))"
-                                        @onclick="SubmitFreeform">Do it</button>
-                            </div>
-                        }
+                        @FreeformComposer
                     }
                     else if (AtChapterEnd)
                     {
-                        <p>You’ve reached the end of the available story.</p>
-                        @if (_session is not null) { <a class="play-primary" href="/novel/@_session.SurvivorId">Read your journal</a> }
+                        <p>You’ve reached the end of the opening.</p>
+                        <button class="play-primary" type="button" disabled="@_submitting" @onclick="() => LoadGeneratedAsync()">Continue your story</button>
+                        @if (_session is not null) { <p><a href="/novel/@_session.SurvivorId">Read your journal</a></p> }
                     }
                     else
                     {
@@ -126,7 +182,9 @@
         _artwork.Versions.GetValueOrDefault("char-michelle-day1-supporting") is > 0 and var version
             ? $"/art/char-michelle-day1-supporting/{version}/webp"
             : null;
-    private bool _ready, _showOther, _submitting;
+    private bool _ready, _showOther, _submitting, _showGenerated;
+    private StorySceneView? _generated;
+    private readonly CancellationTokenSource _pageLifetime = new();
     private int _beatIndex;
     private string _freeform = "", _resolutionText = "";
     private string? _selectedActionType;
@@ -234,7 +292,90 @@
         return response;
     }
 
-    private Task SubmitFreeform()=>Act("freeform",_freeform);
+    private RenderFragment CustomChoice => @<li>
+        <button type="button" disabled="@_submitting" aria-expanded="@(_showOther ? "true" : "false")"
+                @onclick="() => _showOther = !_showOther">Do something else…</button>
+    </li>;
+
+    private RenderFragment FreeformComposer => @<div>
+        @if (_showOther)
+        {
+            <div class="play-composer">
+                <label for="play-freeform">Describe your action</label>
+                <textarea id="play-freeform" @bind="_freeform" @bind:event="oninput"
+                          maxlength="@SceneChoiceResolver.MaxFreeformLength" placeholder="What do you do?"></textarea>
+                <button class="play-primary" type="button" disabled="@(_submitting || string.IsNullOrWhiteSpace(_freeform))"
+                        @onclick="SubmitFreeform">Do it</button>
+            </div>
+        }
+    </div>;
+
+    private Task SubmitFreeform() => _showGenerated
+        ? LoadGeneratedAsync(SceneChoiceResolver.Freeform, _freeform)
+        : Act(SceneChoiceResolver.Freeform, _freeform);
+
+    private async Task LoadGeneratedAsync(string? actionType = null, string? text = null, bool advance = false, bool retry = false)
+    {
+        if (_submitting || _session is null)
+            return;
+        _showGenerated = true;
+        _submitting = true;
+        _actionMessage = null;
+        var ct = _pageLifetime.Token;
+        try
+        {
+            using var client = await ApiClient.CreateAsync();
+            var path = $"/api/story/{_session.SurvivorId}/scene";
+            if (actionType is not null || advance)
+            {
+                if (_generated is null)
+                    return;
+                var endpoint = $"{path}/{_generated.Sequence}/{(advance ? "advance" : "choose")}";
+                using var response = await client.PostAsJsonAsync(endpoint, new { ActionType = actionType, RawInput = text }, ct);
+                if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                {
+                    _actionMessage = StoryContentPolicy.RetryAction;
+                    return;
+                }
+                if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+                    _generated = await client.GetFromJsonAsync<StorySceneView>(path, ct);
+                else
+                {
+                    response.EnsureSuccessStatusCode();
+                    _generated = await response.Content.ReadFromJsonAsync<StorySceneView>(ct);
+                }
+                _freeform = "";
+                _showOther = false;
+            }
+            else
+                _generated = await client.GetFromJsonAsync<StorySceneView>(retry ? path + "?retry=true" : path, ct);
+
+            for (var attempt = 0; attempt < 15 && _generated?.Status == "Pending"; attempt++)
+            {
+                StateHasChanged();
+                await Task.Delay(TimeSpan.FromSeconds(2), ct);
+                _generated = await client.GetFromJsonAsync<StorySceneView>(path, ct);
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogWarning(ex, "Story continuation could not be loaded");
+            _actionMessage = "Unable to load the next scene. Try again.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        _pageLifetime.Cancel();
+        _pageLifetime.Dispose();
+    }
 
     private async Task ResetChapter()
     {
@@ -300,7 +441,7 @@
             else
             {
                 _inflightKey=null;
-                _actionMessage="That action could not be resolved. Try describing how you help Michelle, call from the doorway, stay inside, or check the radio. Your choice has not been submitted.";
+                _actionMessage = StoryContentPolicy.RetryAction;
             }
         }
         catch (HttpRequestException ex)

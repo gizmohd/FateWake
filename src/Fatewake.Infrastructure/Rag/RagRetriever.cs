@@ -1,4 +1,5 @@
 using Fatewake.Infrastructure.Persistence;
+using Fatewake.Infrastructure.Story;
 using Fatewake.Observability;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -45,7 +46,8 @@ public sealed class RagRetriever(FatewakeDbContext db, IEmbeddingProvider provid
     }
 
     // Shared canon and internal sources are visible to every survivor. Private generated story is limited to its owning
-    // survivor and timeline. Spoiler and survivor-day limits apply to every source.
+    // survivor and timeline. The scene worker reads generated Thread canon separately with sequence and content-level limits.
+    // Spoiler and survivor-day limits apply to every source.
     private Task<RagPassage[]> SearchByVectorAsync(string vector, RagSearchFilter f, int limit, CancellationToken ct)
     {
         var survivor = f.SurvivorId?.ToString();
@@ -58,6 +60,7 @@ public sealed class RagRetriever(FatewakeDbContext db, IEmbeddingProvider provid
             JOIN rag_source s ON s."Id" = d."SourceId"
             WHERE c."Embedding" IS NOT NULL
               AND c."ReviewStatus" = 'Approved' AND s."ReviewStatus" = 'Approved' AND d."Status" = 'Approved'
+              AND s."SourceType" <> {ThreadCanon.SourceType}
               AND (s."Visibility" IN ('SharedApprovedCanon', 'Internal')
                    OR (s."Visibility" = 'Private' AND s."Metadata"->>'survivorId' = {survivor}
                        AND c."TimelineKey" = {f.TimelineKey}))
@@ -81,6 +84,7 @@ public sealed class RagRetriever(FatewakeDbContext db, IEmbeddingProvider provid
             JOIN rag_source s ON s."Id" = d."SourceId"
             WHERE c."SearchVector" @@ websearch_to_tsquery('english', {query})
               AND c."ReviewStatus" = 'Approved' AND s."ReviewStatus" = 'Approved' AND d."Status" = 'Approved'
+              AND s."SourceType" <> {ThreadCanon.SourceType}
               AND (s."Visibility" IN ('SharedApprovedCanon', 'Internal')
                    OR (s."Visibility" = 'Private' AND s."Metadata"->>'survivorId' = {survivor}
                        AND c."TimelineKey" = {f.TimelineKey}))

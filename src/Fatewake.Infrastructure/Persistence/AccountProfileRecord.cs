@@ -31,6 +31,12 @@ public sealed class AccountProfileRecord
     {
         get; set;
     }
+    /// <summary>Private date of birth, missing on older accounts until provided.</summary>
+    public DateOnly? BirthDate { get; set; }
+
+    /// <summary>Explicit content preference, if the account has chosen one.</summary>
+    public ContentLevel? ContentLevel { get; set; }
+
     /// <summary>Last successful profile save; absent for an unfinished signup.</summary>
     public DateTimeOffset? CompletedAt
     {

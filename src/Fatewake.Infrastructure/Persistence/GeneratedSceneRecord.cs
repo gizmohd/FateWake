@@ -1,3 +1,5 @@
+using Fatewake.Infrastructure.Authentication;
+
 namespace Fatewake.Infrastructure.Persistence;
 
 /// <summary>Append-only AI-authored scene for one survivor timeline, validated before it becomes Ready.</summary>
@@ -68,6 +70,10 @@ public sealed class GeneratedSceneRecord
     {
         get; set;
     }
+    public ContentLevel? ContentLevel { get; set; }
+    public string? BranchKey { get; set; }
+    public string? BranchFocus { get; set; }
+
     public DateTimeOffset CreatedAt
     {
         get; set;

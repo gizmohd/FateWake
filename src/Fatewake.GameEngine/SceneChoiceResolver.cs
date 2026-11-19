@@ -24,9 +24,9 @@ public static class SceneChoiceResolver
     {
         if (actionType == Freeform)
         {
-            var text = new string((rawInput ?? string.Empty).Where(c => !char.IsControl(c)).ToArray()).Trim();
-            return allowFreeform && text.Length is > 0 and <= MaxFreeformLength
-                ? new SceneChoiceResult(true, Freeform, text)
+            var text = rawInput?.Trim();
+            return allowFreeform && text is { Length: > 0 and <= MaxFreeformLength } && !text.Any(c => char.IsControl(c) && !char.IsWhiteSpace(c))
+                ? new SceneChoiceResult(true, Freeform, string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)))
                 : new SceneChoiceResult(false, actionType, null);
         }
         return offered.Contains(actionType, StringComparer.Ordinal)

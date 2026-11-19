@@ -32,8 +32,10 @@ public static partial class SceneSpecValidator
                 Text(beat.Speaker, 60, "speaker");
             }
         }
-        if (spec.Choices.Count is 1 or > 4)
-            throw new InvalidDataException("A decision needs two to four choices.");
+        if (spec.Choices.Count != 0 &&
+            (spec.Choices.Count is < 2 or > 3 || spec.Choices.Count(x => x.AllowFreeform && x.ActionType == SceneChoiceResolver.Freeform) != 1 ||
+             spec.Choices.Any(x => x.AllowFreeform != (x.ActionType == SceneChoiceResolver.Freeform))))
+            throw new InvalidDataException("A decision needs up to two authored choices and one free-form choice.");
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var choice in spec.Choices)
         {

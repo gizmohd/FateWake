@@ -38,12 +38,12 @@ namespace Fatewake.IntegrationTests;
 /// <see href="../../docs/code/tests/Fatewake.IntegrationTests/DayOnePersistenceTests.md">DayOnePersistenceTests documentation</see>
 public sealed class DayOnePersistenceTests
 {
-    private static AccountProfileDetails RegistrationProfile => new("Taylor", "Reed", "Bristol", "South West");
+    private static AccountProfileDetails RegistrationProfile => new("Taylor", "Reed", "Bristol", "South West", new DateOnly(1995, 1, 1));
 
     private static LocalRegistrationRequest Registration(string email, string password)
     {
         var profile = RegistrationProfile;
-        return new(email, password, profile.FirstName, profile.LastName, profile.City, profile.State);
+        return new(email, password, profile.FirstName, profile.LastName, profile.City, profile.State, profile.BirthDate);
     }
 
     /// <summary>The email migration preserves older local accounts and requires proof before login or external linking.</summary>
@@ -193,6 +193,7 @@ public sealed class DayOnePersistenceTests
         {
             ["__RequestVerificationToken"] = profileToken,
             ["firstName"] = " Taylor ",
+            ["birthDate"] = "1995-01-01",
             ["lastName"] = "Reed",
             ["city"] = "Bristol",
             ["state"] = "South West"
@@ -265,6 +266,7 @@ public sealed class DayOnePersistenceTests
         {
             ["email"] = "web@example.com",
             ["firstName"] = "Taylor",
+            ["birthDate"] = "1995-01-01",
             ["lastName"] = "Reed",
             ["city"] = "Bristol",
             ["state"] = "South West",
@@ -318,6 +320,7 @@ public sealed class DayOnePersistenceTests
         using var completedProfile = await Form("/complete-profile", "/auth/complete-profile", new()
         {
             ["firstName"] = "Taylor",
+            ["birthDate"] = "1995-01-01",
             ["lastName"] = "Reed",
             ["city"] = "Bristol",
             ["state"] = "South West"
@@ -547,6 +550,9 @@ public sealed class DayOnePersistenceTests
         using var missingProfile = await client.PostAsJsonAsync("/api/auth/register", new LocalLoginRequest("first@example.com", password), ct);
         Assert.Equal(HttpStatusCode.BadRequest, missingProfile.StatusCode);
         Assert.False(await db.Accounts.AnyAsync(ct));
+        using var missingBirthDate = await client.PostAsJsonAsync("/api/auth/register",
+            Registration("first@example.com", password) with { BirthDate = null }, ct);
+        Assert.Equal(HttpStatusCode.BadRequest, missingBirthDate.StatusCode);
         using var registration = await client.PostAsJsonAsync("/api/auth/register", Registration("first@example.com", password), ct);
         Assert.Equal(HttpStatusCode.NoContent, registration.StatusCode);
         using var duplicate = await client.PostAsJsonAsync("/api/auth/register", Registration("FIRST@EXAMPLE.COM", password), ct);
@@ -569,6 +575,16 @@ public sealed class DayOnePersistenceTests
         Assert.False(identity.GetProperty("requiresProfile").GetBoolean());
         Assert.False(identity.TryGetProperty("firstName", out _));
         Assert.False(identity.TryGetProperty("city", out _));
+        Assert.False(identity.TryGetProperty("birthDate", out _));
+        var settings = await client.GetFromJsonAsync<ContentPreferences>("/api/auth/settings", ct);
+        Assert.Equal(ContentLevel.AdultClean, settings!.Level);
+        using var changed = await client.PutAsJsonAsync("/api/auth/settings", new ContentPreferenceUpdate(ContentLevel.AdultLanguage), ct);
+        Assert.Equal(HttpStatusCode.NoContent, changed.StatusCode);
+        var updatedSettings = await client.GetFromJsonAsync<ContentPreferences>("/api/auth/settings", ct);
+        Assert.Equal(ContentLevel.AdultLanguage, updatedSettings!.Level);
+        using var rewrittenBirthDate = await client.PutAsJsonAsync("/api/auth/settings",
+            new ContentPreferenceUpdate(ContentLevel.AdultLanguage, new DateOnly(1994, 1, 1)), ct);
+        Assert.Equal(HttpStatusCode.BadRequest, rewrittenBirthDate.StatusCode);
         using var started = await client.PostAsJsonAsync("/api/session/start", new
         {
             SurvivorId = (Guid?)null
@@ -587,11 +603,13 @@ public sealed class DayOnePersistenceTests
             session.SurvivorId
         }, ct);
         Assert.Equal(HttpStatusCode.NotFound, forbiddenGuest.StatusCode);
-        using var secondRegistration = await client.PostAsJsonAsync("/api/auth/register", Registration("second@example.com", password), ct);
+        using var secondRegistration = await client.PostAsJsonAsync("/api/auth/register", Registration("second@example.com", password) with { BirthDate = ContentAgePolicy.Today.AddYears(-15) }, ct);
         Assert.Equal(HttpStatusCode.NoContent, secondRegistration.StatusCode);
         using var secondVerified = await Authorize(client, LoginProof("second@example.com", password), ct);
         var secondToken = await Redeem(client, secondVerified, ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", secondToken);
+        using var adultForMinor = await client.PutAsJsonAsync("/api/auth/settings", new ContentPreferenceUpdate(ContentLevel.AdultLanguage), ct);
+        Assert.Equal(HttpStatusCode.BadRequest, adultForMinor.StatusCode);
         var firstAccountId = identity.GetProperty("accountId").GetGuid();
         using var invalidProfile = await client.PutAsJsonAsync("/api/auth/profile", new AccountProfileDetails("Morgan", null, "Bath", "Somerset"), ct);
         Assert.Equal(HttpStatusCode.BadRequest, invalidProfile.StatusCode);
@@ -629,7 +647,7 @@ public sealed class DayOnePersistenceTests
             session.TimelineId,
             session.EventInstanceId,
             IdempotencyKey = Guid.NewGuid(),
-            Action = new CandidateAction("help_injured_stranger", new Dictionary<string, string>())
+            Action = new CandidateAction("freeform", new Dictionary<string, string>(), "I bring a folding chair.")
         };
         using var forbiddenAction = await client.PostAsJsonAsync("/api/day1/resolve", action, ct);
         Assert.Equal(HttpStatusCode.NotFound, forbiddenAction.StatusCode);
@@ -642,9 +660,16 @@ public sealed class DayOnePersistenceTests
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         using var progressSaved = await client.PostAsJsonAsync("/api/session/progress", progress, ct);
         Assert.Equal(HttpStatusCode.OK, progressSaved.StatusCode);
+        using var topicRejected = await client.PostAsJsonAsync("/api/day1/resolve", action with
+        {
+            Action = action.Action with { RawInput = "I write a note about suicide." }
+        }, ct);
+        Assert.False((await topicRejected.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("accepted").GetBoolean());
         using var actionSaved = await client.PostAsJsonAsync("/api/day1/resolve", action, ct);
         Assert.Equal(HttpStatusCode.OK, actionSaved.StatusCode);
-        Assert.True((await actionSaved.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("accepted").GetBoolean());
+        var outcome = await actionSaved.Content.ReadFromJsonAsync<JsonElement>(ct);
+        Assert.True(outcome.GetProperty("accepted").GetBoolean());
+        Assert.Equal("improvised_response", outcome.GetProperty("outcomeKey").GetString());
     }
 
     /// <summary>Admin changes operate on canonical accounts and invalidate active credentials without deleting survivors.</summary>

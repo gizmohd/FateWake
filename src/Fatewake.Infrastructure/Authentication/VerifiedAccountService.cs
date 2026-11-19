@@ -121,7 +121,7 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
             destination = (await db.Accounts.SingleAsync(x => x.Id == owner.AccountId, ct)).PrimaryEmail;
         if (destination is null)
             return;
-        var details = previous is null ? null : new AccountProfileDetails(previous.FirstName, previous.LastName, previous.City, previous.State);
+        var details = previous is null ? null : new AccountProfileDetails(previous.FirstName, previous.LastName, previous.City, previous.State, previous.BirthDate);
         var token = AddChallenge(destination, normalized, hash, external, details);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
@@ -163,7 +163,7 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
                 if (password is null || password.Length is < 1 or > 128 ||
                     passwords.VerifyHashedPassword(credential, proof.PasswordHash, password) == PasswordVerificationResult.Failed)
                     return new(null, null, "Re-enter the password you chose when registering.");
-                var profile = new AccountProfileDetails(proof.FirstName, proof.LastName, proof.City, proof.State).Normalize();
+                var profile = new AccountProfileDetails(proof.FirstName, proof.LastName, proof.City, proof.State, proof.BirthDate).Normalize();
                 var account = NewAccount(proof.Email, null, profile);
                 owner = new()
                 {
@@ -195,11 +195,12 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
         proof.ConsumedAt = DateTimeOffset.UtcNow;
         proof.PasswordHash = null;
         proof.FirstName = proof.LastName = proof.City = proof.State = null;
+        proof.BirthDate = null;
         await db.SaveChangesAsync(ct);
         await db.EmailVerifications.Where(x => x.NormalizedEmail == proof.NormalizedEmail && x.ConsumedAt == null)
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.ConsumedAt, DateTimeOffset.UtcNow).SetProperty(x => x.PasswordHash, (string?)null)
                 .SetProperty(x => x.FirstName, (string?)null).SetProperty(x => x.LastName, (string?)null)
-                .SetProperty(x => x.City, (string?)null).SetProperty(x => x.State, (string?)null), ct);
+                .SetProperty(x => x.City, (string?)null).SetProperty(x => x.State, (string?)null).SetProperty(x => x.BirthDate, (DateOnly?)null), ct);
         await tx.CommitAsync(ct);
         log.LogInformation("Email ownership verified for account {AccountId}", result.AccountId);
         return result;
@@ -285,6 +286,7 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
             LastName = profile?.LastName,
             City = profile?.City,
             State = profile?.State,
+            BirthDate = profile?.BirthDate,
             CompletedAt = profile is null ? null : now
         });
         return account;
@@ -308,6 +310,7 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
             LastName = profile?.LastName,
             City = profile?.City,
             State = profile?.State,
+            BirthDate = profile?.BirthDate,
             CreatedAt = now,
             ExpiresAt = now.AddHours(24)
         });

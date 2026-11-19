@@ -12,6 +12,8 @@ public static class GeneratedSceneModel
         entity.ToTable("generated_scene");
         entity.HasKey(row => row.Id);
         entity.HasIndex(row => new { row.SurvivorId, row.TimelineId, row.Sequence }).IsUnique();
+        entity.HasIndex(row => new { row.BranchKey, row.ContentLevel })
+            .HasDatabaseName("ix_generated_scene_branch").HasFilter("\"BranchKey\" IS NOT NULL");
         entity.Property(row => row.Status).HasMaxLength(20);
         entity.Property(row => row.Title).HasMaxLength(200);
         entity.Property(row => row.ChosenActionType).HasMaxLength(40);

@@ -14,8 +14,6 @@ public static class DayOneScenes
             new("first-choice",BeatKind.Interaction,"day1-michelle-street","6:19 AM",null,null,null,[
                 new("help_injured_stranger","Help Michelle"),
                 new("call_from_safety","Call Out"),
-                new("stay_inside","Stay Inside"),
-                new("investigate_radio","Check Radio"),
                 new("freeform","Do something else…",true)
             ]),
             new("choice-wake",BeatKind.Consequence,"day1-choice-wake","6:20 AM",null,"The moment passes, but the choice does not. It has already changed what happens next.",null,[]),

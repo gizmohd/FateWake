@@ -64,6 +64,9 @@ public sealed class EmailVerificationRecord
     {
         get; set;
     }
+    /// <summary>Private pending birth date, cleared after verification.</summary>
+    public DateOnly? BirthDate { get; set; }
+
     /// <summary>Creation time used for resend cooldown.</summary>
     public DateTimeOffset CreatedAt
     {

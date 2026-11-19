@@ -6,7 +6,8 @@ namespace Fatewake.Infrastructure.Authentication;
 /// <param name="City">Self-reported city, never geocoded or used as game-world location.</param>
 /// <param name="State">Free-text state or region without a country-specific enumeration.</param>
 /// <see href="../../../docs/code/src/Fatewake.Infrastructure/Authentication/AccountProfileDetails.md">Documentation</see>
-public sealed record AccountProfileDetails(string? FirstName, string? LastName, string? City, string? State)
+/// <param name="BirthDate">Private, self-reported date of birth.</param>
+public sealed record AccountProfileDetails(string? FirstName, string? LastName, string? City, string? State, DateOnly? BirthDate = null)
 {
     /// <summary>Bounds each field consistently across browser, API, and persistence.</summary>
     public const int MaximumLength = 100;
@@ -24,6 +25,6 @@ public sealed record AccountProfileDetails(string? FirstName, string? LastName, 
                 return null;
             fields[index] = value;
         }
-        return new(fields[0], fields[1], fields[2], fields[3]);
+        return new(fields[0], fields[1], fields[2], fields[3], BirthDate);
     }
 }

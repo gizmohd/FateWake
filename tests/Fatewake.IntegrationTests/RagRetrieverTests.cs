@@ -30,6 +30,8 @@ public sealed class RagRetrieverTests
             Add(db, "mine", "Private", $$"""{"survivorId":"{{mine}}"}""", "t1", null, "lantern beacon I carried");
             Add(db, "other-timeline", "Private", $$"""{"survivorId":"{{mine}}"}""", "t2", null, "lantern beacon elsewhere");
             Add(db, "other-survivor", "Private", $$"""{"survivorId":"{{Guid.NewGuid()}}"}""", "t1", null, "lantern beacon stolen");
+            Add(db, "generated-thread", "Private", $$"""{"survivorId":"{{mine}}"}""", "t1", null,
+                "lantern beacon from a generated scene", "GeneratedThreadCanon");
             await db.SaveChangesAsync(ct);
             var retriever = new RagRetriever(db, null!, new EmbeddingOptions(), NullLogger<RagRetriever>.Instance);
 
@@ -44,14 +46,14 @@ public sealed class RagRetrieverTests
     }
 
     private static void Add(FatewakeDbContext db, string key, string visibility, string metadata, string? timeline,
-        int? spoilerSeries, string text)
+        int? spoilerSeries, string text, string sourceType = "StoryLine")
     {
         var now = DateTimeOffset.UtcNow;
         var source = new RagSourceRecord
         {
             Id = Guid.NewGuid(),
             SourceKey = key,
-            SourceType = "StoryLine",
+            SourceType = sourceType,
             Title = key,
             Origin = "test",
             ContentHash = key,

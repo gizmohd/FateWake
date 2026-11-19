@@ -21,9 +21,15 @@ Certain episodes present decisions to the active population. Aggregate results a
 ## Interaction Model
 Meaningful situations should normally support both **presented choices** and **free-form intent**. These are not separate game modes. Both resolve into candidate actions understood by the deterministic game engine.
 
-Presented choices provide fast, mobile-friendly play and communicate obvious possibilities. Free-form input lets a player attempt a plausible alternative without turning Fatewake into an unconstrained AI roleplaying sandbox.
+A decision offers up to two preset choices and one free-form option. Presented choices provide fast, mobile-friendly play and communicate obvious possibilities. Free-form input lets a player attempt a plausible alternative without turning Fatewake into an unconstrained AI roleplaying sandbox.
 
 A free-form action may be accepted, mapped to an existing action, transformed into a supported compound action, rejected as impossible, or answered with an in-world constraint. AI interpretation never bypasses canonical rules.
+
+Generated scenes can reuse a generic plot cue from another compatible story branch at the same content level. The narrator writes the next scene from the current player's own state and action. Shared cues contain no player text, identities, or scene prose.
+
+### Story content settings
+
+Registration asks for a private date of birth. Settings offers **Under 14**, **14–17**, **18+ (Clean Language)**, and **18+ (Adult Language)**, capped by the account's age. Adult language requires an explicit choice. Guests and accounts without a birth date receive the Under 14 setting. Generated scenes must pass audience review before display. The topic ban on suicide and self-harm applies to every level.
 
 ## Player Identity
 Fatewake supports a hybrid identity model. A player may portray a version of themselves or create a fictional survivor. Identity should emerge further through behavior rather than requiring extensive character creation before play begins.

@@ -8,7 +8,7 @@
     @if (Error is not null)
     {
         <p role="alert">@(Error == "invalid"
-            ? "Enter your first name, last name, city, and state/region, using up to 100 characters for each."
+            ? "Enter your first name, last name, city, state/region, and date of birth, using up to 100 characters for each."
             : "Your profile could not be saved. Please try again.")</p>
     }
     <form method="post" action="/auth/complete-profile">
@@ -16,11 +16,13 @@
         <label>First name <input type="text" name="firstName" autocomplete="given-name" maxlength="100" required /></label>
         <label>Last name <input type="text" name="lastName" autocomplete="family-name" maxlength="100" required /></label>
         <label>City <input type="text" name="city" autocomplete="address-level2" maxlength="100" required /></label>
+        <label>Date of birth <input type="date" name="birthDate" autocomplete="bday" max="@BirthDateLimit" required /></label>
         <label>State/region <input type="text" name="state" autocomplete="address-level1" maxlength="100" required /></label>
         <button type="submit">Save and continue</button>
     </form>
 </main>
 
 @code {
+    private static string BirthDateLimit => DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
 }

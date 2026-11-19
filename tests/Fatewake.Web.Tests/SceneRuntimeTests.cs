@@ -24,7 +24,8 @@ public sealed class SceneRuntimeTests
         var interactions = DayOneScenes.Opening.Beats.Where(x => x.Kind == BeatKind.Interaction).ToArray();
         Assert.Single(interactions);
         Assert.Equal("first-choice", interactions[0].Key);
-        Assert.Contains(interactions[0].Interactions, x => x.ActionType == "freeform");
+        Assert.Equal(3, interactions[0].Interactions.Count);
+        Assert.Equal("freeform", Assert.Single(interactions[0].Interactions, x => x.AllowFreeform).ActionType);
     }
 
     /// <summary>Every authored day-one beat identifies its artwork.</summary>
