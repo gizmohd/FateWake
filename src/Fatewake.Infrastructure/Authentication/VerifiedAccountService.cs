@@ -15,7 +15,7 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
     IPasswordHasher<LocalCredentialRecord> passwords, IHostEnvironment? environment = null)
 {
     /// <summary>Automatically verifies Development registrations; otherwise persists pending registration and sends mailbox proof.</summary>
-    public async Task<LocalAccountResult> RegisterAsync(string email, string passwordHash, CancellationToken ct)
+    public async Task<LocalAccountResult> RegisterAsync(string email, string passwordHash, AccountProfileDetails profile, CancellationToken ct)
     {
         using var operation = OperationTelemetry.Start("auth.pending_registration", log);
         if (!EmailAddressNormalizer.TryNormalize(email, out var normalized))
@@ -26,7 +26,7 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
             return new(null, null, "Unable to register this email address. Try signing in instead.");
         if (environment?.IsDevelopment() == true)
         {
-            var account = NewAccount(email.Trim(), null);
+            var account = NewAccount(email.Trim(), null, profile);
             db.AccountEmails.Add(new() { AccountId = account.Id, NormalizedEmail = normalized, Verified = true });
             db.LocalCredentials.Add(new() { AccountId = account.Id, NormalizedEmail = normalized, PasswordHash = passwordHash });
             await db.SaveChangesAsync(ct);
@@ -34,7 +34,7 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
             return new(account.Id, account.PrimaryEmail, null);
         }
         if (await RecentlySentAsync(normalized, null, null, ct)) return new(null, null, "A verification email was recently sent. Wait a minute before registering again.");
-        var token = AddChallenge(email.Trim(), normalized, passwordHash, null);
+        var token = AddChallenge(email.Trim(), normalized, passwordHash, null, profile);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         await sender.SendAsync(email.Trim(), token, ct);
@@ -103,7 +103,8 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
         if (destination is null && owner is not null)
             destination = (await db.Accounts.SingleAsync(x => x.Id == owner.AccountId, ct)).PrimaryEmail;
         if (destination is null) return;
-        var token = AddChallenge(destination, normalized, hash, external);
+        var details = previous is null ? null : new AccountProfileDetails(previous.FirstName, previous.LastName, previous.City, previous.State);
+        var token = AddChallenge(destination, normalized, hash, external, details);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         await sender.SendAsync(destination, token, ct);
@@ -141,7 +142,8 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
                 if (password is null || password.Length is < 1 or > 128 ||
                     passwords.VerifyHashedPassword(credential, proof.PasswordHash, password) == PasswordVerificationResult.Failed)
                     return new(null, null, "Re-enter the password you chose when registering.");
-                var account = NewAccount(proof.Email, null);
+                var profile = new AccountProfileDetails(proof.FirstName, proof.LastName, proof.City, proof.State).Normalize();
+                var account = NewAccount(proof.Email, null, profile);
                 owner = new() { AccountId = account.Id, NormalizedEmail = proof.NormalizedEmail, Verified = true };
                 db.AccountEmails.Add(owner);
                 db.LocalCredentials.Add(new() { AccountId = account.Id, NormalizedEmail = proof.NormalizedEmail, PasswordHash = proof.PasswordHash });
@@ -159,9 +161,12 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
         if (result.AccountId is null) return result;
         proof.ConsumedAt = DateTimeOffset.UtcNow;
         proof.PasswordHash = null;
+        proof.FirstName = proof.LastName = proof.City = proof.State = null;
         await db.SaveChangesAsync(ct);
         await db.EmailVerifications.Where(x => x.NormalizedEmail == proof.NormalizedEmail && x.ConsumedAt == null)
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ConsumedAt, DateTimeOffset.UtcNow).SetProperty(x => x.PasswordHash, (string?)null), ct);
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ConsumedAt, DateTimeOffset.UtcNow).SetProperty(x => x.PasswordHash, (string?)null)
+                .SetProperty(x => x.FirstName, (string?)null).SetProperty(x => x.LastName, (string?)null)
+                .SetProperty(x => x.City, (string?)null).SetProperty(x => x.State, (string?)null), ct);
         await tx.CommitAsync(ct);
         log.LogInformation("Email ownership verified for account {AccountId}", result.AccountId);
         return result;
@@ -210,12 +215,16 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
                 LinkedAt = now,
                 LastLoginAt = now
             });
-        else { identity.EmailVerified = true; identity.LastLoginAt = now; }
+        else
+        {
+            identity.EmailVerified = true;
+            identity.LastLoginAt = now;
+        }
         log.LogInformation("Verified external identity linked to account {AccountId}", account.Id);
         return new(account.Id, account.PrimaryEmail, null);
     }
 
-    private AccountRecord NewAccount(string email, string? displayName)
+    private AccountRecord NewAccount(string email, string? displayName, AccountProfileDetails? profile = null)
     {
         var now = DateTimeOffset.UtcNow;
         var account = new AccountRecord
@@ -228,10 +237,19 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
             UpdatedAt = now
         };
         db.Accounts.Add(account);
+        db.AccountProfiles.Add(new()
+        {
+            AccountId = account.Id,
+            FirstName = profile?.FirstName,
+            LastName = profile?.LastName,
+            City = profile?.City,
+            State = profile?.State,
+            CompletedAt = profile is null ? null : now
+        });
         return account;
     }
 
-    private string AddChallenge(string email, string normalized, string? passwordHash, ExternalLogin? external)
+    private string AddChallenge(string email, string normalized, string? passwordHash, ExternalLogin? external, AccountProfileDetails? profile = null)
     {
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         var now = DateTimeOffset.UtcNow;
@@ -245,6 +263,10 @@ public sealed class VerifiedAccountService(FatewakeDbContext db, VerificationEma
             Provider = external?.Provider,
             Subject = external?.Subject,
             DisplayName = external?.DisplayName,
+            FirstName = profile?.FirstName,
+            LastName = profile?.LastName,
+            City = profile?.City,
+            State = profile?.State,
             CreatedAt = now,
             ExpiresAt = now.AddHours(24)
         });

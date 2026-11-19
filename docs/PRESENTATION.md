@@ -3,6 +3,8 @@
 ## Direction
 Fatewake retains an interactive graphic-novel / restrained motion-comic structure, not a text-adventure form. The current target rendering is **high-color 32-bit-era 2D adventure art with a 1990s console/VGA-style interface**. See [Retro Presentation and Local Narrative AI Requirements](RETRO-AI-REQUIREMENTS.md) for resolution, mobile layout, portraits, accessibility, and acceptance criteria. This supersedes the earlier 16-bit pixel-art direction. Existing approved assets remain versioned legacy content; apply the new style to new assets and explicit versioned replacements rather than silently mixing styles or overwriting history. This direction is not yet fully implemented.
 
+Scene artwork and portraits follow the bright, richly saturated console-adventure direction in [the Style Bible](../art/STYLE-BIBLE.md), with strong readable color/value contrast, fine detail and scene-appropriate colorful shadows. Its shared runtime style sections are authoritative; UI tokens do not restrict the artwork's palette. Canonical dark clothing, neutral objects and low-light scenes remain valid without globally desaturating the image.
+
 Gameplay authority remains outside presentation:
 **Canonical State → Scene Projection → Panels/Beats → Player Interaction → CandidateAction → GameEngine**
 

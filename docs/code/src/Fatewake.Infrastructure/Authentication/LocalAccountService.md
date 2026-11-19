@@ -1,5 +1,7 @@
 # LocalAccountService
 
+Registration additionally requires `AccountProfileDetails`: first name, last name, city, and state/region. Validation/normalization precedes password hashing and mailbox delivery. Login and first-password setup do not require re-entering these fields. Names and locations never enter logs, traces, or credential/token claims.
+
 Account operations use typed Microsoft logging plus fixed-name Fatewake.Operations spans/latency, without credential/email/token metric labels or payload collection. Host-level error boundaries report infrastructure failures.
 
 Hashes pending registration passwords, then requests mailbox verification before creating canonical account/credential records. Email is trimmed and invariant-case-normalized, validated, and limited to 254 characters; passwords are 12-128 characters. The database enforces unique canonical email ownership.

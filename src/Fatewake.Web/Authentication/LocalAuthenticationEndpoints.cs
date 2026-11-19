@@ -40,6 +40,8 @@ public static class LocalAuthenticationEndpoints
         app.MapPost("/auth/application-consent", ConsentAsync).RequireAuthorization().RequireRateLimiting("local-auth");
         app.MapPost("/auth/set-password", (HttpContext context, IAntiforgery antiforgery, AuthenticatedApiClient clients, ILoggerFactory logs) =>
             AccountFormAsync(context, antiforgery, clients, logs, "set-password", "/set-password")).RequireAuthorization().RequireRateLimiting("local-auth");
+        app.MapPost("/auth/complete-profile", (HttpContext context, IAntiforgery antiforgery, AuthenticatedApiClient clients, ILoggerFactory logs) =>
+            AccountFormAsync(context, antiforgery, clients, logs, "complete-profile", "/complete-profile")).RequireAuthorization().RequireRateLimiting("local-auth");
         app.MapPost("/auth/logout", async (HttpContext context, IAntiforgery antiforgery, ILoggerFactory logs) =>
         {
             if (!await ValidateFormAsync(context, antiforgery, logs)) return Results.BadRequest("Invalid form token. Reload the account page.");
@@ -113,7 +115,15 @@ public static class LocalAuthenticationEndpoints
             using var client = clients.CreateForUser(context.User, "fatewake-auth");
             if (register)
             {
-                using var response = await client.PostAsJsonAsync("/api/auth/register", new { email, password }, context.RequestAborted);
+                using var response = await client.PostAsJsonAsync("/api/auth/register", new
+                {
+                    email,
+                    password,
+                    FirstName = form["firstName"].ToString(),
+                    LastName = form["lastName"].ToString(),
+                    City = form["city"].ToString(),
+                    State = form["state"].ToString()
+                }, context.RequestAborted);
                 if (response.StatusCode == HttpStatusCode.Accepted) return Results.LocalRedirect("/check-email");
                 if (response.StatusCode == HttpStatusCode.BadRequest) return Results.LocalRedirect(page + "?error=credentials");
                 response.EnsureSuccessStatusCode();
@@ -158,6 +168,22 @@ public static class LocalAuthenticationEndpoints
         try
         {
             using var client = clients.CreateForUser(context.User, "fatewake-auth");
+            if (operation == "complete-profile")
+            {
+                using var updated = await client.PutAsJsonAsync("/api/auth/profile", new
+                {
+                    FirstName = form["firstName"].ToString(),
+                    LastName = form["lastName"].ToString(),
+                    City = form["city"].ToString(),
+                    State = form["state"].ToString()
+                }, context.RequestAborted);
+                if (updated.StatusCode == HttpStatusCode.BadRequest)
+                    return Results.LocalRedirect(page + "?error=invalid");
+                updated.EnsureSuccessStatusCode();
+                var account = await client.GetFromJsonAsync<LocalAccountInfo>("/api/auth/me", context.RequestAborted)
+                    ?? throw new InvalidDataException("The API returned no account identity.");
+                return Results.LocalRedirect(account.HasPassword ? "/play" : "/set-password");
+            }
             if (operation == "verify-email")
             {
                 var destination = await BrowserAuthorizationCode.SignInAsync(context, client, new()

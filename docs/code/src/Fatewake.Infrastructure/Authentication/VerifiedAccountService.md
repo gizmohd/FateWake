@@ -1,5 +1,9 @@
 # VerifiedAccountService
 
+Local registration receives validated first/last name and city/state details. Development saves them with the canonical account immediately; other environments retain them on the pending email challenge, preserve them across resends, and transfer them only after mailbox/password proof succeeds. Consumed challenges have profile fields cleared, including sibling challenges invalidated during verification. An external mailbox owner never inherits an attacker's unproven pending profile.
+
+Every newly created canonical account gets a profile row. New external-provider accounts begin with an empty row and complete their own details after authentication. Existing accounts without a row stay valid and are not backfilled with guessed personal data.
+
 Local registration automatically creates a verified account only when the server hosting environment is `Development`. It sends no email or challenge in that environment. The registration endpoint signs the account in through the normal role-assignment flow. Production, Staging, and a missing environment retain mailbox verification. External provider linking continues to require validated ownership claims or mailbox proof.
 
 Pending registration, external resolution, resend and verification each emit a payload-free fixed-name operation span/duration. ILogger remains typed; hashes, email addresses and proof tokens never enter telemetry dimensions.

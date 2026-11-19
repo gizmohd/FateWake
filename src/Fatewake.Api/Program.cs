@@ -85,6 +85,7 @@ builder.Services.AddArtReviewAuthorization(builder.Configuration);
 builder.Services.Configure<PasswordHasherOptions>(options => options.IterationCount = 210_000);
 builder.Services.AddScoped<IPasswordHasher<LocalCredentialRecord>, PasswordHasher<LocalCredentialRecord>>();
 builder.Services.AddScoped<LocalAccountService>();
+builder.Services.AddScoped<AccountProfileService>();
 builder.Services.AddScoped<VerifiedAccountService>();
 builder.Services.AddSingleton<VerificationEmailSender>();
 builder.Services.AddOptions<EmailDeliveryOptions>().Bind(builder.Configuration.GetSection("Email"))
@@ -186,12 +187,19 @@ app.MapGet("/health", async (FatewakeDbContext db, CancellationToken ct) =>
         ? Results.Ok(new { status = "ok" })
         : Results.StatusCode(StatusCodes.Status503ServiceUnavailable));
 
-app.MapPost("/api/auth/register", async (LocalLoginRequest request, LocalAccountService accounts, CancellationToken ct) =>
+app.MapPost("/api/auth/register", async (LocalRegistrationRequest request, LocalAccountService accounts, CancellationToken ct) =>
 {
-    var result = await accounts.RegisterAsync(request.Email, request.Password, ct);
+    var result = await accounts.RegisterAsync(request.Email, request.Password, ct,
+        new(request.FirstName, request.LastName, request.City, request.State));
     return result.VerificationRequired ? Results.Accepted(value: new { verificationRequired = true })
         : result.AccountId is not null ? Results.NoContent() : Results.BadRequest(new { error = result.Error });
 }).RequireRateLimiting("local-auth");
+
+app.MapPut("/api/auth/profile", async (AccountProfileDetails request, ClaimsPrincipal user, AccountProfileService profiles, CancellationToken ct) =>
+{
+    var error = await profiles.CompleteAsync(AccountId(user)!.Value, request, ct);
+    return error is null ? Results.NoContent() : Results.BadRequest(new { error });
+}).RequireAuthorization().RequireRateLimiting("local-auth");
 
 app.MapPost("/api/auth/resend-verification", async (EmailRequest request, VerifiedAccountService verification, CancellationToken ct) =>
 {
@@ -206,11 +214,13 @@ app.MapPost("/api/auth/set-password", async (PasswordRequest request, ClaimsPrin
 app.MapGet("/api/auth/me", async (ClaimsPrincipal user, FatewakeDbContext db, CancellationToken ct) =>
 {
     var accountId = AccountId(user);
+    var profile = await db.AccountProfiles.AsNoTracking().SingleOrDefaultAsync(row => row.AccountId == accountId, ct);
     return Results.Ok(new
     {
         accountId,
         role = user.FindFirstValue(ClaimTypes.Role),
         email = user.FindFirstValue(ClaimTypes.Email),
+        requiresProfile = profile is { IsComplete: false },
         hasPassword = await db.LocalCredentials.AnyAsync(x => x.AccountId == accountId, ct),
         emailVerified = await db.AccountEmails.AnyAsync(x => x.AccountId == accountId && x.Verified, ct)
     });

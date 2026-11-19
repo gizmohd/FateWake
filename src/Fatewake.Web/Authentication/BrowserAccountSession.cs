@@ -31,7 +31,7 @@ public static class BrowserAccountSession
             ExpiresUtc = started.AddSeconds(token.ExpiresIn),
             AllowRefresh = false
         });
-        return account.HasPassword ? "/play" : "/set-password";
+        return account.RequiresProfile ? "/complete-profile" : account.HasPassword ? "/play" : "/set-password";
     }
 }
 

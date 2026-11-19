@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using Fatewake.Infrastructure.Art;
 
 namespace Fatewake.Api;
@@ -26,6 +27,10 @@ public sealed class SceneArtCatalog(IConfiguration configuration)
         if (!Contains(key)) throw new ArgumentException("Unknown scene asset.", nameof(key));
         var root = configuration["ArtGeneration:CatalogRoot"] ?? Path.Combine(AppContext.BaseDirectory, "SceneArt");
         var prompt = File.ReadAllText(Path.Combine(root, "prompts", key + ".md"));
+        var styleBible = File.ReadAllText(Path.Combine(root, "STYLE-BIBLE.md"));
+        var styleVersion = ReadStyleVersion(styleBible);
+        var style = RequiredStyleSection(styleBible, "Runtime generation style");
+        var styleExclusions = RequiredStyleSection(styleBible, "Runtime style exclusions");
         var type = key.Split('-')[0] switch
         {
             "bg" => "Background",
@@ -54,13 +59,13 @@ public sealed class SceneArtCatalog(IConfiguration configuration)
             "prop-phone-0617-noservice" => "A single contemporary black smartphone, upright front view, large dark glass screen with a faint cold blue glow, isolated product close-up, centered, entire phone visible, plain white backdrop for background removal.",
             _ => PromptBody(prompt)
         };
-        var negative = "anime, manga, superhero, fantasy armor, zombies, gore, photorealism, glossy 3D render, low-resolution pixel art, pixelation, watermark, logo, captions, speech balloons";
+        var negative = styleExclusions;
         if (type != "CharacterPose") negative += ", person, people, man, woman, child, human, face, body, hands, character portrait";
         if (type == "Background") negative += ", smartphone, phone, text, ruined building, rubble, post-apocalyptic decay";
         if (type == "Prop") negative += ", room, furniture, scenery, multiple objects, text, letters, numbers";
         var continuity = type is "CharacterPose" or "Background" ? context : string.Empty;
-        var resolved = $"{subject}\nHigh-color 32-bit-era 2D adventure illustration with late-1990s console and VGA influence; nuanced gradients, fine material detail, crisp silhouettes, expressive composition, grounded saturated colors, controlled cinematic light. Avoid photorealism and visible pixel-grid effects.\n{framing}\n{continuity}";
-        var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"scene-art-v3\n{key}\n{resolved}\n{negative}"))).ToLowerInvariant();
+        var resolved = $"{subject}\n{style}\n{framing}\n{continuity}";
+        var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"scene-art-v4\n{styleVersion}\n{key}\n{resolved}\n{negative}"))).ToLowerInvariant();
         var provider = configuration["ArtGeneration:Provider"] ?? "None";
         var model = provider.ToLowerInvariant() switch
         {
@@ -72,7 +77,29 @@ public sealed class SceneArtCatalog(IConfiguration configuration)
         return new(key, type, fingerprint, resolved, provider, model,
             CharacterKey: type == "CharacterPose" ? key : null,
             LocationKey: type == "Background" ? key : null,
-            NegativeInstructions: negative, PromptTemplateId: key, PromptTemplateVersion: "3", StyleBibleVersion: "2");
+            NegativeInstructions: negative, PromptTemplateId: key, PromptTemplateVersion: "4", StyleBibleVersion: styleVersion);
+    }
+
+    private static string ReadStyleVersion(string document)
+    {
+        var version = Regex.Match(document, @"\A# Fatewake Visual Style Bible (?:\u2014|-) v([1-9][0-9]*)\r?\n",
+            RegexOptions.CultureInvariant);
+        return version.Success ? version.Groups[1].Value
+            : throw new InvalidDataException("The Style Bible requires a versioned title.");
+    }
+
+    private static string RequiredStyleSection(string document, string heading)
+    {
+        var normalized = document.Replace("\r\n", "\n");
+        var marker = $"\n## {heading}\n";
+        var start = normalized.IndexOf(marker, StringComparison.Ordinal);
+        if (start < 0 || normalized.IndexOf(marker, start + marker.Length, StringComparison.Ordinal) >= 0)
+            throw new InvalidDataException($"The Style Bible requires exactly one '{heading}' section.");
+        var body = normalized[(start + marker.Length)..];
+        var end = body.IndexOf("\n## ", StringComparison.Ordinal);
+        body = (end >= 0 ? body[..end] : body).Trim();
+        return body.Length > 0 ? body
+            : throw new InvalidDataException($"The Style Bible section '{heading}' must not be empty.");
     }
 
     private static string PromptBody(string document)

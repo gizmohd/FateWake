@@ -24,19 +24,23 @@ public sealed class LocalAccountService(
     /// <param name="email">Email supplied for registration.</param>
     /// <param name="password">Password to hash; never persisted or logged.</param>
     /// <param name="ct">Cancellation token.</param>
+    /// <param name="profile">Required self-reported registration details; validated before password hashing or persistence.</param>
     /// <returns>The created account or a safe registration error.</returns>
-    public async Task<LocalAccountResult> RegisterAsync(string? email, string? password, CancellationToken ct)
+    public async Task<LocalAccountResult> RegisterAsync(string? email, string? password, CancellationToken ct, AccountProfileDetails? profile = null)
     {
         using var operation = OperationTelemetry.Start("auth.register", log);
         if (!EmailAddressNormalizer.TryNormalize(email, out var normalized))
             return new(null, null, "Enter a valid email address.");
         if (password is null || password.Length is < 12 or > 128)
             return new(null, null, "Use a password between 12 and 128 characters.");
+        var normalizedProfile = profile?.Normalize();
+        if (normalizedProfile is null)
+            return new(null, null, AccountProfileDetails.ValidationError);
 
         var id = Guid.NewGuid();
         var credential = new LocalCredentialRecord { AccountId = id, NormalizedEmail = normalized, PasswordHash = "" };
         credential.PasswordHash = passwords.HashPassword(credential, password);
-        return await verification.RegisterAsync(email!.Trim(), credential.PasswordHash, ct);
+        return await verification.RegisterAsync(email!.Trim(), credential.PasswordHash, normalizedProfile, ct);
     }
 
     /// <summary>Verifies a password and atomically updates failure counts, lockout, and hash upgrades.</summary>
@@ -65,7 +69,11 @@ public sealed class LocalAccountService(
             log.LogInformation("Local login blocked by account lockout");
             return new(null, null, InvalidLogin);
         }
-        if (credential.LockoutEnd is not null) { credential.FailedAttempts = 0; credential.LockoutEnd = null; }
+        if (credential.LockoutEnd is not null)
+        {
+            credential.FailedAttempts = 0;
+            credential.LockoutEnd = null;
+        }
         var verified = passwords.VerifyHashedPassword(credential, credential.PasswordHash, password);
         var account = await db.Accounts.SingleAsync(x => x.Id == credential.AccountId, ct);
         if (verified == PasswordVerificationResult.Failed || account.Status != AccountStatus.Active)

@@ -1,5 +1,7 @@
 # LocalAuthenticationEndpoints
 
+Registration forwards required first/last name and city/state form fields as JSON over the server-side authenticated API client. `/auth/complete-profile` additionally requires authentication and antiforgery proof; its API owner is derived from the access token. Successful completion routes to password setup when needed, otherwise gameplay. Error redirects contain only fixed status codes, never personal details.
+
 Browser credential/action forms emit payload-free operation spans and latency; caught transport errors/timeouts mark failure/cancellation. Raw form values and bearer tokens are never recorded.
 
 Processes same-origin login, registration, and logout forms with antiforgery validation. Credential submission is rate-limited. On successful API authentication, Web reads canonical identity and issues an eight-hour, non-sliding HttpOnly cookie carrying the opaque API token. Production cookies require HTTPS. Redirects use fixed local paths.

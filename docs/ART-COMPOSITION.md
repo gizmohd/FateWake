@@ -3,6 +3,12 @@
 ## Goal
 Build graphic-novel panels from reusable approved assets instead of generating a unique flattened image for every beat.
 
+## Shared visual direction
+
+All newly generated layers follow [the Style Bible](../art/STYLE-BIBLE.md): bright, richly saturated late-1990s high-color 2D console-adventure illustration, strong readable color/value contrast, nuanced gradients and fine detail. The Bible's shared runtime style sections supply generation instructions; layer prompts supply subjects, scene state and continuity rather than a competing global palette. Interface token colors do not limit scene colors.
+
+Match layers to the same scene-specific light and color treatment. Preserve approved skin tones, wardrobe, material colors and time of day; an intentionally dark object or dawn scene is not a request for muddy desaturation. Atmosphere/lighting layers remain object-free treatments where their asset contract requires it. This direction does not alter composition dimensions, provider workflows, delivery derivatives or approved historical versions. Technical image validation is not a substitute for visual-style review.
+
 ## Composition stack
 Recommended back-to-front order:
 1. Background / environment

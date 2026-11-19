@@ -6,5 +6,6 @@ namespace Fatewake.Web.Authentication;
 /// <param name="HasPassword">Whether local login is configured.</param>
 /// <param name="EmailVerified">Whether mailbox ownership has been proven.</param>
 /// <param name="Role">Persisted canonical account role.</param>
+/// <param name="RequiresProfile">Whether a new provider signup still needs its required registration details.</param>
 /// <see href="../../../docs/code/src/Fatewake.Web/Authentication/LocalAccountInfo.md">LocalAccountInfo documentation</see>
-public sealed record LocalAccountInfo(Guid AccountId, string Email, bool HasPassword, bool EmailVerified, string Role = "User");
+public sealed record LocalAccountInfo(Guid AccountId, string Email, bool HasPassword, bool EmailVerified, string Role = "User", bool RequiresProfile = false);

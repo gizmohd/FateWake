@@ -19,6 +19,8 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
     public static string? JsonText(string value, string field) => throw new NotSupportedException("SQL only.");
     public DbSet<AccountEmailRecord> AccountEmails => Set<AccountEmailRecord>();
     public DbSet<EmailVerificationRecord> EmailVerifications => Set<EmailVerificationRecord>();
+    /// <summary>Private registration details; legacy accounts need no backfilled or fabricated profile.</summary>
+    public DbSet<AccountProfileRecord> AccountProfiles => Set<AccountProfileRecord>();
     public DbSet<LocalCredentialRecord> LocalCredentials => Set<LocalCredentialRecord>();
     public DbSet<ArtBinaryRecord> ArtBinaries => Set<ArtBinaryRecord>();
     public DbSet<SurvivorVisualIdentityRecord> SurvivorVisualIdentities => Set<SurvivorVisualIdentityRecord>(); public DbSet<WorkJobRecord> WorkJobs => Set<WorkJobRecord>(); public DbSet<WorkArtifactRecord> WorkArtifacts => Set<WorkArtifactRecord>(); public DbSet<WorkStepRecord> WorkSteps => Set<WorkStepRecord>(); public DbSet<WorkStepDependencyRecord> WorkStepDependencies => Set<WorkStepDependencyRecord>(); public DbSet<AccountRecord> Accounts => Set<AccountRecord>(); public DbSet<ExternalIdentityRecord> ExternalIdentities => Set<ExternalIdentityRecord>(); public DbSet<ArtAssetRecord> ArtAssets => Set<ArtAssetRecord>(); public DbSet<ArtAssetDerivativeRecord> ArtAssetDerivatives => Set<ArtAssetDerivativeRecord>(); public DbSet<ArtGenerationRecord> ArtGenerations => Set<ArtGenerationRecord>(); public DbSet<ArtRegenerationRecord> ArtRegenerationRequests => Set<ArtRegenerationRecord>(); public DbSet<RagSourceRecord> RagSources => Set<RagSourceRecord>(); public DbSet<RagDocumentRecord> RagDocuments => Set<RagDocumentRecord>(); public DbSet<RagChunkRecord> RagChunks => Set<RagChunkRecord>(); public DbSet<RagClaimRecord> RagClaims => Set<RagClaimRecord>(); public DbSet<RagIngestRunRecord> RagIngestRuns => Set<RagIngestRunRecord>(); public DbSet<RagStagingRecord> RagStaging => Set<RagStagingRecord>(); public DbSet<RealmRecord> Realms => Set<RealmRecord>(); public DbSet<TimelineRecord> Timelines => Set<TimelineRecord>(); public DbSet<SurvivorRecord> Survivors => Set<SurvivorRecord>(); public DbSet<EventInstanceRecord> EventInstances => Set<EventInstanceRecord>(); public DbSet<ActionAttemptRecord> ActionAttempts => Set<ActionAttemptRecord>(); public DbSet<ActionResolutionRecord> ActionResolutions => Set<ActionResolutionRecord>(); public DbSet<GameEventRecord> GameEvents => Set<GameEventRecord>(); public DbSet<WakeRecord> Wakes => Set<WakeRecord>();
@@ -83,6 +85,21 @@ public sealed class FatewakeDbContext(DbContextOptions<FatewakeDbContext> option
         {
             b.ToTable("email_verification"); b.HasKey(x => x.Id);
             b.HasIndex(x => x.TokenHash).IsUnique(); b.HasIndex(x => x.NormalizedEmail);
+            b.Property(x => x.FirstName).HasMaxLength(AccountProfileDetails.MaximumLength);
+            b.Property(x => x.LastName).HasMaxLength(AccountProfileDetails.MaximumLength);
+            b.Property(x => x.City).HasMaxLength(AccountProfileDetails.MaximumLength);
+            b.Property(x => x.State).HasMaxLength(AccountProfileDetails.MaximumLength);
+        });
+        m.Entity<AccountProfileRecord>(b =>
+        {
+            b.ToTable("account_profile");
+            b.HasKey(x => x.AccountId);
+            b.HasOne<AccountRecord>().WithOne().HasForeignKey<AccountProfileRecord>(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
+            b.Property(x => x.FirstName).HasMaxLength(AccountProfileDetails.MaximumLength);
+            b.Property(x => x.LastName).HasMaxLength(AccountProfileDetails.MaximumLength);
+            b.Property(x => x.City).HasMaxLength(AccountProfileDetails.MaximumLength);
+            b.Property(x => x.State).HasMaxLength(AccountProfileDetails.MaximumLength);
+            b.Ignore(x => x.IsComplete);
         });
         m.Entity<LocalCredentialRecord>(b =>
         {

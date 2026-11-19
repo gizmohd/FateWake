@@ -1,19 +1,28 @@
 <Solution>
+  <Folder Name="/NewFolder1/">
+    <File Path="art/EQUIPMENT-ASSET-GUIDE.md" />
+    <File Path="art/README.md" />
+    <File Path="art/STYLE-BIBLE.md" />
+  </Folder>
   <Folder Name="/src/">
+    <Project Path="src/Fatewake.AI/Fatewake.AI.csproj" />
+    <Project Path="src/Fatewake.Api/Fatewake.Api.csproj" />
     <Project Path="src/Fatewake.AppHost/Fatewake.AppHost.csproj" />
-    <Project Path="src/Fatewake.ServiceDefaults/Fatewake.ServiceDefaults.csproj" />
-    <Project Path="src/Fatewake.Observability/Fatewake.Observability.csproj" />
-    <Project Path="src/Fatewake.Api/Fatewake.Api.csproj" />\n    <Project Path="src/Fatewake.AI/Fatewake.AI.csproj" />\n    <Project Path="src/Fatewake.Web/Fatewake.Web.csproj" />
     <Project Path="src/Fatewake.GameEngine/Fatewake.GameEngine.csproj" />
-    <Project Path="src/Fatewake.Story/Fatewake.Story.csproj" />
     <Project Path="src/Fatewake.Infrastructure/Fatewake.Infrastructure.csproj" />
+    <Project Path="src/Fatewake.Observability/Fatewake.Observability.csproj" />
+    <Project Path="src/Fatewake.ServiceDefaults/Fatewake.ServiceDefaults.csproj" />
+    <Project Path="src/Fatewake.Story/Fatewake.Story.csproj" />
+    <Project Path="src/Fatewake.Web/Fatewake.Web.csproj" />
     <Project Path="src/Fatewake.Worker/Fatewake.Worker.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Fatewake.AssetValidator/Fatewake.AssetValidator.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Fatewake.GameEngine.Tests/Fatewake.GameEngine.Tests.csproj" />\n    <Project Path="tests/Fatewake.IntegrationTests/Fatewake.IntegrationTests.csproj" />\n    <Project Path="tests/Fatewake.Web.Tests/Fatewake.Web.Tests.csproj" />
+    <Project Path="tests/Fatewake.GameEngine.Tests/Fatewake.GameEngine.Tests.csproj" />
+    <Project Path="tests/Fatewake.IntegrationTests/Fatewake.IntegrationTests.csproj" />
+    <Project Path="tests/Fatewake.Web.Tests/Fatewake.Web.Tests.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/Fatewake.Benchmarks/Fatewake.Benchmarks.csproj" />

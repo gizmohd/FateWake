@@ -10,6 +10,10 @@
     <AuthorizeView>
         <Authorized>
             <p>Signed in as @context.User.Identity?.Name</p>
+            @if (_account?.RequiresProfile == true)
+            {
+                <p><a href="/complete-profile">Complete your registration profile</a> with your name, city, and state/region.</p>
+            }
             @if (_account?.HasPassword == false)
             {
                 <p><strong>Add a backup login:</strong> <a href="/set-password">Set your local password</a> so you can sign in without an external provider.</p>
@@ -36,7 +40,14 @@
     {
         if ((await Api.GetCurrentUserAsync()).Identity?.IsAuthenticated != true) return;
         using var client = await Api.CreateAsync();
-        try { _account = await client.GetFromJsonAsync<Fatewake.Web.Authentication.LocalAccountInfo>("/api/auth/me"); }
-        catch (HttpRequestException ex) { Logger.LogWarning(ex, "Account details could not be loaded"); _error = "Unable to load account details. Try signing in again."; }
+        try
+        {
+            _account = await client.GetFromJsonAsync<Fatewake.Web.Authentication.LocalAccountInfo>("/api/auth/me");
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogWarning(ex, "Account details could not be loaded");
+            _error = "Unable to load account details. Try signing in again.";
+        }
     }
 }

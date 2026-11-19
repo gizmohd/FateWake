@@ -38,6 +38,14 @@ namespace Fatewake.IntegrationTests;
 /// <see href="../../docs/code/tests/Fatewake.IntegrationTests/DayOnePersistenceTests.md">DayOnePersistenceTests documentation</see>
 public sealed class DayOnePersistenceTests
 {
+    private static AccountProfileDetails RegistrationProfile => new("Taylor", "Reed", "Bristol", "South West");
+
+    private static LocalRegistrationRequest Registration(string email, string password)
+    {
+        var profile = RegistrationProfile;
+        return new(email, password, profile.FirstName, profile.LastName, profile.City, profile.State);
+    }
+
     /// <summary>The email migration preserves older local accounts and requires proof before login or external linking.</summary>
     [Fact]
     public async Task Email_migration_preserves_legacy_accounts_and_requires_verification()
@@ -61,6 +69,7 @@ public sealed class DayOnePersistenceTests
         await db.SaveChangesAsync(ct);
         await DatabaseInitializer.InitializeAsync(db, ct);
         Assert.False((await db.AccountEmails.SingleAsync(ct)).Verified);
+        Assert.False(await db.AccountProfiles.AnyAsync(ct));
         using var mailbox = new TestEmailMailbox();
         var local = mailbox.Accounts(db, hasher);
         Assert.True((await local.LoginAsync(account.PrimaryEmail, password, ct)).VerificationRequired);
@@ -68,6 +77,7 @@ public sealed class DayOnePersistenceTests
         Assert.Equal(accountId, (await mailbox.Verification(db).VerifyAsync(mailbox.Token(account.PrimaryEmail), ct)).AccountId);
         Assert.Equal(accountId, (await local.LoginAsync(account.PrimaryEmail, password, ct)).AccountId);
         Assert.Equal(oldHash, credential.PasswordHash);
+        Assert.False(await db.AccountProfiles.AnyAsync(ct));
         await migrator.MigrateAsync("20261006000400_LocalCredentials", ct);
         Assert.Equal(accountId, (await db.Accounts.SingleAsync(ct)).Id);
         Assert.Equal(oldHash, (await db.LocalCredentials.SingleAsync(ct)).PasswordHash);
@@ -113,6 +123,8 @@ public sealed class DayOnePersistenceTests
             {
                 services.AddHttpClient("fatewake-auth", client => client.BaseAddress = new("https://localhost"))
                     .ConfigurePrimaryHttpMessageHandler(() => apiFactory.Server.CreateHandler());
+                services.AddHttpClient("fatewake-api", client => client.BaseAddress = new("https://localhost"))
+                    .ConfigurePrimaryHttpMessageHandler(() => apiFactory.Server.CreateHandler());
                 services.PostConfigure<OpenIdConnectOptions>(provider, options =>
                 {
                     options.Configuration = metadata;
@@ -142,7 +154,7 @@ public sealed class DayOnePersistenceTests
         backchannel.CodeChallenge = query["code_challenge"];
         using var callback = await browser.PostAsync("/signin-" + provider.ToLowerInvariant(), new FormUrlEncodedContent(new Dictionary<string, string>
         { ["state"] = query["state"], ["code"] = "test-code" }), ct);
-        Assert.True(callback.Headers.Location?.OriginalString == (provider == "Google" ? "/set-password" : "/check-email"),
+        Assert.True(callback.Headers.Location?.OriginalString == (provider == "Google" ? "/complete-profile" : "/check-email"),
             providerFailure?.ToString() ?? callback.Headers.Location?.OriginalString);
         if (provider == "Microsoft")
         {
@@ -152,9 +164,38 @@ public sealed class DayOnePersistenceTests
             var proofAntiforgery = WebUtility.HtmlDecode(Regex.Match(proofHtml, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value);
             using var proof = await browser.PostAsync("/auth/verify-email", new FormUrlEncodedContent(new Dictionary<string, string>
             { ["__RequestVerificationToken"] = proofAntiforgery, ["token"] = token }), ct);
-            Assert.Equal("/set-password", proof.Headers.Location?.OriginalString);
+            Assert.Equal("/complete-profile", proof.Headers.Location?.OriginalString);
         }
-        Assert.Contains("oidc@example.com", await browser.GetStringAsync("/account", ct));
+        using var missingProfileCsrf = await browser.PostAsync("/auth/complete-profile",
+            new FormUrlEncodedContent(new Dictionary<string, string> { ["firstName"] = "Taylor" }), ct);
+        Assert.Equal(HttpStatusCode.BadRequest, missingProfileCsrf.StatusCode);
+        Assert.Contains("href=\"/complete-profile\"", await browser.GetStringAsync("/account", ct));
+        var profileHtml = await browser.GetStringAsync("/complete-profile", ct);
+        Assert.Contains("autocomplete=\"given-name\"", profileHtml);
+        Assert.Contains("autocomplete=\"address-level2\"", profileHtml);
+        var profileToken = WebUtility.HtmlDecode(Regex.Match(profileHtml, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value);
+        using var incomplete = await browser.PostAsync("/auth/complete-profile", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = profileToken,
+            ["firstName"] = "Taylor"
+        }), ct);
+        Assert.Equal("/complete-profile?error=invalid", incomplete.Headers.Location?.OriginalString);
+        using var completed = await browser.PostAsync("/auth/complete-profile", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = profileToken,
+            ["firstName"] = " Taylor ",
+            ["lastName"] = "Reed",
+            ["city"] = "Bristol",
+            ["state"] = "South West"
+        }), ct);
+        Assert.Equal("/set-password", completed.Headers.Location?.OriginalString);
+        var savedProfile = await db.AccountProfiles.AsNoTracking().SingleAsync(ct);
+        Assert.True(savedProfile.IsComplete);
+        Assert.Equal("Taylor", savedProfile.FirstName);
+        Assert.Equal("Bristol", savedProfile.City);
+        var accountPage = await browser.GetStringAsync("/account", ct);
+        Assert.Contains("oidc@example.com", accountPage);
+        Assert.DoesNotContain("href=\"/complete-profile\"", accountPage);
         Assert.Single(await db.Accounts.ToListAsync(ct));
         Assert.Single(await db.ExternalIdentities.ToListAsync(ct));
         Assert.Empty(await db.LocalCredentials.ToListAsync(ct));
@@ -187,8 +228,13 @@ public sealed class DayOnePersistenceTests
         await using var webFactory = new WebApplicationFactory<LocalAccountInfo>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Development").UseSetting("ConnectionStrings:fatewake", cs);
-            builder.ConfigureServices(services => services.AddHttpClient("fatewake-auth", client => client.BaseAddress = new("https://localhost"))
-                .ConfigurePrimaryHttpMessageHandler(() => apiFactory.Server.CreateHandler()));
+            builder.ConfigureServices(services =>
+            {
+                services.AddHttpClient("fatewake-auth", client => client.BaseAddress = new("https://localhost"))
+                    .ConfigurePrimaryHttpMessageHandler(() => apiFactory.Server.CreateHandler());
+                services.AddHttpClient("fatewake-api", client => client.BaseAddress = new("https://localhost"))
+                    .ConfigurePrimaryHttpMessageHandler(() => apiFactory.Server.CreateHandler());
+            });
         });
         using var browser = webFactory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         async Task<HttpResponseMessage> Form(string page, string action, Dictionary<string, string> values)
@@ -208,6 +254,10 @@ public sealed class DayOnePersistenceTests
         using var registration = await Form("/register", "/auth/register", new()
         {
             ["email"] = "web@example.com",
+            ["firstName"] = "Taylor",
+            ["lastName"] = "Reed",
+            ["city"] = "Bristol",
+            ["state"] = "South West",
             ["password"] = password,
             ["confirmPassword"] = password
         });
@@ -239,7 +289,15 @@ public sealed class DayOnePersistenceTests
         Assert.True(external.VerificationRequired);
         var externalToken = mailbox.Token("external-web@example.com");
         using var verifiedExternal = await Form("/verify-email?token=" + externalToken, "/auth/verify-email", new() { ["token"] = externalToken });
-        Assert.Equal("/set-password", verifiedExternal.Headers.Location?.OriginalString);
+        Assert.Equal("/complete-profile", verifiedExternal.Headers.Location?.OriginalString);
+        using var completedProfile = await Form("/complete-profile", "/auth/complete-profile", new()
+        {
+            ["firstName"] = "Taylor",
+            ["lastName"] = "Reed",
+            ["city"] = "Bristol",
+            ["state"] = "South West"
+        });
+        Assert.Equal("/set-password", completedProfile.Headers.Location?.OriginalString);
         using var missingPasswordCsrf = await browser.PostAsync("/auth/set-password", new FormUrlEncodedContent(new Dictionary<string, string>
         { ["password"] = password, ["confirmPassword"] = password }), ct);
         Assert.Equal(HttpStatusCode.BadRequest, missingPasswordCsrf.StatusCode);
@@ -358,7 +416,7 @@ public sealed class DayOnePersistenceTests
         var accounts = mailbox.Accounts(db, hasher);
         var verification = mailbox.Verification(db);
         const string password = "a sufficiently long password";
-        var pending = await accounts.RegisterAsync("local@example.com", password, ct);
+        var pending = await accounts.RegisterAsync("local@example.com", password, ct, RegistrationProfile);
         Assert.True(pending.VerificationRequired);
         var localToken = mailbox.Token("local@example.com");
         Assert.Null((await verification.VerifyAsync(localToken, ct)).AccountId);
@@ -384,13 +442,17 @@ public sealed class DayOnePersistenceTests
         Assert.Equal(external.AccountId, (await accounts.SetPasswordAsync(external.AccountId!.Value, password, ct)).AccountId);
         Assert.Equal(external.AccountId, (await accounts.LoginAsync("EXTERNAL@example.com", password, ct)).AccountId);
         // An attacker cannot pre-register a password and retain it when the mailbox owner signs in externally.
-        await accounts.RegisterAsync("owner@example.com", "attacker chosen password", ct);
+        await accounts.RegisterAsync("owner@example.com", "attacker chosen password", ct, RegistrationProfile);
         var attackerToken = mailbox.Token("owner@example.com");
         var owner = await verification.ExternalAsync(new("Google", "real-owner", "owner@example.com", true, null, null), ct);
         Assert.NotNull(owner.AccountId);
         Assert.Null((await verification.VerifyAsync(attackerToken, ct)).AccountId);
         Assert.Null((await accounts.LoginAsync("owner@example.com", "attacker chosen password", ct)).AccountId);
         Assert.False(await db.LocalCredentials.AnyAsync(x => x.AccountId == owner.AccountId, ct));
+        var ownerProfile = await db.AccountProfiles.SingleAsync(x => x.AccountId == owner.AccountId, ct);
+        Assert.False(ownerProfile.IsComplete);
+        Assert.Null(ownerProfile.FirstName);
+        Assert.Equal(RegistrationProfile.FirstName, (await db.AccountProfiles.SingleAsync(x => x.AccountId == local.AccountId, ct)).FirstName);
         var unverifiedGoogle = await verification.ExternalAsync(new("Google", "unverified-google", "unverified@example.com", false, null, null), ct);
         Assert.True(unverifiedGoogle.VerificationRequired);
         var expiringToken = mailbox.Token("unverified@example.com");
@@ -428,10 +490,15 @@ public sealed class DayOnePersistenceTests
         using var client = CreateAuthorizationClient(factory);
         using var anonymousIdentity = await client.GetAsync("/api/auth/me", ct);
         Assert.Equal(HttpStatusCode.Unauthorized, anonymousIdentity.StatusCode);
+        using var anonymousProfile = await client.PutAsJsonAsync("/api/auth/profile", RegistrationProfile, ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymousProfile.StatusCode);
         const string password = "a sufficiently long password";
-        using var registration = await client.PostAsJsonAsync("/api/auth/register", new LocalLoginRequest("first@example.com", password), ct);
+        using var missingProfile = await client.PostAsJsonAsync("/api/auth/register", new LocalLoginRequest("first@example.com", password), ct);
+        Assert.Equal(HttpStatusCode.BadRequest, missingProfile.StatusCode);
+        Assert.False(await db.Accounts.AnyAsync(ct));
+        using var registration = await client.PostAsJsonAsync("/api/auth/register", Registration("first@example.com", password), ct);
         Assert.Equal(HttpStatusCode.NoContent, registration.StatusCode);
-        using var duplicate = await client.PostAsJsonAsync("/api/auth/register", new LocalLoginRequest("FIRST@EXAMPLE.COM", password), ct);
+        using var duplicate = await client.PostAsJsonAsync("/api/auth/register", Registration("FIRST@EXAMPLE.COM", password), ct);
         Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
         using var wrongPassword = await Authorize(client, LoginProof("first@example.com", "wrong"), ct);
         Assert.Equal(HttpStatusCode.Unauthorized, wrongPassword.StatusCode);
@@ -448,6 +515,9 @@ public sealed class DayOnePersistenceTests
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         var identity = await client.GetFromJsonAsync<JsonElement>("/api/auth/me", ct);
         Assert.Equal("first@example.com", identity.GetProperty("email").GetString());
+        Assert.False(identity.GetProperty("requiresProfile").GetBoolean());
+        Assert.False(identity.TryGetProperty("firstName", out _));
+        Assert.False(identity.TryGetProperty("city", out _));
         using var started = await client.PostAsJsonAsync("/api/session/start", new { SurvivorId = (Guid?)null }, ct);
         Assert.Equal(HttpStatusCode.OK, started.StatusCode);
         var session = await started.Content.ReadFromJsonAsync<SessionState>(ct);
@@ -457,11 +527,28 @@ public sealed class DayOnePersistenceTests
         client.DefaultRequestHeaders.Authorization = null;
         using var forbiddenGuest = await client.PostAsJsonAsync("/api/session/start", new { session.SurvivorId }, ct);
         Assert.Equal(HttpStatusCode.NotFound, forbiddenGuest.StatusCode);
-        using var secondRegistration = await client.PostAsJsonAsync("/api/auth/register", new LocalLoginRequest("second@example.com", password), ct);
+        using var secondRegistration = await client.PostAsJsonAsync("/api/auth/register", Registration("second@example.com", password), ct);
         Assert.Equal(HttpStatusCode.NoContent, secondRegistration.StatusCode);
         using var secondVerified = await Authorize(client, LoginProof("second@example.com", password), ct);
         var secondToken = await Redeem(client, secondVerified, ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", secondToken);
+        var firstAccountId = identity.GetProperty("accountId").GetGuid();
+        using var invalidProfile = await client.PutAsJsonAsync("/api/auth/profile", new AccountProfileDetails("Morgan", null, "Bath", "Somerset"), ct);
+        Assert.Equal(HttpStatusCode.BadRequest, invalidProfile.StatusCode);
+        using var profileUpdate = await client.PutAsJsonAsync("/api/auth/profile", new
+        {
+            AccountId = firstAccountId,
+            FirstName = " Morgan ",
+            LastName = "Reed",
+            City = "Bath",
+            State = "Somerset"
+        }, ct);
+        Assert.Equal(HttpStatusCode.NoContent, profileUpdate.StatusCode);
+        var firstProfile = await db.AccountProfiles.AsNoTracking().SingleAsync(row => row.AccountId == firstAccountId, ct);
+        Assert.Equal("Taylor", firstProfile.FirstName);
+        Assert.Equal("Bristol", firstProfile.City);
+        var secondAccountId = await db.Accounts.Where(row => row.PrimaryEmail == "second@example.com").Select(row => row.Id).SingleAsync(ct);
+        Assert.Equal("Morgan", (await db.AccountProfiles.AsNoTracking().SingleAsync(row => row.AccountId == secondAccountId, ct)).FirstName);
         using var forbiddenStart = await client.PostAsJsonAsync("/api/session/start", new { session.SurvivorId }, ct);
         Assert.Equal(HttpStatusCode.NotFound, forbiddenStart.StatusCode);
         var progress = new { session.SurvivorId, session.EventInstanceId, session.SceneKey, session.BeatKey };
@@ -508,7 +595,7 @@ public sealed class DayOnePersistenceTests
         const string email = "invitee@example.test";
         using var anonymous = await player.GetAsync("/api/admin/accounts", ct);
         Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
-        using var registered = await admin.PostAsJsonAsync("/api/auth/register", new LocalLoginRequest("admin@example.test", password), ct);
+        using var registered = await admin.PostAsJsonAsync("/api/auth/register", Registration("admin@example.test", password), ct);
         Assert.Equal(HttpStatusCode.NoContent, registered.StatusCode);
         await LoginAs(admin, "admin@example.test", password, ct);
         var adminId = (await admin.GetFromJsonAsync<JsonElement>("/api/auth/me", ct)).GetProperty("accountId").GetGuid();
@@ -617,7 +704,7 @@ public sealed class DayOnePersistenceTests
         const string email = "reset@example.test";
         const string password = "a sufficiently long password";
         const string replacement = "replacement password for tests";
-        using var registered = await player.PostAsJsonAsync("/api/auth/register", new LocalLoginRequest(email, password), ct);
+        using var registered = await player.PostAsJsonAsync("/api/auth/register", Registration(email, password), ct);
         Assert.Equal(HttpStatusCode.NoContent, registered.StatusCode);
         await LoginAs(player, email, password, ct);
         await using var web = new WebApplicationFactory<LocalAccountInfo>().WithWebHostBuilder(builder =>
@@ -685,7 +772,7 @@ public sealed class DayOnePersistenceTests
         const string password = "a sufficiently long password";
         const string clientId = "test-client";
         const string callback = "https://client.test/callback";
-        using var registered = await admin.PostAsJsonAsync("/api/auth/register", new LocalLoginRequest("admin@example.test", password), ct);
+        using var registered = await admin.PostAsJsonAsync("/api/auth/register", Registration("admin@example.test", password), ct);
         Assert.Equal(HttpStatusCode.NoContent, registered.StatusCode);
         await LoginAs(admin, "admin@example.test", password, ct);
 
@@ -803,7 +890,7 @@ public sealed class DayOnePersistenceTests
         {
             using var client = CreateAuthorizationClient(first);
             using var registration = await client.PostAsJsonAsync("/api/auth/register",
-                new { email = "rag-admin@example.test", password = "a sufficiently long password" }, ct);
+                Registration("rag-admin@example.test", "a sufficiently long password"), ct);
             Assert.Equal(HttpStatusCode.NoContent, registration.StatusCode);
             await LoginAs(client, "rag-admin@example.test", "a sufficiently long password", ct);
             token = client.DefaultRequestHeaders.Authorization!.Parameter!;
@@ -905,17 +992,17 @@ public sealed class DayOnePersistenceTests
         using var mailbox = new TestEmailMailbox();
         var accounts = mailbox.Accounts(db, hasher);
         const string password = "a sufficiently long password";
-        Assert.Null((await accounts.RegisterAsync("not-an-email", password, ct)).AccountId);
-        Assert.Null((await accounts.RegisterAsync("player@example.com", "short", ct)).AccountId);
-        Assert.Null((await accounts.RegisterAsync("player@example.com", new string('a', 129), ct)).AccountId);
-        var pending = await accounts.RegisterAsync(" Player@Example.com ", password, ct);
+        Assert.Null((await accounts.RegisterAsync("not-an-email", password, ct, RegistrationProfile)).AccountId);
+        Assert.Null((await accounts.RegisterAsync("player@example.com", "short", ct, RegistrationProfile)).AccountId);
+        Assert.Null((await accounts.RegisterAsync("player@example.com", new string('a', 129), ct, RegistrationProfile)).AccountId);
+        var pending = await accounts.RegisterAsync(" Player@Example.com ", password, ct, RegistrationProfile);
         Assert.True(pending.VerificationRequired);
         Assert.Empty(await db.Accounts.ToListAsync(ct));
         Assert.Null((await accounts.LoginAsync("player@example.com", password, ct)).AccountId);
         var registered = await mailbox.Verification(db).VerifyAsync(mailbox.Token("Player@Example.com"), ct, password);
         Assert.NotNull(registered.AccountId);
         Assert.Equal("Player@Example.com", registered.Email);
-        Assert.Null((await accounts.RegisterAsync("PLAYER@example.COM", password, ct)).AccountId);
+        Assert.Null((await accounts.RegisterAsync("PLAYER@example.COM", password, ct, RegistrationProfile)).AccountId);
         Assert.Single(await db.Accounts.ToListAsync(ct));
         var credential = await db.LocalCredentials.SingleAsync(ct);
         Assert.NotEqual(password, credential.PasswordHash);

@@ -15,21 +15,45 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Fatewake.IntegrationTests;
 
 /// <summary>Exercises the production scene-art routes without an external image provider.</summary>
+/// <see href="../../docs/code/tests/Fatewake.IntegrationTests/SceneArtworkTests.md">Documentation</see>
 public sealed class SceneArtworkTests
 {
+    private const string FixtureStyle = "Copper highlights and indigo shadows with readable illustrated forms.";
+    private const string FixtureExclusions = "metallic gloss, muddy colors";
+    private static readonly string StyleFixture = $"""
+        # Fatewake Visual Style Bible - v7
+
+        ## Runtime generation style
+
+        {FixtureStyle}
+
+        ## Runtime style exclusions
+
+        {FixtureExclusions}
+
+        ## Approval guidance
+
+        Human-only review notes must not enter provider prompts.
+        """;
+    private static IEnumerable<string> AuthoredLayerKeys => new[]
+    {
+        "day1-phone-0617", "day1-house-flicker", "day1-michelle-street", "day1-choice-wake",
+        "day1-radio-fragment", "day1-radio-timestamp", "day1-shutdown-0643", "day1-after-shutdown"
+    }.SelectMany(DayOneArt.For).Select(layer => layer.AssetKey).Distinct();
+
     /// <summary>Every authored scene layer has a prompt and stable, distinct identity.</summary>
     [Fact]
     public void Catalog_covers_all_day_one_layers_and_rejects_arbitrary_keys()
     {
         var catalog = new SceneArtCatalog(new ConfigurationBuilder().Build());
-        var scenes = new[] { "day1-phone-0617", "day1-house-flicker", "day1-michelle-street", "day1-choice-wake",
-            "day1-radio-fragment", "day1-radio-timestamp", "day1-shutdown-0643", "day1-after-shutdown" };
-        var requests = scenes.SelectMany(DayOneArt.For).Select(x => x.AssetKey).Distinct().Select(catalog.Create).ToArray();
+        var requests = AuthoredLayerKeys.Select(catalog.Create).ToArray();
         Assert.Equal(19, requests.Length);
         Assert.Equal(requests.Length, requests.Select(x => x.VisualFingerprint).Distinct().Count());
         Assert.All(requests, request => Assert.Equal(request.VisualFingerprint, catalog.Create(request.AssetKey).VisualFingerprint));
         Assert.All(requests, request => Assert.Contains("32-bit-era", request.ResolvedPrompt));
-        Assert.All(requests, request => Assert.Equal("3", request.PromptTemplateVersion));
+        Assert.All(requests, request => Assert.Equal("4", request.PromptTemplateVersion));
+        Assert.All(requests, request => Assert.DoesNotContain("anime", request.NegativeInstructions));
+        Assert.All(requests, request => Assert.DoesNotContain("manga", request.NegativeInstructions));
         Assert.Contains("Latina", requests.Single(x => x.AssetKey == "char-michelle-day1-supporting").ResolvedPrompt);
         Assert.Throws<ArgumentException>(() => catalog.Create("../arbitrary"));
         var unconfiguredComfy = new SceneArtCatalog(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
@@ -39,6 +63,138 @@ public sealed class SceneArtworkTests
             ["ArtGeneration:ComfyUI:WorkflowPath"] = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json")
         }).Build());
         Assert.False(unconfiguredComfy.GenerationEnabled);
+    }
+
+    /// <summary>Every role consumes the external style contract without swallowing UI/review prose or losing continuity.</summary>
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    public void Shared_style_reaches_every_layer_and_preserves_role_constraints(string newline)
+    {
+        WithCatalog((path, catalog) =>
+        {
+            File.WriteAllText(path, StyleFixture.Replace("\r\n", "\n").Replace("\n", newline));
+            var requests = AuthoredLayerKeys.Select(catalog.Create).ToArray();
+            Assert.All(requests, request =>
+            {
+                Assert.Contains(FixtureStyle, request.ResolvedPrompt);
+                Assert.StartsWith(FixtureExclusions, request.NegativeInstructions);
+                Assert.Equal("7", request.StyleBibleVersion);
+                Assert.DoesNotContain("Human-only review notes", request.ResolvedPrompt);
+                Assert.DoesNotContain("Human-only review notes", request.NegativeInstructions);
+            });
+            var background = requests.Single(request => request.AssetKey == "bg-day1-bedroom-dark");
+            Assert.StartsWith("Empty modest contemporary suburban bedroom", background.ResolvedPrompt);
+            Assert.Contains("person, people", background.NegativeInstructions);
+            Assert.Contains("room, furniture, scenery", requests.Single(request => request.AssetKey == "prop-radio-day1").NegativeInstructions);
+            var character = requests.Single(request => request.AssetKey == "char-michelle-day1-supporting");
+            Assert.Contains("Latina", character.ResolvedPrompt);
+            Assert.Contains("muted gray-blue top", character.ResolvedPrompt);
+        });
+    }
+
+    /// <summary>Positive style, exclusions and declared revision all participate in reuse identity.</summary>
+    [Theory]
+    [InlineData("style")]
+    [InlineData("exclusions")]
+    [InlineData("version")]
+    public void Shared_style_changes_produce_new_deterministic_request_identities(string change)
+    {
+        WithCatalog((path, catalog) =>
+        {
+            File.WriteAllText(path, StyleFixture);
+            var original = catalog.Create("bg-day1-bedroom-dark");
+            var revised = change switch
+            {
+                "style" => StyleFixture.Replace(FixtureStyle, "Clear teal shadows and warm copper highlights."),
+                "exclusions" => StyleFixture.Replace(FixtureExclusions, "metallic gloss, chalky highlights"),
+                "version" => StyleFixture.Replace("v7", "v8"),
+                _ => throw new ArgumentOutOfRangeException(nameof(change))
+            };
+            File.WriteAllText(path, revised);
+            var updated = catalog.Create(original.AssetKey);
+            Assert.NotEqual(original.VisualFingerprint, updated.VisualFingerprint);
+            Assert.Equal(updated, catalog.Create(original.AssetKey));
+            if (change == "version")
+            {
+                Assert.Equal(original.ResolvedPrompt, updated.ResolvedPrompt);
+                Assert.Equal(original.NegativeInstructions, updated.NegativeInstructions);
+                Assert.NotEqual(original.StyleBibleVersion, updated.StyleBibleVersion);
+            }
+        });
+    }
+
+    /// <summary>Broken authored style contracts fail clearly rather than quietly reverting to hard-coded instructions.</summary>
+    [Theory]
+    [InlineData("missing-file")]
+    [InlineData("missing-style")]
+    [InlineData("missing-exclusions")]
+    [InlineData("empty-style")]
+    [InlineData("empty-exclusions")]
+    [InlineData("duplicate-style")]
+    [InlineData("duplicate-exclusions")]
+    [InlineData("invalid-version")]
+    public void Missing_or_malformed_style_contract_is_rejected(string problem)
+    {
+        WithCatalog((path, catalog) =>
+        {
+            if (problem == "missing-file")
+            {
+                File.Delete(path);
+                Assert.Throws<FileNotFoundException>(() => catalog.Create("bg-day1-bedroom-dark"));
+                return;
+            }
+            var malformed = problem switch
+            {
+                "missing-style" => StyleFixture.Replace("## Runtime generation style", "## Other style"),
+                "missing-exclusions" => StyleFixture.Replace("## Runtime style exclusions", "## Other exclusions"),
+                "empty-style" => StyleFixture.Replace(FixtureStyle, ""),
+                "empty-exclusions" => StyleFixture.Replace(FixtureExclusions, ""),
+                "duplicate-style" => StyleFixture + "\n## Runtime generation style\nDuplicate style.",
+                "duplicate-exclusions" => StyleFixture + "\n## Runtime style exclusions\nDuplicate exclusions.",
+                "invalid-version" => StyleFixture.Replace("v7", "unversioned"),
+                _ => throw new ArgumentOutOfRangeException(nameof(problem))
+            };
+            File.WriteAllText(path, malformed);
+            var error = Assert.Throws<InvalidDataException>(() => catalog.Create("bg-day1-bedroom-dark"));
+            Assert.DoesNotContain(FixtureStyle, error.Message);
+        });
+    }
+
+    /// <summary>Saved corrections retain the shared style and provenance while producing a distinct reusable request.</summary>
+    [Fact]
+    public async Task Review_correction_preserves_shared_style_and_revision_metadata()
+    {
+        var catalog = new SceneArtCatalog(new ConfigurationBuilder().Build());
+        var original = catalog.Create("bg-day1-bedroom-dark");
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = new FatewakeDbContext(new DbContextOptionsBuilder<FatewakeDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        const string correction = "Keep the bed silhouette clear of the doorway.";
+        db.Set<ArtReviewRecord>().Add(new()
+        {
+            Id = Guid.NewGuid(),
+            AccountId = Guid.NewGuid(),
+            SceneKey = "day1-phone-0617",
+            AssetKey = original.AssetKey,
+            Version = 1,
+            CompositionVersions = "{}",
+            Critique = "The subject silhouette is obscured.",
+            Correction = correction,
+            Regenerate = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+
+        var revised = await SceneArtRevision.CreateAsync(catalog, db, original.AssetKey, ct);
+
+        Assert.StartsWith("Required subject and composition correction: " + correction, revised.ResolvedPrompt);
+        Assert.Contains(original.ResolvedPrompt, revised.ResolvedPrompt);
+        Assert.Equal(original.NegativeInstructions, revised.NegativeInstructions);
+        Assert.Equal(original.StyleBibleVersion, revised.StyleBibleVersion);
+        Assert.Equal(original.PromptTemplateVersion, revised.PromptTemplateVersion);
+        Assert.NotEqual(original.VisualFingerprint, revised.VisualFingerprint);
+        Assert.Equal(revised, await SceneArtRevision.CreateAsync(catalog, db, original.AssetKey, ct));
     }
 
     /// <summary>Missing artwork is explicitly disabled until a provider is configured; approved artwork still works.</summary>
@@ -160,6 +316,31 @@ public sealed class SceneArtworkTests
         Assert.Equal("shared", (await assets.FindApprovedByFingerprintAsync(fingerprint, TestContext.Current.CancellationToken, Guid.NewGuid()))?.Key);
         Assert.Null(await assets.FindApprovedAsync("private-owner", 1, TestContext.Current.CancellationToken));
         Assert.Equal(privateId, (await assets.FindApprovedAsync("private-owner", 1, TestContext.Current.CancellationToken, owner))?.Id);
+    }
+
+    private static void WithCatalog(Action<string, SceneArtCatalog> assertions)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "fatewake-style-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var source = Path.Combine(AppContext.BaseDirectory, "SceneArt");
+            foreach (var file in Directory.EnumerateFiles(source, "*.md", SearchOption.AllDirectories))
+            {
+                var target = Path.Combine(root, Path.GetRelativePath(source, file));
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(file, target);
+            }
+            var catalog = new SceneArtCatalog(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ArtGeneration:CatalogRoot"] = root
+            }).Build());
+            assertions(Path.Combine(root, "STYLE-BIBLE.md"), catalog);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
     }
 
     private static async Task<Guid> AddApprovedAsset(WebApplication app, string key, int version = 1, Guid? owner = null, string? fingerprint = null)

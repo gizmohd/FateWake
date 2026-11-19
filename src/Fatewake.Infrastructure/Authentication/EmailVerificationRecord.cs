@@ -20,6 +20,14 @@ public sealed class EmailVerificationRecord
     public string? Subject { get; set; }
     /// <summary>Provider-supplied display name.</summary>
     public string? DisplayName { get; set; }
+    /// <summary>Unconfirmed registration given name, cleared after proof is consumed.</summary>
+    public string? FirstName { get; set; }
+    /// <summary>Unconfirmed registration family name, never used to link identities.</summary>
+    public string? LastName { get; set; }
+    /// <summary>Pending self-reported city, retained across resends until proof is consumed.</summary>
+    public string? City { get; set; }
+    /// <summary>Pending free-text state/region, not authoritative gameplay location.</summary>
+    public string? State { get; set; }
     /// <summary>Creation time used for resend cooldown.</summary>
     public DateTimeOffset CreatedAt { get; set; }
     /// <summary>Last time at which proof can be accepted.</summary>

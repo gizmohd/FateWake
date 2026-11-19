@@ -11,6 +11,8 @@ Never generate a Fatewake production image from an isolated scene prompt alone. 
 
 Scene prompts describe the delta; the Style Bible describes the universe.
 
+The Style Bible's versioned title and concise `Runtime generation style` / `Runtime style exclusions` sections are the scene catalog's shared generation contract. Keep global rendering and palette policy there, not in independently maintained prompt sentences. The current direction uses bright, richly saturated late-1990s high-color 2D console art with strong color/value separation. Neutral clothing and story-specific darkness remain continuity constraints, not a global desaturation filter. Revised style requests may produce new versioned artwork; never overwrite approved assets or pinned history.
+
 ## Naming
 Application artwork keys map directly to prompt files:
 `day1-maya-street` → `art/prompts/day1-maya-street.md`

@@ -1,11 +1,14 @@
 using System.Net;
 using System.Text;
+using Fatewake.Api;
 using Fatewake.Infrastructure.Art;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace Fatewake.IntegrationTests;
 
 /// <summary>Checks workflow routing and prompt substitution without GPU execution.</summary>
+/// <see href="../../docs/code/tests/Fatewake.IntegrationTests/ComfyUiGenerationTests.md">Documentation</see>
 public sealed class ComfyUiGenerationTests
 {
     /// <summary>Opt-in GPU verification of the shipped background and alpha workflows.</summary>
@@ -28,12 +31,14 @@ public sealed class ComfyUiGenerationTests
             WorkflowPath = Path.Combine(repository, "workflows", profile + "-api.json"),
             OverlayWorkflowPath = Path.Combine(repository, "workflows", profile + "-overlay-api.json")
         }), new FileSystemArtBinaryStorage(outputRoot));
-        var prompt = type == "Background"
-            ? "A dark contemporary suburban bedroom at dawn, empty room, no people, muted gray and amber palette, cinematic graphic novel illustration, restrained ink texture, portrait composition, no text"
-            : "One modern handheld radio, isolated on a plain neutral background, clearly separated silhouette, cinematic graphic novel illustration, realistic household object, restrained ink texture, no text";
+        var catalog = new SceneArtCatalog(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ArtGeneration:CatalogRoot"] = Path.Combine(repository, "art"),
+            ["ArtGeneration:Provider"] = "ComfyUI"
+        }).Build());
+        var request = catalog.Create(type == "Background" ? "bg-day1-bedroom-dark" : "prop-radio-day1");
         var timer = System.Diagnostics.Stopwatch.StartNew();
-        var image = await generator.GenerateAsync(new("fatewake-comfy-smoke-" + type,
-            new("smoke-" + type, type, "smoke", prompt, "ComfyUI", "workflow", NegativeInstructions: "watermark, logos, text, blurry, distorted")), ct);
+        var image = await generator.GenerateAsync(new("fatewake-comfy-smoke-" + type, request), ct);
         timer.Stop();
         var processor = new SkiaSharpArtImageProcessor();
         var info = processor.Inspect(image.MasterPng);

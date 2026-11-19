@@ -1,5 +1,7 @@
 # DayOnePersistenceTests
 
+Registration fixtures include required synthetic profile details. External Google/Microsoft browser tests verify profile-completion routing, antiforgery rejection, authenticated BFF forwarding, trimmed profile persistence, and subsequent backup-password setup. Local registration browser tests retain both Development and emailed-proof coverage.
+
 Local account coverage uses the same disposable PostgreSQL database and serialized test class as migration tests. It exercises registration validation, normalized email uniqueness and atomic rollback, versioned password hashes and rehash upgrades, durable failure lockout/expiry/reset, account-owned sessions separate from guests, context restart, and migration rollback preserving account/survivor data.
 
 Concurrent bad passwords must preserve every failure count, and concurrent first visits must create one account survivor. In-process API tests cover actual registration/login bearer sessions, anonymous identity rejection, foreign-account denial on every gameplay route, invalid-token rejection rather than anonymous downgrade, and successful authorized progress/actions.

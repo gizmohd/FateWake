@@ -35,6 +35,8 @@ Prototype Fatewake as a mobile-first web application/PWA. Evaluate native packag
 ## Boundary
 Game state and consequence resolution remain deterministic and testable. AI-generated text is presentation layered on authoritative state.
 
+Private registration profiles remain outside GameEngine and survivor identity. API/Infrastructure validate and persist first/last name and city/state under canonical account ownership. The Web BFF protects form submissions with antiforgery; new external signups complete their details after provider/mailbox proof. Legacy accounts are not forced to backfill. `/api/auth/me` exposes only profile-completion status; tokens carry no private profile fields.
+
 ## Observability boundary
 
 All hosts use shared Serilog-backed Microsoft `ILogger<T>` logging and OpenTelemetry logs, traces, and metrics. Runtime libraries expose payload-free operation spans through `Fatewake.Observability`; HTTP/database/runtime instrumentation and OTLP exporters are host-owned. GameEngine stays deterministic and free of logging/telemetry dependencies: its runtime caller is instrumented, and performance-critical pure methods have BenchmarkDotNet coverage. The permanent existing/future-file policy is [OBSERVABILITY.md](OBSERVABILITY.md).

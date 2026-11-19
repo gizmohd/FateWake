@@ -26,6 +26,10 @@ PostgreSQL full-text search is always available. pgvector supplies semantic retr
 
 ## Identity and Timeline
 
+### account_profile
+
+Private self-reported registration details, separate from survivor identity: `AccountId` (canonical account PK/FK), nullable `FirstName`, `LastName`, `City`, `State` (up to 100 characters each), and nullable `CompletedAt`. A blank row represents a new external-provider signup awaiting completion. Local signup creates a complete row only after required proof. Legacy accounts have no row and remain valid. Pending local details reside on `email_verification`, survive resends, and are cleared after proof consumption. Never include these values in image prompts, tokens, logs, traces, or public survivor metadata.
+
 ### survivor
 Represents the playable identity, separate from the authentication account.
 
