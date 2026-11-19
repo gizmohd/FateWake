@@ -1,33 +1,45 @@
 # Fatewake Visual Style Bible — v2
 
 ## Core look
-A grounded near-future American 2D adventure rendered in a high-color 32-bit-era style, drawing on late-1990s console and VGA games. This supersedes the earlier 16-bit pixel-art direction. “32-bit” describes the visual target, not a required file encoding or color depth. Serious, intimate and believable; the world initially looks ordinary, with unease conveyed through composition, silence, interrupted infrastructure and subtle impossible details.
+A late-1990s console adventure with high-color 32-bit-era 2D raster art and a framed, controller-menu feel. Think cinematic illustrated scene, expressive portrait beside the dialogue, and a short list of choices. Keep the interactive graphic-novel pacing. “32-bit” describes the period and rendering style. Deliver RGB or RGBA according to the asset's role.
 
-Keep the interactive graphic-novel structure, but use refined high-color raster illustration rather than photorealistic photography, glossy 3D, anime or low-color pixel art.
+The [shared concept boards](https://chatgpt.com/share/6afe27f5-593c-83ea-8b70-9f7af7741503) establish the slanted wordmark, violet frames, cyan selection bar, portrait-led dialogue and numbered actions. Apply the selected high-color treatment in [Retro Presentation and Local Narrative AI Requirements](../docs/RETRO-AI-REQUIREMENTS.md) to the artwork. Use the [shared `/play` shell](../src/Fatewake.Web/Components/SiteShell.razor) as the site layout reference. The boards' orbital locations and characters are interface mockup content. Season One opens in recognizable suburban America.
 
-## Rendering language
-- polished high-color 2D raster illustration with late-1990s console/VGA influence
-- nuanced gradients, fine material detail and expressive silhouettes
-- realistic anatomy and believable faces
-- crisp edges and controlled illustrated texture
-- cinematic natural lighting with layered shadows
-- preserve enough detail and tonal range for mobile screens
-- deep blacks and controlled contrast
-- backgrounds sufficiently detailed to establish a real lived-in place
-- faces remain readable on a phone
-- no exaggerated comic-book musculature or expressions
-- no text rendered into the artwork unless the prompt explicitly requires an in-world physical display
+## Scene art and portraits
+
+- Use hand-illustrated forms, fine raster texture, nuanced gradients and crisp silhouettes. Build scenes from distinct foreground, subject and background value groups. Give each scene a clear focal point and keep fine detail away from important silhouettes.
+- Shade with layered, directional light and readable shadow detail. Use believable skin tones, cloth, glass and painted surfaces. Aim for an illustration that reads at console-scale and still holds up at delivery size.
+- Use realistic anatomy and restrained expressions. Keep approved portrait families in a consistent square crop and scale, with a legible face at small sizes. Target 128×128 or 192×192 logical pixels. Change expressions as the scene calls for them. Wardrobe or injury variants follow recorded story state.
+- Generate reusable environments, characters, props and lighting layers with matching perspective, scale and light direction. Leave clean alpha edges on transparent layers and preserve negative space for other layers and the interface.
 
 ## Palette
-Use a richer high-color range while keeping the setting grounded: warm-gray interiors, asphalt/charcoal shadows, nuanced vegetation and weathered neutrals, restrained amber morning light. Emergency/anomaly accents may use red and cold electronic blue sparingly.
 
-Avoid neon cyberpunk palettes, forced RGB565/low-color quantization, visible pixel grids and nearest-neighbor pixelation.
+**In-world art.** Use warm-gray interiors, charcoal and asphalt shadows, natural vegetation, weathered neutrals, and cool dawn light with restrained morning amber. Save red and cold electronic blue for an emergency, a display or an anomaly when the scene calls for it.
+
+**Interface.** The current shell uses the Neon Frontier palette with these colors and roles. Keep saturated color concentrated in the frame, masthead and interaction states.
+
+| Role | Current shell color | Use |
+| --- | --- | --- |
+| Void | `#090817` | Outer background and dark text on selected rows |
+| Deep Space | `#17123B` | Panel surface, shaded toward near-black |
+| Violet | `#AD72EF` | Outer borders with darker inset bevels |
+| Cyan | `#72EAFF` | Selection, menu glyphs and scene readouts |
+| Rose | `#FF72C3` | Masthead and wordmark accent |
+| Starlight | `#E9E8FF` | Primary interface text |
+| Muted lavender | `#BEB9E3` | Secondary labels and narration |
+| Amber | `#FFBD76` | Keyboard focus outline |
+
+## Console interface
+
+- Use a full-width starfield masthead with a slanted, high-contrast Fatewake wordmark. Below it, use a narrow game menu and a wider content area. Apply beveled violet borders and dark panel fills throughout the site. Keep chapter and survivor-day labels on the story screen.
+- On `/play`, stack the framed scene viewport, portrait and dialogue panel, and story controls. Attribute each line to its speaker. Use legible monospaced text, compact labels and numbered choices. Use a cyan fill with dark text for the active menu row or focused choice, with a separate visible keyboard focus ring.
+- At narrow widths, wrap the game menu above the content and stack the story panels. Let text and controls reflow independently of the scene image. Keep captions, choices and status readouts in the application UI as selectable, accessible text.
+- Keep motion restrained. Any CRT treatment, typewriter reveal or parallax must preserve text and clues, support reduced motion and offer an immediate way to read the full text.
 
 ## Camera language
-Mobile portrait is primary, but compositions should survive responsive cropping.
-Favor 9:16 master compositions with important subjects inside the central safe 70%.
-Use graphic-novel cinematography: establishing wides, intimate medium shots, selective close-ups, foreground framing, negative space and occasional asymmetric panels.
-Avoid generic centered character portraits unless specifically requested.
+Use 640×360 as the logical target for widescreen scene presentations. Keep the existing Day 1 9:16 layered masters for the portrait composition. Plan safe crops or letterboxing for other viewports. Keep important clues, faces and contact poses within the central safe area, then inspect the actual crop on a phone and at desktop size. Preserve gradients and edges with high-quality resampling.
+
+Use establishing wides, intimate medium shots, selective close-ups, foreground framing and occasional asymmetric panels. Reserve centered portraits for deliberate reference or identity shots.
 
 ## World
 Near-future United States, recognizable contemporary technology and architecture. Season One begins in a fictionalized suburban environment inspired by the southeastern United States. No identifiable real private residence. No post-apocalyptic decay at the beginning: the collapse has just started.
@@ -40,16 +52,10 @@ Time-of-day and weather changes must follow story state.
 ## Emotional tone
 Tension through restraint. People look scared, exhausted, suspicious, relieved or determined in human ways. Avoid melodrama. Violence and injury are grounded and generally non-graphic.
 
-## Negative style constraints
-No anime/manga aesthetic.
-No superhero costumes.
-No fantasy armor.
-No zombies unless future canon explicitly introduces them.
-No excessive gore.
-No glossy 3D render or photorealistic photography.
-No low-resolution 16-bit pixel-art appearance, visible pixel grids or intentional dithering.
-No plastic skin.
-No fashion-editorial posing.
-No random tattoos/accessories.
-No unexplained wardrobe changes.
-No legible UI captions, speech balloons, logos or watermarks generated inside artwork; application UI overlays these separately.
+## Prompt and approval guidance
+
+Start each art prompt with its subject, framing, story state and approved continuity references. Specify high-color 32-bit-era 2D adventure illustration, naturalistic faces and materials, fine raster detail, controlled gradients, crisp silhouettes and cinematic directional light. Apply scene-specific lighting and composition after the style direction. Keep chrome, sprites and atmospheric overlays separate from the scene when they need to be reused.
+
+Exclude glossy 3D, photorealistic photography, anime or manga styling, plastic skin, chunky pixel grids, heavy dithering, RGB565 quantization, neon cyberpunk scenery, fashion posing, superhero costumes, fantasy armor, unexplained accessories or wardrobe changes, excessive gore, and creatures outside canon. Exclude captions, speech balloons, logos and watermarks. A physical in-world display may contain legible text only when the scene explicitly calls for it.
+
+Before approving an asset, review it in the game frame at desktop and mobile sizes. Check that the face, clue or action reads immediately, the layers agree on direction and scale, and character and location continuity match approved references. Use this direction for new assets and explicit versioned replacements. Preserve approved artwork and journal-pinned versions.
